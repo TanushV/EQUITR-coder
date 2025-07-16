@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(pip install:*)",
+      "Bash(claude-agent --help)",
+      "Bash(claude-agent version)",
+      "Bash(claude-agent config-cmd)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(equitr-coder:*)",
+      "Bash(equitr:*)",
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": []
+  }
+}
