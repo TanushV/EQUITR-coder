@@ -1,12 +1,9 @@
 llm:
-  provider: "litellm"
   model: "gpt-4o-mini"
   temperature: 0.1
   max_tokens: 4000
-  budget: 5.0
   models:
     gpt-4o-mini:
-      provider: "litellm"
       model: "gpt-4o-mini"
       temperature: 0.1
       max_tokens: 4000
