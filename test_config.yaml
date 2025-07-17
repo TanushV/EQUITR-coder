@@ -2,11 +2,6 @@ llm:
   model: "gpt-4o-mini"
   temperature: 0.1
   max_tokens: 4000
-  models:
-    gpt-4o-mini:
-      model: "gpt-4o-mini"
-      temperature: 0.1
-      max_tokens: 4000
 
 orchestrator:
   max_iterations: 10
