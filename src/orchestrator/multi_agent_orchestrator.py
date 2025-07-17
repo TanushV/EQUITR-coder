@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from src.core.project_checklist import get_checklist_manager, WorkerSpec, Task
 from src.tools.ask_supervisor import create_ask_supervisor_tool
 from src.config.model_config import get_config_manager
+from src.audit.audit_phase import run_audit
 
 
 class WorkerAgent:
@@ -122,10 +123,20 @@ class MultiAgentOrchestrator:
                 {"task_id": task.id, "worker_id": task.assigned_to, **result}
             )
 
+        completed_count = len([r for r in results if "success" in r])
+        failed_count = len([r for r in results if "error" in r])
+
+        # Check if all tasks are completed and trigger audit
+        audit_result = None
+        if self.checklist_manager.all_tasks_completed() and completed_count > 0:
+            print("\n🎯 All tasks completed! Running automatic audit...")
+            audit_result = run_audit(str(self.project_root))
+
         return {
-            "tasks_completed": len([r for r in results if "success" in r]),
-            "tasks_failed": len([r for r in results if "error" in r]),
+            "tasks_completed": completed_count,
+            "tasks_failed": failed_count,
             "results": results,
+            "audit_result": audit_result,
         }
 
     def get_worker_status(self) -> Dict[str, Any]:

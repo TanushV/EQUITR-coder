@@ -159,11 +159,25 @@ class AuditPhase:
         return structure
 
     def _audit_tests(self) -> Dict[str, Any]:
-        """Audit test execution."""
+        """Audit test execution using actual test discovery and execution."""
+        # Find test files
+        test_files = list(self.project_root.rglob("test_*.py"))
+        test_files.extend(list(self.project_root.rglob("*_test.py")))
+
+        if not test_files:
+            return {
+                "passed": True,
+                "command": None,
+                "output": "No test files found - audit passed",
+                "tests_found": False,
+                "test_files": [],
+                "test_results": [],
+            }
+
+        # Try to run tests with proper validation
         test_commands = [
-            ["python", "-m", "pytest"],
-            ["python", "-m", "unittest", "discover"],
-            ["nosetests"],
+            ["python", "-m", "pytest", "-v"],
+            ["python", "-m", "unittest", "discover", "-v"],
         ]
 
         for cmd in test_commands:
@@ -173,70 +187,98 @@ class AuditPhase:
                     capture_output=True,
                     text=True,
                     cwd=self.project_root,
-                    timeout=30,
-                )
-
-                if result.returncode == 0:
-                    return {
-                        "passed": True,
-                        "command": " ".join(cmd),
-                        "output": result.stdout,
-                        "tests_found": True,
-                    }
-
-            except subprocess.TimeoutExpired:
-                continue
-            except FileNotFoundError:
-                continue
-            except Exception:
-                continue
-
-        # Check if test files exist
-        test_files = list(self.project_root.rglob("test_*.py"))
-        test_files.extend(list(self.project_root.rglob("*_test.py")))
-
-        return {
-            "passed": len(test_files) == 0,  # Pass if no test files
-            "command": None,
-            "output": f"Found {len(test_files)} test files",
-            "tests_found": len(test_files) > 0,
-        }
-
-    def _audit_linting(self) -> Dict[str, Any]:
-        """Audit code linting."""
-        lint_commands = [
-            ["flake8", "--max-line-length=88"],
-            ["pylint", "--disable=C0103,C0111"],
-            ["black", "--check", "."],
-        ]
-
-        for cmd in lint_commands:
-            try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.project_root,
-                    timeout=30,
+                    timeout=60,
                 )
 
                 return {
                     "passed": result.returncode == 0,
                     "command": " ".join(cmd),
                     "output": result.stdout + result.stderr,
+                    "tests_found": True,
+                    "test_files": [
+                        str(f.relative_to(self.project_root)) for f in test_files
+                    ],
+                    "test_results": self._parse_test_output(
+                        result.stdout, result.returncode
+                    ),
                 }
 
             except subprocess.TimeoutExpired:
                 continue
             except FileNotFoundError:
                 continue
-            except Exception:
-                continue
+            except Exception as e:
+                return {
+                    "passed": False,
+                    "command": " ".join(cmd),
+                    "output": f"Error running tests: {str(e)}",
+                    "tests_found": True,
+                    "test_files": [
+                        str(f.relative_to(self.project_root)) for f in test_files
+                    ],
+                    "test_results": [],
+                }
 
         return {
-            "passed": True,
+            "passed": False,
             "command": None,
-            "output": "No linting tools found, skipping lint check",
+            "output": "No test runner found (pytest/unittest)",
+            "tests_found": True,
+            "test_files": [str(f.relative_to(self.project_root)) for f in test_files],
+            "test_results": [],
+        }
+
+    def _audit_linting(self) -> Dict[str, Any]:
+        """Audit code linting using basic file analysis."""
+        python_files = list(self.project_root.rglob("*.py"))
+
+        # Basic lint checks using file analysis
+        issues = []
+        total_files = 0
+
+        for py_file in python_files:
+            if py_file.name.startswith(".") or "__pycache__" in str(py_file):
+                continue
+
+            try:
+                with open(py_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    lines = content.split("\n")
+
+                    total_files += 1
+
+                    # Basic checks
+                    for i, line in enumerate(lines, 1):
+                        # Check for very long lines
+                        if len(line) > 120:
+                            issues.append(
+                                f"{py_file.relative_to(self.project_root)}:{i}: Line too long ({len(line)} chars)"
+                            )
+
+                        # Check for trailing whitespace
+                        if line.rstrip() != line:
+                            issues.append(
+                                f"{py_file.relative_to(self.project_root)}:{i}: Trailing whitespace"
+                            )
+
+                        # Check for tabs (should use spaces)
+                        if "\t" in line:
+                            issues.append(
+                                f"{py_file.relative_to(self.project_root)}:{i}: Uses tabs instead of spaces"
+                            )
+
+            except Exception as e:
+                issues.append(
+                    f"{py_file.relative_to(self.project_root)}: Error reading file: {str(e)}"
+                )
+
+        return {
+            "passed": len(issues) == 0,
+            "command": "manual_analysis",
+            "output": f"Analyzed {total_files} Python files. Found {len(issues)} issues.\n"
+            + "\n".join(issues[:20]),
+            "total_files": total_files,
+            "issues": issues,
         }
 
     def _audit_dependencies(self) -> Dict[str, Any]:
@@ -291,6 +333,24 @@ class AuditPhase:
             )
 
         return new_tasks
+
+    def _parse_test_output(self, output: str, returncode: int) -> List[Dict[str, Any]]:
+        """Parse test output to extract individual test results."""
+        results = []
+        lines = output.split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith("test_") and ("... ok" in line or "... FAIL" in line):
+                test_name = line.split("...")[0].strip()
+                status = "pass" if "... ok" in line else "fail"
+                results.append({"test": test_name, "status": status, "message": line})
+            elif "FAILED" in line.upper() or "ERROR" in line.upper():
+                results.append({"test": "general", "status": "fail", "message": line})
+            elif "PASSED" in line.upper():
+                results.append({"test": "general", "status": "pass", "message": line})
+
+        return results
 
     def _save_audit_results(self, results: Dict[str, Any]):
         """Save audit results to file."""
