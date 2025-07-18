@@ -1,260 +1,231 @@
-# EQUITR-coder Multi-Agent System
+# EQUITR Coder
 
-A sophisticated multi-agent workflow system with optional strong/weak model architecture for enhanced code development and project management.
+An advanced AI coding assistant with interactive documentation-driven development.
+
+## Overview
+
+EQUITR Coder is designed around a **Documentation-First Interactive Workflow**:
+
+1. **Interactive Planning**: Have a conversation with the AI to discuss your project requirements
+2. **Mandatory Documentation**: AI generates comprehensive documentation (requirements, design, todos)
+3. **Context-Aware Implementation**: AI uses the generated documentation as context for all subsequent tasks
+4. **Multi-Agent Support**: Complex projects can leverage multiple AI agents working in parallel
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/equitr/EQUITR-coder.git
+cd EQUITR-coder
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the CLI
+pip install -e .
+```
+
+## Usage
+
+EQUITR Coder has **only one command**: `equitrcoder`
+
+```bash
+# Start interactive session
+equitrcoder
+
+# With specific options
+equitrcoder --model gpt-4o --multi-agent --budget 10.0
+
+# In a specific repository
+equitrcoder --repo /path/to/your/project
+```
+
+## Interactive Workflow
+
+### 1. Planning Conversation
+When you start `equitrcoder`, you'll have a conversation with the AI to understand your project:
+
+```
+What would you like to build?
+> I want to create a web API for managing tasks
+
+🤖 EQUITR Coder: What kind of authentication do you want to use?
+> JWT tokens with user registration and login
+
+🤖 EQUITR Coder: What database would you prefer?
+> PostgreSQL with SQLAlchemy
+
+🤖 EQUITR Coder: Any specific framework preferences?
+> FastAPI with Pydantic models
+
+✅ Planning conversation complete!
+```
+
+### 2. Documentation Generation
+After the conversation, EQUITR generates three mandatory documents:
+
+- **📄 Requirements Document**: Detailed functional and non-functional requirements
+- **🏗️ Design Document**: System architecture, component specifications, and implementation strategy
+- **✅ Todo List**: Prioritized, actionable tasks with dependencies
+
+### 3. Documentation Review
+You review and approve the generated documentation:
+
+```
+📋 Generated Documentation
+
+Requirements Document:
+# Task Management API Requirements
+## 1. PROJECT OVERVIEW
+- RESTful API for task management
+- JWT authentication system
+- PostgreSQL database backend
+...
+
+Design Document:
+# System Architecture
+## 1. TECHNOLOGY STACK
+- FastAPI framework
+- PostgreSQL with SQLAlchemy ORM
+- JWT for authentication
+...
+
+Todo List:
+# Implementation Tasks
+## 1. SETUP TASKS
+1. Initialize FastAPI project structure
+2. Set up PostgreSQL database
+3. Configure JWT authentication
+...
+
+Review documentation: [approve/revise/quit] (approve): 
+```
+
+### 4. Context-Aware Implementation
+Once approved, the AI uses the documentation as context for all implementation tasks:
+
+```
+🚀 Starting Implementation
+
+🤖 Implementation Complete
+Based on the requirements and design documents, I've implemented:
+- FastAPI project structure with proper routing
+- PostgreSQL database models using SQLAlchemy
+- JWT authentication system with user registration
+- Task CRUD operations with proper validation
+- API documentation with OpenAPI/Swagger
+...
+```
+
+## Multi-Agent Mode
+
+For complex projects, enable multi-agent mode:
+
+```bash
+equitrcoder --multi-agent
+```
+
+In multi-agent mode:
+- **Supervisor Agent**: Handles planning, task decomposition, and coordination
+- **Worker Agents**: Execute specific tasks in parallel
+- **Message Pool**: Enables inter-agent communication and synchronization
+
+## Configuration
+
+Configuration files are stored in `~/.equitr/config.yaml`:
+
+```yaml
+llm:
+  model: "gpt-4o"
+  temperature: 0.3
+  max_tokens: 4000
+  budget: 50.0
+
+orchestrator:
+  use_multi_agent: false
+  max_iterations: 20
+
+session:
+  session_dir: "~/.equitr/sessions"
+  max_context: 32000
+
+repository:
+  ignore_patterns:
+    - "*.log"
+    - "node_modules/"
+    - "__pycache__/"
+```
 
 ## Features
 
-### Model Selection Architecture
-- **Single Model Mode**: Use one model (strong or weak) for all tasks
-- **Multi-Model Mode**: Use strong model as supervisor + weak models as workers
-- **Persistent Configuration**: Settings persist between sessions
-- **Flexible Model Choices**: Support for GPT-4, GPT-3.5-turbo, Claude-3-opus, Claude-3-haiku
+### Core Features
+- **Interactive Planning**: Conversational requirement gathering
+- **Mandatory Documentation**: Automatic generation of requirements, design, and todo documents
+- **Context-Aware Execution**: All tasks use generated documentation as context
+- **Session Management**: Persistent conversation history
+- **Git Integration**: Automatic commits for planning and implementation milestones
 
-### Multi-Agent Workflow
-- **Worker Agents**: Specialized agents with restricted file access and tool permissions
-- **Supervisor System**: Strong model provides guidance to weak model workers
-- **Task Orchestration**: Automatic task distribution and execution
-- **Audit Phase**: Comprehensive project validation after task completion
+### Advanced Features
+- **Multi-Agent Orchestration**: Parallel execution of complex tasks
+- **Tool Ecosystem**: Extensible tool system for file operations, git commands, etc.
+- **Budget Management**: Cost tracking and limits
+- **Model Flexibility**: Support for various LLM providers (OpenAI, Anthropic, etc.)
 
-### Configuration Management
-- **CLI Interface**: Complete command-line control
-- **Code API**: Programmatic configuration access
-- **Persistent Storage**: Settings saved between sessions
-- **Flexible Scope**: Per-project configuration
+## Commands
 
-## Quick Start
+Within the interactive session:
 
-### Installation
-```bash
-pip install equitrcoder-multi-agent
+- `/quit` - Exit the session
+- `/clear` - Clear conversation history
+- `/status` - Show session status
+- `/multi-agent` - Toggle multi-agent mode
+- `/help` - Show help information
+
+## Project Structure
+
+```
+EQUITR-coder/
+├── EQUITR_coder/
+│   ├── core/
+│   │   ├── orchestrator.py      # Main orchestration logic
+│   │   ├── documentation.py     # Documentation generation
+│   │   ├── supervisor.py        # Multi-agent coordination
+│   │   └── config.py           # Configuration management
+│   ├── providers/
+│   │   ├── openrouter.py       # OpenRouter provider
+│   │   └── litellm.py          # LiteLLM provider
+│   ├── tools/
+│   │   └── builtin/            # Built-in tools
+│   └── interactive_cli.py      # Main CLI interface
+├── docs/                       # Generated documentation
+├── examples/                   # Usage examples
+└── requirements.txt
 ```
 
-### Basic Usage
+## Documentation Files
 
-#### 1. Configure Model Mode
-```bash
-# Use single strong model
-opencode model mode single
-opencode model models strong
+Every project generates these files in the `docs/` directory:
 
-# Use multi-model with supervisor
-opencode model mode multi
-opencode model models strong --secondary weak
-```
+- `requirements.md` - Comprehensive requirements document
+- `design.md` - System architecture and design specifications
+- `todos.md` - Prioritized implementation tasks
 
-#### 2. Run Multi-Agent Workflow
-```bash
-# Run workflow in current project
-opencode workflow
-
-# Run with specific project root
-opencode workflow --project-root /path/to/project
-```
-
-#### 3. Run Audit
-```bash
-# Run comprehensive audit
-opencode audit
-
-# Check system status
-opencode status
-```
-
-### Programmatic Usage
-
-```python
-from src.api.model_api import ModelSelector
-from src.orchestrator.multi_agent_orchestrator import run_multi_agent_workflow
-import asyncio
-
-# Configure models
-selector = ModelSelector()
-selector.configure_multi_model("strong", "weak")
-
-# Run workflow
-async def run_workflow():
-    result = await run_multi_agent_workflow("./my-project")
-    print(f"Completed {result['tasks_completed']} tasks")
-
-asyncio.run(run_workflow())
-```
-
-## Architecture
-
-### Components
-
-#### 1. Configuration System (`src/config/`)
-- `model_config.py`: Model selection and persistence
-- `persistence/config_store.py`: Generic configuration storage
-
-#### 2. CLI Interface (`src/cli/`)
-- `main_cli.py`: Primary CLI entry point
-- `model_cli.py`: Model-specific commands
-
-#### 3. API Layer (`src/api/`)
-- `model_api.py`: Programmatic model configuration
-
-#### 4. Worker Agents (`src/agents/`)
-- `worker_agent.py`: Restricted worker agents with file access control
-
-#### 5. Orchestrator (`src/orchestrator/`)
-- `multi_agent_orchestrator.py`: Task distribution and execution
-
-#### 6. Audit System (`src/audit/`)
-- `audit_phase.py`: Comprehensive project validation
-
-#### 7. Feedback System (`src/feedback/`)
-- `new_tasks.py`: Generate new tasks from audit results
-
-#### 8. Tools (`src/tools/`)
-- `ask_supervisor.py`: Supervisor consultation for workers
-
-### Workflow
-
-1. **Configuration**: Set model mode and selection
-2. **Task Definition**: Define workers and tasks in PROJECT_CHECKLIST.json
-3. **Execution**: Run multi-agent workflow
-4. **Audit**: Validate results and generate new tasks if needed
-5. **Iteration**: Continue until all tasks complete successfully
-
-## Configuration Files
-
-### Model Configuration
-Stored in `~/.opencode/model_config.json`:
-```json
-{
-  "mode": "multi",
-  "primary_model": "strong",
-  "secondary_model": "weak",
-  "models": ["strong", "weak"]
-}
-```
-
-### Project Checklist
-Stored in `PROJECT_CHECKLIST.json`:
-```json
-{
-  "workers_spec": [
-    {
-      "id": "frontend-worker",
-      "scope_paths": ["src/frontend/"],
-      "description": "Handles frontend components",
-      "allowed_tools": ["read_file", "edit_file", "run_cmd", "git_commit", "ask_supervisor"]
-    }
-  ],
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Implement login component",
-      "assigned_to": "frontend-worker",
-      "status": "todo"
-    }
-  ]
-}
-```
-
-## CLI Commands
-
-### Model Commands
-```bash
-# Set model mode
-opencode model mode single|multi
-
-# Configure models
-opencode model models <primary> [--secondary <model>]
-
-# Show current configuration
-opencode model show
-
-# List available models
-opencode model list
-
-# Reset to defaults
-opencode model reset
-```
-
-### System Commands
-```bash
-# Run multi-agent workflow
-opencode workflow [--project-root <path>]
-
-# Run audit
-opencode audit [--project-root <path>]
-
-# Show system status
-opencode status
-```
-
-## Advanced Usage
-
-### Custom Worker Definition
-```python
-from src.core.project_checklist import WorkerSpec, Task, get_checklist_manager
-
-manager = get_checklist_manager()
-
-# Define custom worker
-worker = WorkerSpec(
-    id="custom-worker",
-    scope_paths=["src/custom/"],
-    description="Custom specialized worker",
-    allowed_tools=["read_file", "edit_file", "run_cmd"]
-)
-manager.add_worker_spec(worker)
-
-# Add task
-task = Task(
-    id=1,
-    title="Implement custom feature",
-    assigned_to="custom-worker",
-    status="todo"
-)
-manager.add_task(task)
-```
-
-### Audit Customization
-```python
-from src.audit.audit_phase import AuditPhase
-
-auditor = AuditPhase("./my-project")
-results = auditor.run_audit()
-
-if not results["audit_passed"]:
-    print("Issues found:")
-    for task in results.get("new_tasks", []):
-        print(f"- {task['title']}")
-```
-
-## Development
-
-### Running Tests
-```bash
-python -m pytest tests/ -v
-```
-
-### Project Structure
-```
-src/
-├── agents/          # Worker agent implementations
-├── api/             # Programmatic API
-├── audit/           # Audit system
-├── cli/             # Command-line interface
-├── config/          # Configuration management
-├── feedback/        # Task generation from audit
-├── orchestrator/    # Multi-agent orchestration
-├── persistence/     # Data persistence
-├── tools/           # Shared tools and utilities
-tests/               # Test suite
-```
+These files are used as context for all subsequent AI interactions.
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
+3. Make your changes
+4. Test with `equitrcoder`
 5. Submit a pull request
 
 ## License
 
 MIT License - see LICENSE file for details.
+
+## Support
+
+For issues and questions:
+- GitHub Issues: https://github.com/equitr/EQUITR-coder/issues
+- Documentation: https://github.com/equitr/EQUITR-coder/wiki

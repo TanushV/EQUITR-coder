@@ -13,7 +13,8 @@
       "Bash(python test:*)",
       "Bash(python:*)",
       "Bash(find:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(timeout 600 python test_complex_minecraft_single.py)"
     ],
     "deny": []
   }
