@@ -1,6 +1,0 @@
-# Basic requirements for the calculator project
-# Add any additional packages as needed
-
-# Example packages:
-# numpy==1.21.2
-# pytest==6.2.5
