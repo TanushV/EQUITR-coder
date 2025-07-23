@@ -75,15 +75,14 @@ class LiteLLMProvider:
 
     def _setup_api_key(self, api_key: Optional[str] = None) -> None:
         """Set up API key for the provider."""
-        # For Moonshot, always ensure the correct key and base URL
+        # For Moonshot, avoid hard-coding secrets. If an API key is supplied, use it;
+        # otherwise rely on the existing environment variable. Always ensure the
+        # default base URL is present, but without exposing any credentials.
         if self.provider == "moonshot":
-            # Force the correct Moonshot API key - ALWAYS use the right key
-            correct_moonshot_key = "sk-ZRroPTEzVYvEkNpYJhL3H7gDGGLNR98zwbdWdOrETmrlh9yF"
-            os.environ[
-                "MOONSHOT_API_KEY"
-            ] = correct_moonshot_key  # Always use correct key
-            os.environ["MOONSHOT_API_BASE"] = "https://api.moonshot.ai/v1"
-            print(f"🔧 Set MOONSHOT_API_KEY to: {correct_moonshot_key[:20]}...")
+            if api_key:
+                os.environ["MOONSHOT_API_KEY"] = api_key
+            # Set a sensible default for the API base if it is not already set.
+            os.environ.setdefault("MOONSHOT_API_BASE", "https://api.moonshot.ai/v1")
             return
 
         # If no API key provided, return early for other providers
