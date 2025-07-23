@@ -1,0 +1,49 @@
+llm:
+  provider: openrouter
+  model: anthropic/claude-3-haiku
+  api_base: https://openrouter.ai/api/v1
+  budget: 1.5
+  temperature: 0.1
+  max_tokens: 4000
+
+tools:
+  enabled:
+    - fs
+    - git
+    - shell
+    - search
+    - npm
+    - docker
+    - testing
+    - linting
+  disabled: []
+
+sandbox:
+  type: venv
+  timeout: 45
+  max_memory: 1024  # MB
+  allow_network: true  # For package installs
+
+session:
+  persist: true
+  max_context: 120000
+  session_dir: ~/.EQUITR-coder/sessions
+
+repository:
+  index_on_start: true
+  ignore_patterns:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - "*.log"
+    - "dist/"
+    - "build/"
+    - ".next/"
+
+orchestrator:
+  max_iterations: 25
+  error_retry_limit: 4
+  error_retry_delay: 1.5

@@ -1,0 +1,57 @@
+llm:
+  provider: litellm
+  model: ""  # No default model - users must select one
+  api_base: ""
+  budget: 1.0
+  temperature: 0.1
+  max_tokens: 4000
+
+tools:
+  enabled:
+    - create_file
+    - edit_file
+    - list_files
+    - read_file
+    - git_commit
+    - git_diff
+    - git_status
+    - web_search
+    - run_command
+    - create_todo
+    - update_todo
+    - delete_todo
+    - list_todos
+  disabled: []
+
+sandbox:
+  type: venv
+  timeout: 30
+  max_memory: 512  # MB
+  allow_network: false
+
+session:
+  persist: true
+  max_context: 100000
+  session_dir: ~/.EQUITR-coder/sessions
+
+repository:
+  index_on_start: true
+  ignore_patterns:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - "*.log"
+
+orchestrator:
+  max_iterations: 20
+  error_retry_limit: 3
+  error_retry_delay: 1.0
+
+profiles:
+  default: default
+  available:
+    - ml_researcher
+    - app_developer
