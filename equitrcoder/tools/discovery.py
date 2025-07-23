@@ -18,19 +18,19 @@ class ToolDiscovery:
     def discover_builtin_tools(self):
         """Discover and load built-in tools."""
         builtin_path = Path(__file__).parent / "builtin"
-        self._discover_tools_in_package("EQUITR_coder.tools.builtin", builtin_path)
+        self._discover_tools_in_package("equitrcoder.tools.builtin", builtin_path)
 
     def discover_custom_tools(self):
         """Discover and load custom tools."""
         custom_path = Path(__file__).parent / "custom"
         if custom_path.exists():
-            self._discover_tools_in_package("EQUITR_coder.tools.custom", custom_path)
+            self._discover_tools_in_package("equitrcoder.tools.custom", custom_path)
 
     def discover_mcp_tools(self):
         """Discover and load MCP server tools."""
         mcp_path = Path(__file__).parent / "mcp"
         if mcp_path.exists():
-            self._discover_tools_in_package("EQUITR_coder.tools.mcp", mcp_path)
+            self._discover_tools_in_package("equitrcoder.tools.mcp", mcp_path)
 
     def _discover_tools_in_package(self, package_name: str, package_path: Path):
         """Discover tools in a specific package."""
@@ -117,3 +117,34 @@ class ToolDiscovery:
 
 # Global tool discovery instance
 discovery = ToolDiscovery()
+
+
+def discover_tools() -> List[Tool]:
+    """
+    Convenience function to discover and return all available tools.
+    
+    Returns:
+        List of discovered Tool instances
+    """
+    # Discover all tools
+    discovery.discover_builtin_tools()
+    discovery.discover_custom_tools()
+    discovery.discover_mcp_tools()
+    
+    # Return tools from registry
+    return list(registry._tools.values())
+
+
+def discover_builtin_tools():
+    """Discover built-in tools."""
+    discovery.discover_builtin_tools()
+
+
+def discover_custom_tools():
+    """Discover custom tools.""" 
+    discovery.discover_custom_tools()
+
+
+def discover_mcp_tools():
+    """Discover MCP tools."""
+    discovery.discover_mcp_tools()

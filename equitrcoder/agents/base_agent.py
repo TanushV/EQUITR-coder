@@ -8,7 +8,6 @@ from pathlib import Path
 
 from ..tools.base import Tool
 from ..tools.discovery import discover_tools
-from ..core.message_pool import MessagePool
 from ..core.session import SessionData
 
 
@@ -29,8 +28,8 @@ class BaseAgent:
         self.current_cost = 0.0
         self.iteration_count = 0
         
-        # Initialize message pool
-        self.message_pool = MessagePool()
+        # Initialize simple message storage
+        self.messages: List[Dict[str, Any]] = []
         
         # Initialize session
         self.session = session
@@ -75,15 +74,17 @@ class BaseAgent:
             **(metadata or {})
         }
         
-        self.message_pool.add_message(message_data)
+        self.messages.append(message_data)
         
         # Call callback if set
         if self.on_message_callback:
             self.on_message_callback(message_data)
     
     def get_messages(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Get messages from the agent's message pool."""
-        return self.message_pool.get_recent_messages(limit or 50)
+        """Get messages from the agent's message storage."""
+        if limit is None:
+            return self.messages.copy()
+        return self.messages[-limit:] if limit > 0 else []
     
     def update_cost(self, cost_delta: float):
         """Update the agent's cost tracking."""
@@ -175,7 +176,7 @@ class BaseAgent:
         """Reset agent state (costs, iterations, messages)."""
         self.current_cost = 0.0
         self.iteration_count = 0
-        self.message_pool = MessagePool()
+        self.messages = []
     
     def __repr__(self) -> str:
         return f"BaseAgent(id={self.agent_id}, tools={len(self.tool_registry)}, cost={self.current_cost})" 

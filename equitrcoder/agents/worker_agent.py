@@ -5,8 +5,9 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type
 
+from pydantic import BaseModel, Field
 from .base_agent import BaseAgent
 from ..utils.restricted_fs import RestrictedFileSystem
 from ..tools.builtin.ask_supervisor import AskSupervisor
@@ -21,6 +22,10 @@ class RestrictedFileTool(Tool):
         super().__init__()
 
 
+class ReadFileArgs(BaseModel):
+    file_path: str = Field(..., description="Path to the file to read")
+
+
 class ReadFileTool(RestrictedFileTool):
     """Tool to read files with restricted access."""
     
@@ -29,6 +34,9 @@ class ReadFileTool(RestrictedFileTool):
     
     def get_description(self) -> str:
         return "Read content from a file (restricted to allowed paths)"
+    
+    def get_args_schema(self) -> Type[BaseModel]:
+        return ReadFileArgs
     
     async def run(self, file_path: str) -> ToolResult:
         if not self.file_system.is_allowed(file_path):
@@ -45,6 +53,11 @@ class ReadFileTool(RestrictedFileTool):
             return ToolResult(success=False, error=f"Failed to read file {file_path}: {e}")
 
 
+class EditFileArgs(BaseModel):
+    file_path: str = Field(..., description="Path to the file to edit")
+    content: str = Field(..., description="New content for the file")
+
+
 class EditFileTool(RestrictedFileTool):
     """Tool to edit files with restricted access."""
     
@@ -53,6 +66,9 @@ class EditFileTool(RestrictedFileTool):
     
     def get_description(self) -> str:
         return "Edit content of a file (restricted to allowed paths)"
+    
+    def get_args_schema(self) -> Type[BaseModel]:
+        return EditFileArgs
     
     async def run(self, file_path: str, content: str) -> ToolResult:
         if not self.file_system.is_allowed(file_path):
@@ -69,6 +85,10 @@ class EditFileTool(RestrictedFileTool):
             return ToolResult(success=False, error=f"Failed to write file {file_path}: {e}")
 
 
+class RunCommandArgs(BaseModel):
+    cmd: str = Field(..., description="Shell command to execute")
+
+
 class RunCommandTool(Tool):
     """Tool to run shell commands."""
     
@@ -77,6 +97,9 @@ class RunCommandTool(Tool):
     
     def get_description(self) -> str:
         return "Run a shell command and return the result"
+    
+    def get_args_schema(self) -> Type[BaseModel]:
+        return RunCommandArgs
     
     async def run(self, cmd: str) -> ToolResult:
         try:
@@ -93,6 +116,10 @@ class RunCommandTool(Tool):
             return ToolResult(success=False, error=str(e))
 
 
+class GitCommitArgs(BaseModel):
+    message: str = Field(..., description="Commit message")
+
+
 class GitCommitTool(Tool):
     """Tool to perform git commits."""
     
@@ -101,6 +128,9 @@ class GitCommitTool(Tool):
     
     def get_description(self) -> str:
         return "Perform a git commit with the given message"
+    
+    def get_args_schema(self) -> Type[BaseModel]:
+        return GitCommitArgs
     
     async def run(self, message: str) -> ToolResult:
         try:
