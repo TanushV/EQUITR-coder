@@ -172,9 +172,6 @@ def get_available_providers() -> Dict[str, Any]:
             "available": api_key is not None,
             "env_var": env_var_found,
             "key_length": len(api_key) if api_key else 0,
-            "key_preview": f"{api_key[:8]}...{api_key[-4:]}"
-            if api_key and len(api_key) > 12
-            else None,
         }
 
     return providers

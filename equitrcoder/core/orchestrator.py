@@ -16,7 +16,7 @@ from .config import Config, config_manager
 from .supervisor import SupervisorAgent
 from .documentation import DocumentationGenerator
 from ..tools.builtin.git_auto import GitAutoCommit
-from ..utils.tool_logger import get_tool_logger, configure_tool_logger
+from ..utils.tool_logger import get_tool_logger, configure_tool_logger, _sanitize_sensitive_data
 
 
 class AgentOrchestrator:
@@ -486,8 +486,15 @@ INSTRUCTIONS:
             if response.tool_calls:
                 print(f"   Tool calls ({len(response.tool_calls)}):")
                 for i, tc in enumerate(response.tool_calls, 1):
+                    tool_args = tc.function.get('arguments', {})
+                    if isinstance(tool_args, str):
+                        try:
+                            tool_args = json.loads(tool_args)
+                        except json.JSONDecodeError:
+                            tool_args = {"raw_args": tool_args}
+                    sanitized_args = _sanitize_sensitive_data(tool_args)
                     print(
-                        f"     {i}. {tc.function['name']}: {tc.function.get('arguments', {})}"
+                        f"     {i}. {tc.function['name']}: {sanitized_args}"
                     )
             print()
 
@@ -516,7 +523,7 @@ INSTRUCTIONS:
             # Debug mode: Show tool execution
             if self.config.orchestrator.debug:
                 print(f"🔧 Executing tool: {tool_name}")
-                print(f"   Args: {tool_args}")
+                print(f"   Args: {_sanitize_sensitive_data(tool_args)}")
 
             start_time = time.time()
             start_times.append(start_time)

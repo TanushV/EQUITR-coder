@@ -29,16 +29,68 @@ class ToolCallLog:
     error: Optional[str] = None
 
 
+def _sanitize_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize sensitive data from tool arguments and results."""
+    if not isinstance(data, dict):
+        return data
+    
+    sanitized = {}
+    sensitive_keys = {
+        'api_key', 'apikey', 'api_token', 'token', 'password', 'passwd', 'pwd',
+        'secret', 'auth', 'authorization', 'bearer', 'key', 'private_key',
+        'access_token', 'refresh_token', 'client_secret', 'webhook_secret'
+    }
+    
+    for key, value in data.items():
+        key_lower = key.lower()
+        if any(sensitive_key in key_lower for sensitive_key in sensitive_keys):
+            # Replace sensitive values with placeholder
+            sanitized[key] = "[REDACTED]"
+        elif isinstance(value, dict):
+            # Recursively sanitize nested dictionaries
+            sanitized[key] = _sanitize_sensitive_data(value)
+        elif isinstance(value, list):
+            # Sanitize list items if they're dictionaries
+            sanitized[key] = [
+                _sanitize_sensitive_data(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            sanitized[key] = value
+    
+    return sanitized
+
+
 class ToolCallLogger:
     """Logger for tool calls and their results."""
 
     def __init__(self, log_file: str = "tool_calls.log", enabled: bool = False):
-        self.log_file = Path(log_file)
+        # Resolve log file path. If the provided path is relative, place it at the
+        # repository root (the directory that contains the .git folder). This
+        # avoids scattering logs inside package sub-directories when scripts are
+        # executed from within them.
+
+        def _find_repo_root(start: Path) -> Path:
+            """Walk up the directory tree until a .git folder is found."""
+            for parent in [start] + list(start.parents):
+                if (parent / ".git").exists():
+                    return parent
+            return start  # Fallback – shouldn't generally happen
+
+        raw_path = Path(log_file)
+        if raw_path.is_absolute():
+            self.log_file = raw_path
+        else:
+            repo_root = _find_repo_root(Path.cwd())
+            self.log_file = repo_root / raw_path
         self.enabled = enabled
         self.logs: List[ToolCallLog] = []
 
         # Set up file logger
         if self.enabled:
+            # Ensure parent directory exists (e.g., when running outside repo root)
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            
             self.logger = logging.getLogger("tool_calls")
             self.logger.setLevel(logging.INFO)
 
@@ -69,12 +121,15 @@ class ToolCallLogger:
             except json.JSONDecodeError:
                 tool_args = {"raw_args": tool_args}
 
+        # Sanitize sensitive data from tool arguments
+        sanitized_args = _sanitize_sensitive_data(tool_args)
+
         # Create log entry
         log_entry = ToolCallLog(
             timestamp=datetime.now().isoformat(),
             session_id=session_id,
             tool_name=tool_call.function["name"],
-            tool_args=tool_args,
+            tool_args=sanitized_args,
             result={
                 "success": result.success,
                 "content": str(result)[:1000],  # Truncate long results

@@ -59,10 +59,17 @@ htmlcov/
 # Logs
 *.log
 logs/
+tool_calls.log
+*_tool_calls.log
+session_tools.log
+detailed_tool_logs.json
+detailed_logs.json
 
 # Session data
 sessions/
 *.session
+~/.EQUITR-coder/
+.EQUITR-coder/
 
 # Temporary files
 tmp/
