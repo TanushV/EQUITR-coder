@@ -1,0 +1,48 @@
+llm:
+  provider: openrouter
+  model: anthropic/claude-3-haiku
+  api_base: https://openrouter.ai/api/v1
+  budget: 2.0
+  temperature: 0.2
+  max_tokens: 4000
+
+tools:
+  enabled:
+    - fs
+    - git
+    - shell
+    - search
+    - arxiv_search
+    - jupyter
+    - data_analysis
+  disabled: []
+
+sandbox:
+  type: venv
+  timeout: 60
+  max_memory: 2048  # MB
+  allow_network: true  # For downloading papers/datasets
+
+session:
+  persist: true
+  max_context: 150000
+  session_dir: ~/.EQUITR-coder/sessions
+
+repository:
+  index_on_start: true
+  ignore_patterns:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - "*.log"
+    - "data/"
+    - "logs/"
+    - "wandb/"
+
+orchestrator:
+  max_iterations: 30
+  error_retry_limit: 5
+  error_retry_delay: 2.0
