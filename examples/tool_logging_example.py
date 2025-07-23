@@ -15,7 +15,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "EQUITR-coder"))
 
-from EQUITR_coder.api import EquitrAPI, SyncEquitrAPI
+from equitrcoder.api import EquitrAPI, SyncEquitrAPI
 
 
 async def async_example():
