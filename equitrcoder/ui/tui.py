@@ -599,3 +599,26 @@ async def run_tui(
         config, supervisor_model=supervisor_model, worker_model=worker_model
     )
     await app.run_async()
+
+
+def launch_tui(mode: str = "single") -> int:
+    """Launch the TUI interface."""
+    try:
+        import asyncio
+        from ..core.config import config_manager
+
+        # Load default config
+        config = config_manager.load_config()
+
+        # Run the TUI
+        asyncio.run(run_tui(config))
+        return 0
+
+    except ImportError:
+        print(
+            "TUI dependencies not available. Install with: pip install equitrcoder[tui]"
+        )
+        return 1
+    except Exception as e:
+        print(f"TUI error: {e}")
+        return 1
