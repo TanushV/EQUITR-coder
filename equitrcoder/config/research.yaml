@@ -1,0 +1,86 @@
+llm:
+  provider: openrouter
+  model: anthropic/claude-3-haiku
+  api_base: https://openrouter.ai/api/v1
+  budget: 5.0  # Higher budget for research workflows
+  temperature: 0.1  # Lower temperature for reproducible research
+  max_tokens: 8000
+
+tools:
+  enabled:
+    - fs
+    - git
+    - shell
+    - search
+    - arxiv_search
+    - jupyter
+    - data_analysis
+    - run_cmd
+    - ask_supervisor
+  disabled: []
+
+sandbox:
+  type: venv
+  timeout: 300  # 5 minutes for experiments
+  max_memory: 4096  # MB - Higher for ML workloads
+  max_processes: 8  # More processes for parallel training
+  allow_network: true  # For downloading models/datasets
+
+session:
+  persist: true
+  max_context: 200000  # Larger context for research sessions
+  session_dir: ~/.EQUITR-coder/research_sessions
+
+repository:
+  index_on_start: true
+  ignore_patterns:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - "*.log"
+    - "data/"
+    - "logs/"
+    - "wandb/"
+    - "experiments/*/checkpoints/"
+    - "experiments/*/tensorboard/"
+    - "*.pkl"
+    - "*.pth"
+    - "*.pt"
+
+orchestrator:
+  type: research
+  max_iterations: 200  # Higher for iterative research
+  error_retry_limit: 3
+  error_retry_delay: 5.0
+  max_concurrent_workers: 4
+  global_cost_limit: 20.0
+  scale_factor: 1.0
+
+research:
+  experiments_dir: ./experiments
+  auto_scale: true
+  dataset_validation: true
+  machine_detection: true
+  iteration_limit: 10
+  
+  # Machine-aware scaling thresholds
+  scaling:
+    memory_threshold_gb: 8
+    cpu_threshold_cores: 4
+    gpu_memory_threshold_gb: 6
+    
+  # Default experiment parameters
+  defaults:
+    batch_size: 32
+    epochs: 20
+    learning_rate: 0.001
+    num_workers: 4
+    
+  # Sandbox limits for research experiments
+  sandbox_limits:
+    max_memory_mb: 4096
+    timeout_seconds: 600  # 10 minutes
+    max_processes: 8
