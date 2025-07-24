@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Type, Optional
+from typing import Any, Dict, Type, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -70,13 +70,13 @@ class ToolRegistry:
         """Get all registered tools."""
         return self._tools.copy()
 
-    def get_enabled_tools(self, enabled_names: list[str]) -> Dict[str, Tool]:
+    def get_enabled_tools(self, enabled_names: List[str]) -> Dict[str, Tool]:
         """Get tools that are enabled."""
         return {
             name: tool for name, tool in self._tools.items() if name in enabled_names
         }
 
-    def get_schemas(self, enabled_names: list[str] = None) -> list[Dict[str, Any]]:
+    def get_schemas(self, enabled_names: List[str] = None) -> List[Dict[str, Any]]:
         """Get JSON schemas for enabled tools."""
         if enabled_names is None:
             tools = self._tools.values()
