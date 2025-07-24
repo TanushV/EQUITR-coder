@@ -1,0 +1,4 @@
+[console_scripts]
+equitr-multi = equitrcoder.cli.unified_main:main
+equitr-single = equitrcoder.cli.unified_main:main
+equitrcoder = equitrcoder.cli.unified_main:main
