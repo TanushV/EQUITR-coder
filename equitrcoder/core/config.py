@@ -25,8 +25,8 @@ class LLMConfig(BaseModel):
 
 
 class ToolsConfig(BaseModel):
-    enabled: list[str] = Field(default_factory=lambda: ["fs", "git", "shell", "search"])
-    disabled: list[str] = Field(default_factory=list)
+    enabled: List[str] = Field(default_factory=lambda: ["fs", "git", "shell", "search"])
+    disabled: List[str] = Field(default_factory=list)
 
 
 class SandboxConfig(BaseModel):
@@ -44,7 +44,7 @@ class SessionConfig(BaseModel):
 
 class RepositoryConfig(BaseModel):
     index_on_start: bool = True
-    ignore_patterns: list[str] = Field(
+    ignore_patterns: List[str] = Field(
         default_factory=lambda: [
             "*.pyc",
             "__pycache__",
@@ -71,7 +71,7 @@ class OrchestratorConfig(BaseModel):
 
 class ProfilesConfig(BaseModel):
     default: str = "default"
-    available: list[str] = Field(
+    available: List[str] = Field(
         default_factory=lambda: ["ml_researcher", "app_developer"]
     )
 
