@@ -768,7 +768,7 @@ Session configuration: {}""".format(
     async def _check_and_trigger_audit(
         self, messages: List[Message], tool_schemas: List[Dict[str, Any]]
     ) -> bool:
-        """Check if audit should be triggered and run it if needed."""
+        """Check if audit should be triggered and run it if needed with infinite loop."""
         try:
             # Import audit manager
             from ..tools.builtin.audit import audit_manager
@@ -779,13 +779,18 @@ Session configuration: {}""".format(
 
             print("🔍 All todos completed! Triggering automatic audit...")
 
-            # Get audit context
-            audit_context = audit_manager.get_audit_context()
+            # Infinite audit loop with failure tracking
+            while True:
+                # Get audit context
+                audit_context = audit_manager.get_audit_context()
+                if not audit_context:
+                    print("ℹ️  No audit needed - no completed todos found")
+                    break
 
-            # Create audit message
-            audit_message = Message(
-                role="user",
-                content=f"""
+                # Create audit message
+                audit_message = Message(
+                    role="user",
+                    content=f"""
 🔍 AUTOMATIC AUDIT TRIGGERED - All todos completed!
 
 {audit_context}
@@ -800,60 +805,99 @@ Please perform a comprehensive audit of the codebase:
 
 Based on your audit:
 - If everything is complete and faithful to requirements: Respond with "AUDIT PASSED"
-- If issues are found: Respond with "AUDIT FAILED" and create new todos for fixes using create_todo
+- If issues are found: Respond with "AUDIT FAILED" and list specific issues for fixing
 
 Begin audit now.
 """,
-            )
+                )
 
-            # Add audit message to conversation
-            messages.append(audit_message)
+                # Add audit message to conversation
+                audit_messages = messages.copy()
+                audit_messages.append(audit_message)
 
-            # Start audit iteration loop
-            audit_iteration = 0
-            max_audit_iterations = 50  # Allow more thorough audits
-            while audit_iteration < max_audit_iterations:
-                audit_iteration += 1
+                # Execute audit
+                audit_result_content = ""
+                audit_passed = False
 
-                # Call LLM for audit
-                response = await self._call_llm_with_retry(messages, tool_schemas)
+                # Start audit iteration loop
+                audit_iteration = 0
+                max_audit_iterations = 50
+                while audit_iteration < max_audit_iterations:
+                    audit_iteration += 1
 
-                # Update cost
-                self.total_cost += response.cost or 0
+                    # Call LLM for audit
+                    response = await self._call_llm_with_retry(audit_messages, tool_schemas)
 
-                # Handle audit response
-                audit_response = Message(role="assistant", content=response.content)
+                    # Update cost
+                    self.total_cost += response.cost or 0
 
-                # If the model produced any tool call we treat that as the
-                # final PASS / FAIL signal (the content should include the
-                # explanation; we do not parse it).
-                if response.tool_calls:
-                    audit_response.tool_calls = response.tool_calls
-                    messages.append(audit_response)
+                    # Handle audit response
+                    audit_response = Message(role="assistant", content=response.content)
 
-                    enabled_tools = {
-                        name: tool
-                        for name, tool in registry.get_all().items()
-                        if name in self.config.tools.enabled
-                        and name not in self.config.tools.disabled
-                    }
+                    # Check for completion indicators
+                    if "AUDIT PASSED" in response.content:
+                        audit_passed = True
+                        audit_result_content = response.content
+                        break
+                    elif "AUDIT FAILED" in response.content:
+                        audit_passed = False
+                        audit_result_content = response.content
+                        break
 
-                    await self._execute_tools(response.tool_calls, enabled_tools, None)
-                    # One round of audit tool execution is enough – exit.
-                    return True
+                    # If the model produced tool calls, execute them
+                    if response.tool_calls:
+                        audit_response.tool_calls = response.tool_calls
+                        audit_messages.append(audit_response)
 
-                # No tool calls yet – record assistant message and continue.
-                messages.append(audit_response)
+                        enabled_tools = {
+                            name: tool
+                            for name, tool in registry.get_all().items()
+                            if name in self.config.tools.enabled
+                            and name not in self.config.tools.disabled
+                        }
 
-            print("⚠️ Audit reached maximum iterations without producing a tool call")
-            return False
+                        await self._execute_tools(response.tool_calls, enabled_tools, None)
+                        continue
+
+                    # No tool calls - record assistant message and continue
+                    audit_messages.append(audit_response)
+
+                if audit_iteration >= max_audit_iterations:
+                    print("⚠️ Audit reached maximum iterations without clear result")
+                    audit_passed = False
+                    audit_result_content = "Audit timeout - reached maximum iterations"
+
+                # Record audit result and determine next action
+                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content)
+                
+                if audit_passed:
+                    # Audit passed - exit the loop
+                    break
+                elif not should_continue:
+                    # Escalated to user - exit the loop
+                    print("🚨 Audit has been escalated to user - stopping audit loop")
+                    break
+                else:
+                    # Audit failed but should continue - create todos and loop again
+                    audit_manager.create_todos_from_audit_failure(audit_result_content)
+                    print("🔄 New todos created from audit findings. Continuing audit cycle...")
+                    
+                    # Small delay before next audit attempt
+                    await asyncio.sleep(1)
+
+            return True
 
         except Exception as e:
             print(f"⚠️ Audit trigger error: {e}")
+            
+            # Record the exception as an audit failure
+            from ..tools.builtin.audit import audit_manager
+            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")
             return False
 
     async def _check_and_trigger_multiagent_audit(self):
-        """Check if audit should be triggered for multi-agent mode."""
+        """Check if audit should be triggered for multi-agent mode with infinite loop."""
         try:
             # Import audit manager
             from ..tools.builtin.audit import audit_manager
@@ -864,14 +908,25 @@ Begin audit now.
 
             print("🔍 All todos completed! Triggering automatic audit via supervisor...")
 
-            # Delegate audit to supervisor
+            # Delegate audit to supervisor (which handles the infinite loop internally)
             if hasattr(self, "supervisor") and self.supervisor:
                 await self.supervisor.trigger_audit()
+            else:
+                print("❌ Supervisor not available for multi-agent audit")
+                
+                # Record supervisor unavailable as audit failure
+                audit_manager.record_audit_result(False, "Supervisor not available for multi-agent audit")
+                audit_manager.create_todos_from_audit_failure("Supervisor not available for multi-agent audit")
 
             return True
 
         except Exception as e:
             print(f"⚠️ Multi-agent audit trigger error: {e}")
+            
+            # Record the exception as an audit failure
+            from ..tools.builtin.audit import audit_manager
+            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")
             return False
 
     async def close(self):

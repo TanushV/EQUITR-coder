@@ -720,59 +720,119 @@ Break down the request into 3-8 specific tasks. Be detailed and specific."""
         }
 
     async def trigger_audit(self):
-        """Trigger audit using a specialized audit worker."""
+        """Trigger audit using a specialized audit worker with infinite loop and escalation."""
         try:
-            print("🔍 Starting multi-agent audit...")
-
-            # Import audit manager
             from equitrcoder.tools.builtin.audit import audit_manager
+            
+            # Infinite audit loop with failure tracking
+            while True:
+                print("🔍 Starting multi-agent audit...")
 
-            # Get audit context
-            audit_context = audit_manager.get_audit_context()
+                # Get audit context
+                audit_context = audit_manager.get_audit_context()
+                if not audit_context:
+                    print("ℹ️  No audit needed - no completed todos found")
+                    break
 
-            # Create audit task
-            from equitrcoder.core.task import Task
+                # Create audit task with explicit todo creation capability
+                from equitrcoder.core.task import Task
 
-            audit_task = Task(
-                id="audit_task",
-                description=f"""
-Perform comprehensive audit of the completed project:
+                audit_task = Task(
+                    id="audit_task",
+                    description=f"""
+COMPREHENSIVE PROJECT AUDIT - INFINITE LOOP UNTIL COMPLETION
 
 {audit_context}
 
-Use available tools to:
-1. list_files - examine project structure
-2. read_file - review design documents, requirements, and implementations
-3. grep_search - verify implementations match requirements
-4. Check code quality and completeness
+YOUR MISSION: Determine if this project is truly complete or needs more work.
 
-Determine if project is complete and faithful to requirements.
-If complete: conclude with "AUDIT PASSED"
-If issues found: conclude with "AUDIT FAILED" and create todos for fixes
+MANDATORY PROCESS:
+1. Use list_files to examine the entire project structure
+2. Use read_file to check docs/requirements.md and docs/design.md (if they exist)
+3. Verify EVERY requirement is implemented
+4. If ANY requirement is missing: Use create_todo to add specific todos
+5. If project has no requirements: Check basic project completeness
+
+CRITICAL: You MUST use create_todo tool for any missing items.
+CRITICAL: Be extremely thorough - this audit will loop until you get it right.
+
+Respond with EXACTLY:
+- "AUDIT PASSED" if everything is complete
+- "AUDIT FAILED" if anything is missing (and create todos for missing items)
 """,
-                assignee="analysis_worker",
-                priority="high",
-            )
-
-            # Execute audit task using analysis worker
-            if "analysis_worker" in self.workers:
-                audit_result = await self.workers["analysis_worker"].execute_task(
-                    audit_task
+                    assigned_agent="analysis_worker",
+                    priority=9,  # High priority as integer (1-10 scale)
                 )
 
-                if audit_result.get("success", False):
-                    result_content = audit_result.get("result", "")
+                # Execute audit task using analysis worker with expanded tools
+                audit_result_content = ""
+                audit_passed = False
+                
+                if "analysis_worker" in self.worker_agents:
+                    # Temporarily expand analysis worker tools to include create_todo
+                    original_tools = self.worker_agents["analysis_worker"].tools.copy()
+                    if "create_todo" not in self.worker_agents["analysis_worker"].tools:
+                        self.worker_agents["analysis_worker"].tools.append("create_todo")
+                    
+                    audit_result = await self.worker_agents["analysis_worker"].execute_task(
+                        audit_task
+                    )
 
-                    if "AUDIT PASSED" in result_content:
-                        print("✅ Multi-agent audit completed successfully!")
-                    elif "AUDIT FAILED" in result_content:
-                        print("❌ Multi-agent audit failed - issues found")
+                    # Restore original tools
+                    self.worker_agents["analysis_worker"].tools = original_tools
+
+                    if audit_result.get("success", False):
+                        audit_result_content = audit_result.get("result", "")
+
+                        if "AUDIT PASSED" in audit_result_content:
+                            print("✅ Multi-agent audit completed successfully!")
+                            audit_passed = True
+                        elif "AUDIT FAILED" in audit_result_content:
+                            print("❌ Multi-agent audit failed - issues found")
+                            audit_passed = False
+                        else:
+                            print("⚠️ Multi-agent audit completed with unclear result - treating as failure")
+                            audit_passed = False
                     else:
-                        print("⚠️ Multi-agent audit completed with unclear result")
+                        print("❌ Multi-agent audit execution failed")
+                        audit_result_content = audit_result.get("error", "Audit execution failed")
+                        audit_passed = False
                 else:
-                    print("❌ Multi-agent audit execution failed")
-            else:
-                print("❌ Analysis worker not available for audit")
+                    print("❌ Analysis worker not available for audit")
+                    audit_result_content = "Analysis worker not available for audit"
+                    audit_passed = False
+
+                # Record audit result and determine next action
+                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content)
+                
+                if audit_passed:
+                    # Audit passed - exit the loop
+                    print("🎉 Project audit completed successfully!")
+                    break
+                elif not should_continue:
+                    # Escalated to user - exit the loop
+                    print("🚨 Audit has been escalated to user - stopping audit loop")
+                    break
+                else:
+                    # Audit failed but should continue - the audit worker should have created todos
+                    print("🔄 Audit failed - new todos should have been created. Continuing audit cycle...")
+                    
+                    # Small delay before next audit attempt
+                    import asyncio
+                    await asyncio.sleep(2)
+                    
+                    # Check if new todos were actually created
+                    todos_after_audit = audit_manager.todo_manager.list_todos()
+                    incomplete_todos = [t for t in todos_after_audit if t.status not in ["completed", "cancelled"]]
+                    
+                    if len(incomplete_todos) == 0:
+                        print("⚠️  No new todos were created by audit worker - creating fallback todos")
+                        audit_manager.create_todos_from_audit_failure(audit_result_content)
 
         except Exception as e:
             print(f"⚠️ Multi-agent audit error: {e}")
+            
+            # Record the exception as an audit failure
+            from equitrcoder.tools.builtin.audit import audit_manager
+            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")

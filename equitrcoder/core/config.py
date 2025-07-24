@@ -62,6 +62,11 @@ class OrchestratorConfig(BaseModel):
     error_retry_limit: int = 3
     error_retry_delay: float = 1.0
     use_multi_agent: bool = False  # Enable strong/weak agent paradigm
+    tool_log_file: str = str(Path.home() / ".EQUITR-coder" / "tool_calls.log")
+    log_tool_calls: bool = True
+    debug: bool = False
+    supervisor_model: str = ""
+    worker_model: str = ""
 
 
 class ProfilesConfig(BaseModel):
@@ -108,6 +113,11 @@ class ConfigManager:
         config_data = self._apply_env_overrides(config_data)
 
         return Config(**config_data)
+
+    # Back-compatibility alias used in older modules / UI code
+    def get_config(self, profile: str = "default") -> Config:  # noqa: D401
+        """Alias for ``load_config`` kept for backward compatibility."""
+        return self.load_config(profile)
 
     def _load_yaml_file(self, file_path: Path) -> Dict[str, Any]:
         with open(file_path, "r") as f:

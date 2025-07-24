@@ -287,6 +287,16 @@ class SessionManagerV2:
             print(f"Failed to delete session {session_id}: {e}")
             return False
 
+    # ---------------------------------------------------------------------
+    # Backwards-compatibility helpers (older UI expected these)
+    # ---------------------------------------------------------------------
+    def get_session_data(self, session_id: str):  # noqa: D401
+        """Return the SessionData for *session_id* (create if not exists)."""
+        session = self.load_session(session_id)
+        if session is None:
+            session = self.create_session(session_id)
+        return session
+
     def clear_current_session(self):
         """Clear the current session messages."""
         if self.current_session:

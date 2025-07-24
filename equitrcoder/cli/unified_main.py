@@ -151,27 +151,39 @@ async def run_single_agent(args) -> int:
         for tool in tools:
             agent.add_tool(tool)
         
-        # Create orchestrator
+        # Create orchestrator - no default model fallback
         orchestrator = SingleAgentOrchestrator(
             agent=agent,
+            model=args.model,  # Required, no fallback
+            session_manager=None,
             max_cost=args.max_cost,
-            max_iterations=args.max_iterations,
-            model=args.model if args.model else 'gpt-4.1'
+            max_iterations=args.max_iterations
         )
         
-        # Set up callbacks for monitoring
+        # Set up callbacks for live monitoring
         def on_message(message_data):
-            print(f"[{message_data['role']}] {message_data['content']}")
+            role = message_data['role'].upper()
+            content = message_data['content']
+            print(f"\n[{role}] {content}")
+            if role == "ASSISTANT":
+                print("-" * 50)
         
-        def on_iteration(iteration, status):
-            print(f"Iteration {iteration}: Cost ${status['current_cost']:.4f}")
+        def on_tool_call(tool_data):
+            if tool_data.get('success', True):
+                tool_name = tool_data.get('tool_name', 'unknown')
+                print(f"🔧 Using tool: {tool_name}")
+            else:
+                print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
         
         orchestrator.set_callbacks(
-            on_message=on_message,
-            on_iteration=on_iteration
+            on_message=on_message
         )
         
+        # Set tool callback on agent
+        agent.on_tool_call_callback = on_tool_call
+        
         print(f"🤖 Starting single agent task: {args.task}")
+        print("=" * 60)
         
         # Execute task
         result = await orchestrator.execute_task(
@@ -179,6 +191,7 @@ async def run_single_agent(args) -> int:
             session_id=args.session_id
         )
         
+        print("=" * 60)
         if result["success"]:
             print(f"✅ Task completed successfully!")
             print(f"💰 Total cost: ${result['cost']:.4f}")
@@ -197,49 +210,97 @@ async def run_single_agent(args) -> int:
 async def run_multi_agent(args) -> int:
     """Run multi-agent mode."""
     try:
+        from ..providers.litellm import LiteLLMProvider
+        from ..orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator, WorkerConfig
+        from ..agents.base_agent import BaseAgent
+        from ..tools.discovery import discover_tools
+        
+        # Create providers for supervisor and worker
+        supervisor_provider = LiteLLMProvider(model=args.supervisor_model)
+        worker_provider = LiteLLMProvider(model=args.worker_model)
+        
         # Create orchestrator
         orchestrator = MultiAgentOrchestrator(
+            supervisor_provider=supervisor_provider,
+            worker_provider=worker_provider,
             max_concurrent_workers=args.workers,
             global_cost_limit=args.max_cost
         )
         
-        # Create workers
+        # Create worker agents
         worker_configs = []
         for i in range(args.workers):
+            # Create base agent for each worker
+            agent = BaseAgent(
+                agent_id=f"worker_{i+1}",
+                max_cost=args.max_cost / args.workers,
+                max_iterations=10
+            )
+            
+            # Discover and add tools
+            tools = discover_tools()
+            for tool in tools:
+                agent.add_tool(tool)
+            
             config = WorkerConfig(
                 worker_id=f"worker_{i+1}",
                 scope_paths=["."],  # Allow access to current directory
-                allowed_tools=["read_file", "edit_file", "run_cmd", "ask_supervisor"],
+                allowed_tools=["create_file", "edit_file", "read_file", "list_files", "run_command", "git_commit", "git_status", "send_agent_message", "receive_agent_messages", "get_message_history", "get_active_agents"],
                 max_cost=args.max_cost / args.workers,
                 max_iterations=10
             )
             worker_configs.append(config)
-            orchestrator.create_worker(config)
+            
+            # Create worker with the base agent
+            worker = orchestrator.create_worker(config, worker_provider)
+            
+            # Transfer tools from base agent to worker
+            for tool_name, tool in agent.tool_registry.items():
+                worker.add_tool(tool)
         
-        # Set up callbacks
+        # Set up callbacks for live monitoring
         def on_task_start(task_id, worker_id, description):
             print(f"🚀 {worker_id} starting task {task_id}: {description}")
         
         def on_task_complete(task_result):
             status = "✅" if task_result.success else "❌"
             print(f"{status} {task_result.worker_id} completed {task_result.task_id} "
-                  f"(${task_result.cost:.4f}, {task_result.execution_time:.2f}s)")
+                  f"(💰${task_result.cost:.4f}, ⏱️{task_result.execution_time:.2f}s)")
+            if not task_result.success:
+                print(f"   Error: {task_result.error}")
+        
+        def on_worker_message(message_data):
+            role = message_data['role'].upper()
+            content = message_data['content'][:100] + "..." if len(message_data['content']) > 100 else message_data['content']
+            worker_id = message_data.get('agent_id', 'unknown')
+            print(f"💬 {worker_id} [{role}]: {content}")
         
         orchestrator.set_callbacks(
             on_task_start=on_task_start,
-            on_task_complete=on_task_complete
+            on_task_complete=on_task_complete,
+            on_worker_message=on_worker_message
         )
         
         print(f"🤖 Starting multi-agent coordination: {args.coordination_task}")
         print(f"👥 Workers: {args.workers}")
+        print(f"🧠 Supervisor Model: {args.supervisor_model}")
+        print(f"⚡ Worker Model: {args.worker_model}")
+        print("=" * 60)
         
-        # Create example worker tasks
+        # Create worker tasks by breaking down the main task
         worker_tasks = []
+        task_parts = [
+            f"Part {i+1} of {args.workers}: {args.coordination_task}",
+            f"Focus on implementation aspect {i+1} of the overall task: {args.coordination_task}",
+            f"Handle component {i+1} for: {args.coordination_task}",
+        ]
+        
         for i, config in enumerate(worker_configs):
+            task_description = task_parts[i % len(task_parts)]
             worker_tasks.append({
                 "task_id": f"subtask_{i+1}",
                 "worker_id": config.worker_id,
-                "task_description": f"Part {i+1} of: {args.coordination_task}",
+                "task_description": task_description,
                 "context": {"part": i+1, "total_parts": len(worker_configs)}
             })
         
@@ -249,10 +310,16 @@ async def run_multi_agent(args) -> int:
             worker_tasks=worker_tasks
         )
         
+        print("=" * 60)
         if result["success"]:
             print(f"✅ Coordination completed successfully!")
             print(f"💰 Total cost: ${result['total_cost']:.4f}")
             print(f"⏱️  Total time: {result['total_time']:.2f}s")
+            
+            # Show worker results summary
+            successful_workers = sum(1 for r in result['worker_results'] if r.success)
+            print(f"👥 Workers: {successful_workers}/{len(result['worker_results'])} successful")
+            
             return 0
         else:
             print(f"❌ Coordination failed: {result['error']}")
@@ -267,14 +334,11 @@ def run_tui(args) -> int:
     """Launch TUI mode."""
     try:
         print(f"🖥️  Launching TUI in {args.mode} mode...")
-        # Import TUI here to avoid dependency issues
+        # Import TUI here - no dependency issues with simple ASCII TUI
         from ..ui.tui import launch_tui
         return launch_tui(mode=args.mode)
-    except ImportError:
-        print("❌ TUI dependencies not available. Install with: pip install equitrcoder[tui]")
-        return 1
     except Exception as e:
-        print(f"❌ TUI Error: {e}")
+        print(f"❌ Error: {e}")
         return 1
 
 
@@ -326,6 +390,21 @@ def main() -> int:
     if not args.command:
         args.command = "tui"
         args.mode = "single"  # Default to single mode for TUI
+    
+    # Validate model requirements for CLI modes only
+    if args.command == "single":
+        if not hasattr(args, 'model') or not args.model:
+            print("❌ Error: --model is required for single agent mode")
+            print("Example: equitrcoder single 'task' --model moonshot/kimi-k2-0711-preview")
+            return 1
+    elif args.command == "multi":
+        if not hasattr(args, 'supervisor_model') or not args.supervisor_model:
+            print("❌ Error: --supervisor-model is required for multi-agent mode")
+            return 1
+        if not hasattr(args, 'worker_model') or not args.worker_model:
+            print("❌ Error: --worker-model is required for multi-agent mode")
+            return 1
+    # TUI handles model selection internally - no validation needed
     
     try:
         if args.command == "single":

@@ -1,5 +1,5 @@
 """UI components for the EQUITR Coder."""
 
-from .tui import EquitrTUI
+from .tui import SimpleTUI
 
-__all__ = ["EquitrTUI"]
+__all__ = ["SimpleTUI"]

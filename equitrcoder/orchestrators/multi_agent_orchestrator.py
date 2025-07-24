@@ -16,8 +16,8 @@ from ..core.context_manager import ContextManager
 from ..core.supervisor import SupervisorAgent
 from ..repository.indexer import RepositoryIndexer
 from ..tools.builtin.ask_supervisor import AskSupervisor
-from ..providers.openrouter import OpenRouterProvider, Message
-from ..providers.litellm import LiteLLMProvider
+from ..providers.litellm import LiteLLMProvider, Message
+from ..tools.discovery import discover_tools
 
 
 @dataclass
@@ -49,8 +49,8 @@ class MultiAgentOrchestrator:
 
     def __init__(
         self,
-        supervisor_provider: Optional[OpenRouterProvider] = None,
-        worker_provider: Optional[OpenRouterProvider] = None,
+        supervisor_provider: Optional[LiteLLMProvider] = None,
+        worker_provider: Optional[LiteLLMProvider] = None,
         session_manager: Optional[SessionManagerV2] = None,
         repo_path: str = ".",
         max_concurrent_workers: int = 3,
@@ -104,7 +104,7 @@ class MultiAgentOrchestrator:
     def create_worker(
         self,
         config: WorkerConfig,
-        provider: Optional[OpenRouterProvider] = None
+        provider: Optional[LiteLLMProvider] = None
     ) -> WorkerAgent:
         """Create and register a new worker agent."""
         worker_provider = provider or self.worker_provider
@@ -126,8 +126,22 @@ class MultiAgentOrchestrator:
         if self.on_cost_update_callback:
             worker.on_cost_update_callback = self._handle_worker_cost_update
 
+        # Register worker with message pool for inter-agent communication
+        asyncio.create_task(self._register_worker_with_message_pool(config.worker_id))
+
+        # Add communication tools to worker
+        from ..tools.builtin.agent_communication import create_agent_communication_tools
+        comm_tools = create_agent_communication_tools(config.worker_id)
+        for tool in comm_tools:
+            worker.add_tool(tool)
+
         self.workers[config.worker_id] = worker
         return worker
+
+    async def _register_worker_with_message_pool(self, worker_id: str):
+        """Register a worker with the global message pool."""
+        from ..core.message_pool import message_pool
+        await message_pool.register_agent(worker_id)
 
     def _handle_worker_cost_update(self, total_cost: float, delta: float):
         """Handle cost updates from workers."""
@@ -156,9 +170,26 @@ class MultiAgentOrchestrator:
         start_time = time.time()
         start_cost = worker.current_cost
 
+        # Register supervisor with message pool if not already registered
+        from ..core.message_pool import message_pool, MessageType
+        try:
+            await message_pool.register_agent("supervisor")
+        except:
+            pass  # Already registered
+
         # Call task start callback
         if self.on_task_start_callback:
             self.on_task_start_callback(task_id, worker_id, task_description)
+
+        # Send coordination message to worker
+        await message_pool.send_message(
+            sender_agent="supervisor",
+            content=f"Starting task: {task_description}",
+            message_type=MessageType.COORDINATION,
+            recipient_agent=worker_id,
+            task_id=task_id,
+            metadata={"task_assignment": True}
+        )
 
         try:
             # Create or load session
@@ -185,8 +216,17 @@ class MultiAgentOrchestrator:
             # Add task message
             worker.add_message("user", task_description)
 
-            # Execute task (simplified - in real implementation would involve LLM calls)
+            # Execute task
             result = await self._execute_worker_task(worker, task_description, context)
+            
+            # Send completion message
+            await message_pool.send_message(
+                sender_agent=worker_id,
+                content=f"Completed task: {task_description}",
+                message_type=MessageType.STATUS_UPDATE,
+                task_id=task_id,
+                metadata={"task_completed": True, "success": True}
+            )
             
             # Update session
             session.cost += worker.current_cost - start_cost
@@ -217,6 +257,15 @@ class MultiAgentOrchestrator:
             return task_result
 
         except Exception as e:
+            # Send error message
+            await message_pool.send_message(
+                sender_agent=worker_id,
+                content=f"Task failed: {str(e)}",
+                message_type=MessageType.ERROR,
+                task_id=task_id,
+                metadata={"task_completed": True, "success": False}
+            )
+            
             execution_time = time.time() - start_time
             cost_delta = worker.current_cost - start_cost
             
@@ -245,50 +294,111 @@ class MultiAgentOrchestrator:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute the actual task using the worker."""
-        # This is a simplified implementation
-        # In a real scenario, this would involve:
-        # 1. LLM calls to understand the task
-        # 2. Tool usage to complete the task
-        # 3. Iteration until completion or limits reached
         
-        iteration_results = []
+        # Get initial messages from worker
+        messages = [Message(role=m['role'], content=m['content']) for m in worker.get_messages()]
         
-        while True:
-            # Check worker limits
-            limits = worker.check_limits()
-            if not limits["can_continue"]:
+        # Add system prompt if no system message exists
+        if not messages or messages[0].role != 'system':
+            system_prompt = f'You are a worker agent named {worker.agent_id}. Use the available tools to complete the task. Be thorough and create working code.'
+            messages.insert(0, Message(role='system', content=system_prompt))
+        
+        # Get available tools and their schemas
+        available_tools = worker.get_available_tools()
+        tool_schemas = []
+        for tool_name in available_tools:
+            if worker.can_use_tool(tool_name):
+                tool = worker.tool_registry[tool_name]
+                tool_schemas.append(tool.get_json_schema())
+        
+        iteration = 0
+        max_iterations = worker.max_iterations or 10
+        
+        # Use worker's provider for LLM calls
+        provider = self.worker_provider
+        if not provider:
+            # Create a default provider if none exists
+            provider = LiteLLMProvider(model="moonshot/kimi-k2-0711-preview")
+        
+        while iteration < max_iterations:
+            iteration += 1
+            worker.iteration_count = iteration
+            
+            try:
+                # Call LLM with tool schemas
+                response = await provider.chat(
+                    messages=messages,
+                    tools=tool_schemas if tool_schemas else None
+                )
+                
+                # Update cost tracking
+                if hasattr(response, 'cost') and response.cost:
+                    worker.current_cost += response.cost
+                
+                # Add assistant message
+                assistant_message = Message(role='assistant', content=response.content or "Working...")
+                messages.append(assistant_message)
+                
+                # Add to worker messages
+                worker.add_message('assistant', response.content or "Working...")
+                
+                # Handle tool calls
+                if response.tool_calls:
+                    tool_results = []
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call.function['name']
+                        tool_args = json.loads(tool_call.function['arguments'])
+                        
+                        # Execute tool through worker
+                        if worker.can_use_tool(tool_name):
+                            tool_result = await worker.call_tool(tool_name, **tool_args)
+                            result_content = str(tool_result['result'] if tool_result['success'] else tool_result['error'])
+                            
+                            # Add to worker messages (for logging/history)
+                            worker.add_message('tool', result_content, {
+                                'tool_name': tool_name,
+                                'success': tool_result['success']
+                            })
+                            
+                            tool_results.append(f"Tool {tool_name}: {result_content}")
+                        else:
+                            error_msg = f'Tool {tool_name} not available'
+                            
+                            # Add to worker messages (for logging/history)
+                            worker.add_message('tool', error_msg, {
+                                'tool_name': tool_name,
+                                'error': 'Tool not available'
+                            })
+                            
+                            tool_results.append(f"Error: {error_msg}")
+                    
+                    # Add a user message with tool results so LLM knows what happened
+                    if tool_results:
+                        results_message = "Tool execution results:\n" + "\n".join(tool_results)
+                        user_message = Message(role='user', content=results_message)
+                        messages.append(user_message)
+                        
+                        # Add to worker messages too
+                        worker.add_message('user', results_message, {'system_generated': True})
+                    
+                    # Continue to next iteration
+                    continue
+                else:
+                    # No tool calls, task is complete
+                    break
+                    
+            except Exception as e:
+                error_msg = f"Error in iteration {iteration}: {str(e)}"
+                worker.add_message('system', error_msg, {'error': True})
                 break
-            
-            # Increment iteration
-            worker.increment_iteration()
-            
-            # Simulate task processing
-            iteration_result = {
-                "iteration": worker.iteration_count,
-                "timestamp": datetime.now().isoformat(),
-                "status": "completed",
-                "message": f"Processed task: {task_description}",
-                "worker_id": worker.agent_id
-            }
-            
-            iteration_results.append(iteration_result)
-            
-            # Add completion message
-            worker.add_message(
-                "assistant",
-                f"Completed iteration {worker.iteration_count}",
-                {"iteration_result": iteration_result}
-            )
-            
-            # For demo purposes, complete after one iteration
-            break
         
         return {
             "task_description": task_description,
-            "iterations": iteration_results,
-            "total_iterations": len(iteration_results),
+            "final_response": messages[-1].content if messages else '',
+            "iterations": iteration,
+            "total_tokens": 0,  # TODO: Track tokens properly
             "worker_status": worker.get_status(),
-            "tokens_used": 100  # Mock value
+            "tokens_used": 100  # Mock value for now
         }
 
     async def execute_parallel_tasks(
@@ -333,6 +443,15 @@ class MultiAgentOrchestrator:
         if not self.supervisor:
             # Fallback to simple parallel execution
             results = await self.execute_parallel_tasks(worker_tasks)
+            
+            # ALWAYS check and trigger audit after task completion
+            print("🔍 Checking if audit should be triggered...")
+            try:
+                await self._check_and_trigger_audit()
+            except Exception as audit_error:
+                print(f"⚠️ Audit check failed: {audit_error}")
+                # Continue execution even if audit fails
+            
             return {
                 "coordination_task": coordination_task,
                 "worker_results": results,
@@ -363,6 +482,14 @@ class MultiAgentOrchestrator:
                 "total_time": sum(r.execution_time for r in worker_results)
             }
             
+            # ALWAYS check and trigger audit after successful coordination
+            print("🔍 Checking if audit should be triggered...")
+            try:
+                await self._check_and_trigger_audit()
+            except Exception as audit_error:
+                print(f"⚠️ Audit check failed: {audit_error}")
+                # Continue execution even if audit fails
+            
             return coordination_result
             
         except Exception as e:
@@ -372,6 +499,127 @@ class MultiAgentOrchestrator:
                 "error": str(e),
                 "worker_results": []
             }
+
+    async def _check_and_trigger_audit(self):
+        """Check if audit should be triggered and run it using supervisor with infinite loop."""
+        try:
+            # Import audit manager
+            from ..tools.builtin.audit import audit_manager
+
+            # Check if audit should be triggered
+            if not audit_manager.should_trigger_audit():
+                return False
+
+            print("🔍 All todos completed! Triggering automatic audit via supervisor...")
+
+            # Use supervisor if available, otherwise create a specialized audit worker
+            if self.supervisor:
+                await self.supervisor.trigger_audit()
+            else:
+                # Fallback: create an audit worker if no supervisor - with infinite loop
+                await self._trigger_audit_with_worker_loop()
+
+            return True
+
+        except Exception as e:
+            print(f"⚠️ Multi-agent audit trigger error: {e}")
+            return False
+
+    async def _trigger_audit_with_worker_loop(self):
+        """Trigger audit using a dedicated audit worker with infinite loop when no supervisor is available."""
+        try:
+            from ..tools.builtin.audit import audit_manager
+            
+            # Infinite audit loop with failure tracking
+            while True:
+                print("🔍 Starting audit with dedicated worker...")
+
+                # Get audit context
+                audit_context = audit_manager.get_audit_context()
+                if not audit_context:
+                    print("ℹ️  No audit needed - no completed todos found")
+                    break
+
+                # Create audit worker config
+                audit_config = WorkerConfig(
+                    worker_id="audit_worker",
+                    scope_paths=["."],
+                    allowed_tools=["read_file", "list_files", "grep_search", "git_status", "git_diff", "create_todo"],
+                    max_cost=1.0,  # Small budget for audit
+                    max_iterations=20
+                )
+
+                # Create audit worker
+                audit_worker = self.create_worker(audit_config)
+
+                # Execute audit task
+                audit_result = await self.execute_task(
+                    task_id="audit_task",
+                    worker_id="audit_worker",
+                    task_description=f"""
+Perform comprehensive audit of the completed project:
+
+{audit_context}
+
+Use available tools to:
+1. list_files - examine project structure
+2. read_file - review design documents, requirements, and implementations  
+3. grep_search - verify implementations match requirements
+4. Check code quality and completeness
+
+Determine if project is complete and faithful to requirements.
+If complete: conclude with "AUDIT PASSED"
+If issues found: conclude with "AUDIT FAILED" and list specific issues for fixing
+""",
+                    context={"audit": True}
+                )
+
+                # Process audit result
+                audit_result_content = ""
+                audit_passed = False
+
+                if audit_result.success:
+                    audit_result_content = str(audit_result.result)
+                    if "AUDIT PASSED" in audit_result_content:
+                        print("✅ Multi-agent audit completed successfully!")
+                        audit_passed = True
+                    elif "AUDIT FAILED" in audit_result_content:
+                        print("❌ Multi-agent audit failed - issues found")
+                        audit_passed = False
+                    else:
+                        print("⚠️ Multi-agent audit completed with unclear result")
+                        audit_passed = False
+                else:
+                    print("❌ Multi-agent audit execution failed")
+                    audit_result_content = audit_result.error or "Audit execution failed"
+                    audit_passed = False
+
+                # Record audit result and determine next action
+                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content)
+                
+                if audit_passed:
+                    # Audit passed - exit the loop
+                    break
+                elif not should_continue:
+                    # Escalated to user - exit the loop
+                    print("🚨 Audit has been escalated to user - stopping audit loop")
+                    break
+                else:
+                    # Audit failed but should continue - create todos and loop again
+                    audit_manager.create_todos_from_audit_failure(audit_result_content)
+                    print("🔄 New todos created from audit findings. Continuing audit cycle...")
+                    
+                    # Small delay before next audit attempt
+                    import asyncio
+                    await asyncio.sleep(1)
+
+        except Exception as e:
+            print(f"⚠️ Audit worker creation error: {e}")
+            
+            # Record the exception as an audit failure
+            from ..tools.builtin.audit import audit_manager
+            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")
 
     def get_worker_status(self, worker_id: str) -> Dict[str, Any]:
         """Get status of a specific worker."""
@@ -426,6 +674,11 @@ class MultiAgentOrchestrator:
             await asyncio.gather(
                 *self.active_tasks.values(), return_exceptions=True
             )
+
+        # Unregister workers from message pool
+        from ..core.message_pool import message_pool
+        for worker_id in self.workers.keys():
+            await message_pool.unregister_agent(worker_id)
 
         # Reset workers
         for worker in self.workers.values():

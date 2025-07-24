@@ -9,10 +9,10 @@ from ..base import Tool, ToolResult
 
 
 class RunCommandArgs(BaseModel):
-    command: str = Field(..., description="Shell command to execute")
-    timeout: int = Field(default=30, description="Command timeout in seconds")
+    command: str = Field(..., description="Bash command to execute")
+    timeout: int = Field(default=120, description="Command timeout in seconds (default: 2 minutes)")
     use_venv: bool = Field(
-        default=True, description="Run command in virtual environment"
+        default=False, description="Run command in virtual environment"
     )
 
 
@@ -21,7 +21,7 @@ class RunCommand(Tool):
         return "run_command"
 
     def get_description(self) -> str:
-        return "Execute shell commands in a sandboxed environment. For complex system analysis, debugging intricate issues, or when understanding command outputs requires deep technical insight, use a stronger reasoning model to interpret results and suggest optimal solutions."
+        return "Execute bash commands with configurable timeout. Commands run in bash shell with 2-minute default timeout."
 
     def get_args_schema(self) -> Type[BaseModel]:
         return RunCommandArgs
@@ -32,17 +32,18 @@ class RunCommand(Tool):
 
             # Security check - block dangerous commands
             dangerous_commands = [
-                "rm -rf",
-                "sudo",
-                "su",
-                "chmod +x",
-                "dd if=",
+                "rm -rf /",
+                "sudo rm",
+                "sudo dd",
                 "format",
                 "del /",
                 "rmdir /s",
                 ":(){ :|:& };:",
                 "fork()",
-                "while true",
+                "while true; do",
+                "shutdown",
+                "reboot",
+                "halt"
             ]
 
             for dangerous in dangerous_commands:
@@ -55,7 +56,48 @@ class RunCommand(Tool):
             if args.use_venv:
                 return await self._run_in_venv(args.command, args.timeout)
             else:
-                return await self._run_direct(args.command, args.timeout)
+                return await self._run_bash(args.command, args.timeout)
+
+        except Exception as e:
+            return ToolResult(success=False, error=str(e))
+
+    async def _run_bash(self, command: str, timeout: int) -> ToolResult:
+        """Run command directly in bash."""
+        try:
+            # Use bash explicitly
+            process = await asyncio.create_subprocess_exec(
+                "/bin/bash", "-c", command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=os.getcwd()
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return ToolResult(
+                    success=False,
+                    error=f"Command timed out after {timeout} seconds"
+                )
+
+            stdout_str = stdout.decode('utf-8', errors='replace')
+            stderr_str = stderr.decode('utf-8', errors='replace')
+
+            return ToolResult(
+                success=process.returncode == 0,
+                data={
+                    "stdout": stdout_str,
+                    "stderr": stderr_str,
+                    "return_code": process.returncode,
+                    "command": command,
+                    "timeout": timeout
+                },
+                error=stderr_str if process.returncode != 0 else None
+            )
 
         except Exception as e:
             return ToolResult(success=False, error=str(e))
@@ -68,83 +110,50 @@ class RunCommand(Tool):
             # Create virtual environment
             venv.create(venv_path, with_pip=True, clear=True)
 
-            # Determine activation script path
+            # Determine activation script path and command
             if os.name == "nt":  # Windows
                 activate_script = venv_path / "Scripts" / "activate.bat"
-                shell_cmd = f'"{activate_script}" && {command}'
-                shell = True
+                full_command = f'"{activate_script}" && {command}'
             else:  # Unix/Linux/macOS
                 activate_script = venv_path / "bin" / "activate"
-                shell_cmd = f'source "{activate_script}" && {command}'
-                shell = ["/bin/bash", "-c", shell_cmd]
+                full_command = f'source "{activate_script}" && {command}'
 
             try:
+                # Use bash for venv commands too
                 process = await asyncio.create_subprocess_exec(
-                    *shell if isinstance(shell, list) else shell_cmd,
+                    "/bin/bash", "-c", full_command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=os.getcwd(),
-                    shell=isinstance(shell, bool) and shell,
+                    cwd=os.getcwd()
                 )
 
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout
-                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(
+                        process.communicate(), timeout=timeout
+                    )
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    return ToolResult(
+                        success=False,
+                        error=f"Command timed out after {timeout} seconds"
+                    )
+
+                stdout_str = stdout.decode('utf-8', errors='replace')
+                stderr_str = stderr.decode('utf-8', errors='replace')
 
                 return ToolResult(
                     success=process.returncode == 0,
                     data={
-                        "exit_code": process.returncode,
-                        "stdout": stdout.decode("utf-8", errors="replace")[
-                            -4000:
-                        ],  # Limit output
-                        "stderr": stderr.decode("utf-8", errors="replace")[-4000:],
+                        "stdout": stdout_str,
+                        "stderr": stderr_str,
+                        "return_code": process.returncode,
                         "command": command,
-                        "sandboxed": True,
+                        "timeout": timeout,
+                        "sandboxed": True
                     },
+                    error=stderr_str if process.returncode != 0 else None
                 )
 
-            except asyncio.TimeoutError:
-                try:
-                    process.kill()
-                    await process.wait()
-                except Exception:
-                    pass
-                return ToolResult(
-                    success=False, error=f"Command timed out after {timeout} seconds"
-                )
-
-    async def _run_direct(self, command: str, timeout: int) -> ToolResult:
-        """Run command directly (less secure but faster)."""
-        try:
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=os.getcwd(),
-            )
-
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
-
-            return ToolResult(
-                success=process.returncode == 0,
-                data={
-                    "exit_code": process.returncode,
-                    "stdout": stdout.decode("utf-8", errors="replace")[-4000:],
-                    "stderr": stderr.decode("utf-8", errors="replace")[-4000:],
-                    "command": command,
-                    "sandboxed": False,
-                },
-            )
-
-        except asyncio.TimeoutError:
-            try:
-                process.kill()
-                await process.wait()
-            except Exception:
-                pass
-            return ToolResult(
-                success=False, error=f"Command timed out after {timeout} seconds"
-            )
+            except Exception as e:
+                return ToolResult(success=False, error=str(e))
