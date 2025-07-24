@@ -2,12 +2,15 @@
 Single Agent Orchestrator - Simple wrapper around BaseAgent for single-agent tasks.
 """
 import asyncio
+import json
 from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 
 from ..agents.base_agent import BaseAgent
 from ..core.session import SessionData, SessionManagerV2
 from ..tools.discovery import discover_tools
+from ..providers.litellm import LiteLLMProvider, Message, ToolCall
+from ..tools.base import ToolResult
 from ..providers.openrouter import Message
 
 
@@ -19,12 +22,14 @@ class SingleAgentOrchestrator:
         agent: BaseAgent,
         session_manager: Optional[SessionManagerV2] = None,
         max_cost: Optional[float] = None,
-        max_iterations: Optional[int] = None
+        max_iterations: Optional[int] = None,
+        model: str = 'moonshot/kimi-k2-0711-preview'
     ):
         self.agent = agent
         self.session_manager = session_manager or SessionManagerV2()
         self.max_cost = max_cost
         self.max_iterations = max_iterations
+        self.provider = LiteLLMProvider(model=model)
         
         # Set limits on agent if provided
         if max_cost:
@@ -95,51 +100,26 @@ class SingleAgentOrchestrator:
         """Main task execution loop."""
         
         iteration_results = []
-        
-        while True:
-            # Check limits
-            limits = self.agent.check_limits()
-            if not limits["can_continue"]:
+        messages = [Message(role=m['role'], content=m['content']) for m in self.agent.get_messages()]
+        system_prompt = 'You are an AI coding assistant. Use tools to complete the task.'
+        messages.insert(0, Message(role='system', content=system_prompt))
+        iteration = 0
+        while iteration < (self.max_iterations or 10):
+            iteration += 1
+            response = await self.provider.chat(messages)
+            messages.append(Message(role='assistant', content=response.content))
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call.function['name']
+                    tool_args = json.loads(tool_call.function['arguments'])
+                    if self.agent.can_use_tool(tool_name):
+                        tool_result = await self.agent.call_tool(tool_name, **tool_args)
+                        messages.append(Message(role='tool', content=str(tool_result['result'] if tool_result['success'] else tool_result['error']), tool_call_id=tool_call.id))
+                    else:
+                        messages.append(Message(role='tool', content=f'Tool {tool_name} not available', tool_call_id=tool_call.id))
+            else:
                 break
-            
-            # Increment iteration
-            self.agent.increment_iteration()
-            
-            # Call iteration callback
-            if self.on_iteration_callback:
-                self.on_iteration_callback(self.agent.iteration_count, self.agent.get_status())
-            
-            # For now, this is a simple implementation
-            # In a real scenario, this would involve LLM calls and tool usage
-            iteration_result = {
-                "iteration": self.agent.iteration_count,
-                "timestamp": datetime.now().isoformat(),
-                "status": "completed",
-                "message": f"Processed task: {task_description}"
-            }
-            
-            iteration_results.append(iteration_result)
-            
-            # Add completion message
-            self.agent.add_message(
-                "assistant",
-                f"Completed iteration {self.agent.iteration_count}",
-                {"iteration_result": iteration_result}
-            )
-            
-            # For demo purposes, complete after one iteration
-            break
-        
-        # Call completion callback
-        if self.on_completion_callback:
-            self.on_completion_callback(iteration_results, self.agent.get_status())
-        
-        return {
-            "task_description": task_description,
-            "iterations": iteration_results,
-            "total_iterations": len(iteration_results),
-            "final_status": self.agent.get_status()
-        }
+        return {'task_description': task_description, 'final_response': messages[-1].content}
     
     async def use_tool(self, tool_name: str, **kwargs) -> Dict[str, Any]:
         """Use a tool through the agent."""
