@@ -155,7 +155,8 @@ async def run_single_agent(args) -> int:
         orchestrator = SingleAgentOrchestrator(
             agent=agent,
             max_cost=args.max_cost,
-            max_iterations=args.max_iterations
+            max_iterations=args.max_iterations,
+            model=args.model if args.model else 'gpt-4.1'
         )
         
         # Set up callbacks for monitoring
@@ -323,8 +324,8 @@ def main() -> int:
     args = parser.parse_args()
     
     if not args.command:
-        parser.print_help()
-        return 1
+        args.command = "tui"
+        args.mode = "single"  # Default to single mode for TUI
     
     try:
         if args.command == "single":
