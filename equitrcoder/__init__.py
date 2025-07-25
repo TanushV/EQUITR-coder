@@ -51,6 +51,21 @@ from .core.config import Config, config_manager
 from .tools.base import Tool, ToolResult
 from .tools.discovery import discover_tools
 
+# Programmatic Interface
+from .programmatic import (
+    EquitrCoder,
+    EquitrCoderAPI,
+    TaskConfiguration,
+    MultiAgentTaskConfiguration,
+    WorkerConfiguration,
+    ExecutionResult,
+    create_single_agent_coder,
+    create_multi_agent_coder
+)
+
+# Git Management
+from .utils import GitManager, create_git_manager
+
 __all__ = [
     # Version
     "__version__",
@@ -78,6 +93,18 @@ __all__ = [
     "Tool",
     "ToolResult",
     "discover_tools",
+    # Programmatic Interface
+    "EquitrCoder",
+    "EquitrCoderAPI",
+    "TaskConfiguration",
+    "MultiAgentTaskConfiguration", 
+    "WorkerConfiguration",
+    "ExecutionResult",
+    "create_single_agent_coder",
+    "create_multi_agent_coder",
+    # Git Management
+    "GitManager",
+    "create_git_manager",
 ]
 
 

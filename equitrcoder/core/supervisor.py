@@ -118,7 +118,35 @@ IMPORTANT: Reference the project requirements, design, and todo list when comple
 
     def _create_task_prompt(self, task: Task) -> str:
         """Create a focused prompt for the task."""
-        prompt = f"""You are a specialized worker agent named '{self.name}'.
+        
+        # Check if ask_supervisor is available
+        has_ask_supervisor = "ask_supervisor" in self.tools
+        supervisor_guidance = ""
+        
+        if has_ask_supervisor:
+            supervisor_guidance = """
+🧠 ASK_SUPERVISOR TOOL - YOUR KEY TO SUCCESS:
+You have access to the 'ask_supervisor' tool - USE IT FREQUENTLY! This connects you to a strong reasoning model that provides strategic guidance.
+
+WHEN TO USE ask_supervisor:
+- Before starting complex implementations (ask for approach guidance)
+- When facing architectural decisions (ask for design recommendations)  
+- When debugging difficult issues (ask for troubleshooting strategies)
+- When uncertain about best practices (ask for expert advice)
+- When your task might affect other parts of the system (ask for impact analysis)
+- When you encounter unexpected complexity (ask for problem-solving strategies)
+
+EXAMPLE USAGE:
+await call_tool("ask_supervisor", 
+    question="I need to implement user authentication. What approach should I take for a web app that needs both session and API access?",
+    context_files=["src/auth.py", "requirements.txt"],
+    include_repo_tree=True
+)
+
+💡 REMEMBER: The supervisor has broader context and strategic thinking - leverage this intelligence!
+"""
+        
+        prompt = f"""You are a specialized worker agent named '{self.name}' in a multi-agent system.
 
 TASK: {task.description}
 
@@ -126,21 +154,34 @@ AVAILABLE TOOLS: {", ".join(self.tools + [tool.name for tool in self.communicati
 
 FOCUS FILES: {", ".join(task.files) if task.files else "No specific files"}
 
+{supervisor_guidance}
+
 COMMUNICATION TOOLS:
 - send_agent_message: Send messages to other agents
-- receive_agent_messages: Check for messages from other agents
+- receive_agent_messages: Check for messages from other agents  
 - get_message_history: View message history
 - get_active_agents: See which agents are active
+
+STRATEGIC WORKFLOW:
+1. 🧠 CONSULT SUPERVISOR FIRST: Use ask_supervisor to get strategic guidance before implementation
+2. 📋 PLAN: Break down the approach based on supervisor guidance
+3. 🔨 IMPLEMENT: Execute using your available tools
+4. 🔍 VALIDATE: Test and verify your implementation
+5. 📞 COORDINATE: Communicate with other agents as needed
+6. 🧠 CONSULT AGAIN: Use ask_supervisor if you encounter unexpected complexity
 
 INSTRUCTIONS:
 - Focus ONLY on completing this specific task
 - Use only the tools available to you: {", ".join(self.tools)}
+- **STRONGLY ENCOURAGED**: Use ask_supervisor early and often for guidance
 - Communicate with other agents when coordination is needed
 - Check for messages from other agents that might affect your work
 - Send status updates to keep other agents informed
-- Be concise and efficient
+- Be concise and efficient, but thorough in consulting supervisor
 - When you're done, provide a clear summary of what was accomplished
 - Do not attempt tasks outside your scope
+
+🎯 SUCCESS CRITERIA: Complete the task efficiently while leveraging supervisor guidance for optimal results.
 
 Complete this task now."""
 
