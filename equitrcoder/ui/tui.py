@@ -11,6 +11,13 @@ from ..agents.base_agent import BaseAgent
 from ..tools.discovery import discover_tools
 from ..core.session import SessionManagerV2
 
+HEADER_COLOR = '\033[94m'  # Bright blue
+SUCCESS_COLOR = '\033[92m'  # Green
+ERROR_COLOR = '\033[91m'  # Red
+WARNING_COLOR = '\033[93m'  # Yellow
+INFO_COLOR = '\033[96m'    # Cyan for info
+AGENT_COLOR = '\033[95m'   # Magenta for agent messages
+RESET = '\033[0m'
 
 class SimpleTUI:
     """Simple ASCII-based TUI for EQUITR Coder."""
@@ -30,22 +37,31 @@ class SimpleTUI:
         
     def print_header(self):
         """Print ASCII header."""
-        print("\n" + "=" * 60)
-        print("    EQUITR CODER - AI Coding Assistant")
-        print("=" * 60)
-        print(f"Session: {self.current_session_id}")
-        print(f"Model: {self.current_model or 'Not selected'}")
-        print("-" * 60)
+        print(f"{HEADER_COLOR}\n" + "=" * 60)
+        print(f"{HEADER_COLOR}    EQUITR CODER - AI Coding Assistant{RESET}")
+        print(f"{HEADER_COLOR}" + "=" * 60)
+        print(f"{INFO_COLOR}Mode: Single Agent{RESET}")
+        print(f"{HEADER_COLOR}Available API Keys:{RESET}")
+        openai_key = os.environ.get('OPENAI_API_KEY', '')
+        if openai_key:
+            print(f"  {SUCCESS_COLOR}OpenAI: ****{openai_key[-4:]}{RESET}")
+        anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if anthropic_key:
+            print(f"  {SUCCESS_COLOR}Anthropic: ****{anthropic_key[-4:]}{RESET}")
+        # Add other providers if needed
+        print(f"{HEADER_COLOR}Selected Model: {self.current_model or 'Not selected'}{RESET}")
+        print(f"{HEADER_COLOR}Session: {self.current_session_id}{RESET}")
+        print(f"{HEADER_COLOR}-" * 60 + RESET)
         
     def print_menu(self):
         """Print main menu."""
-        print("\nCommands:")
-        print("  /help     - Show this help")
-        print("  /model    - Change model")
-        print("  /session  - Manage sessions") 
-        print("  /quit     - Exit")
-        print("  <task>    - Execute a coding task")
-        print("-" * 60)
+        print(f"{HEADER_COLOR}\nCommands:{RESET}")
+        print(f"  {INFO_COLOR}/help     - Show this help{RESET}")
+        print(f"  {INFO_COLOR}/model    - Change model{RESET}")
+        print(f"  {INFO_COLOR}/session  - Manage sessions{RESET}") 
+        print(f"  {INFO_COLOR}/quit     - Exit{RESET}")
+        print(f"  {INFO_COLOR}<task>    - Execute a coding task{RESET}")
+        print(f"{HEADER_COLOR}-" * 60 + RESET)
         
     def select_model(self):
         """Model selection interface."""
@@ -99,7 +115,7 @@ class SimpleTUI:
     async def execute_task(self, task: str):
         """Execute a coding task."""
         if not self.current_model:
-            print("❌ No model selected. Use /model to select one.")
+            print(f"{WARNING_COLOR}❌ No model selected. Use /model to select one.{RESET}")
             return
             
         try:
@@ -121,19 +137,33 @@ class SimpleTUI:
             def on_message(message_data):
                 role = message_data['role'].upper()
                 content = message_data['content']
-                print(f"\n[{role}] {content}")
+                color = AGENT_COLOR if role == "ASSISTANT" else INFO_COLOR
+                print(f"\n{color}[{role}] {content}{RESET}")
                 if role == "ASSISTANT":
-                    print("-" * 50)
+                    print(f"{HEADER_COLOR}-" * 50 + RESET)
             
             def on_iteration(iteration, status):
-                print(f"\n>>> Iteration {iteration} | Cost: ${status['current_cost']:.4f}")
+                print(f"{HEADER_COLOR}\n>>> Iteration {iteration} | Cost: ${status['current_cost']:.4f}{RESET}")
                 
             def on_tool_call(tool_data):
                 if tool_data.get('success', True):
                     tool_name = tool_data.get('tool_name', 'unknown')
-                    print(f"🔧 Using tool: {tool_name}")
+                    print(f"{SUCCESS_COLOR}🔧 Using tool: {tool_name}{RESET}")
+                    if tool_name in ['edit_file', 'create_file']:
+                        try:
+                            import subprocess
+                            diff_output = subprocess.run(['git', 'diff', 'HEAD'], capture_output=True, text=True).stdout
+                            for line in diff_output.splitlines():
+                                if line.startswith('+'):
+                                    print(f"{SUCCESS_COLOR}{line}{RESET}")
+                                elif line.startswith('-'):
+                                    print(f"{ERROR_COLOR}{line}{RESET}")
+                                else:
+                                    print(line)
+                        except Exception as e:
+                            print(f"{WARNING_COLOR}⚠️ Could not show diff: {e}{RESET}")
                 else:
-                    print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
+                    print(f"{ERROR_COLOR}❌ Tool error: {tool_data.get('error', 'unknown')}{RESET}")
             
             orchestrator.set_callbacks(
                 on_message=on_message,
@@ -141,8 +171,8 @@ class SimpleTUI:
             )
             agent.on_tool_call_callback = on_tool_call
             
-            print(f"\n🤖 Executing task: {task}")
-            print("=" * 60)
+            print(f"{HEADER_COLOR}\n🤖 Executing task: {task}{RESET}")
+            print(f"{HEADER_COLOR}=" * 60 + RESET)
             
             # Execute
             result = await orchestrator.execute_task(
@@ -150,16 +180,16 @@ class SimpleTUI:
                 session_id=self.current_session_id
             )
             
-            print("=" * 60)
+            print(f"{HEADER_COLOR}=" * 60 + RESET)
             if result["success"]:
-                print(f"✅ Task completed!")
-                print(f"💰 Cost: ${result['cost']:.4f}")
-                print(f"🔄 Iterations: {result['iterations']}")
+                print(f"{SUCCESS_COLOR}✅ Task completed!{RESET}")
+                print(f"{SUCCESS_COLOR}💰 Cost: ${result['cost']:.4f}{RESET}")
+                print(f"{SUCCESS_COLOR}🔄 Iterations: {result['iterations']}{RESET}")
             else:
-                print(f"❌ Task failed: {result['error']}")
+                print(f"{ERROR_COLOR}❌ Task failed: {result['error']}{RESET}")
                 
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"{ERROR_COLOR}❌ Error: {e}{RESET}")
             
     async def run(self):
         """Main TUI loop."""
@@ -170,10 +200,10 @@ class SimpleTUI:
                 self.print_header()
                 
                 if not self.current_model:
-                    print("\n⚠️  No model selected. Please select a model first.")
+                    print(f"\n{WARNING_COLOR}⚠️  No model selected. Please select a model first.{RESET}")
                     self.print_menu()
                     
-                user_input = input("\nequitrcoder> ").strip()
+                user_input = input(f"\nequitrcoder> {RESET}").strip()
                 
                 if not user_input:
                     continue
@@ -194,10 +224,10 @@ class SimpleTUI:
                     await self.execute_task(user_input)
                     
             except KeyboardInterrupt:
-                print("\nGoodbye!")
+                print(f"\n{RESET}Goodbye!")
                 break
             except EOFError:
-                print("\nGoodbye!")
+                print(f"\n{RESET}Goodbye!")
                 break
 
 

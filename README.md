@@ -18,7 +18,7 @@ EQUITR Coder is a sophisticated AI coding assistant that combines **weak special
 
 ### 🔧 **Multiple Interface Modes**
 - **Programmatic**: Clean OOP interface following Python standards
-- **Advanced TUI**: Rich terminal interface with live updates, parallel agent views, and real-time monitoring
+- **Advanced TUI**: Rich terminal interface with live updates, parallel agent views, real-time monitoring, syntax-highlighted diffs, todo progress sidebar, and customizable themes while maintaining a terminal-like feel
 - **CLI**: Command-line interface for single/multi-agent execution
 - **API**: RESTful FastAPI server for integration
 
@@ -41,6 +41,9 @@ EQUITR Coder is a sophisticated AI coding assistant that combines **weak special
 ```bash
 # Basic installation
 pip install -e .
+
+# Install from GitHub
+pip install git+https://github.com/TanushV/EQUITR-coder.git
 
 # With advanced TUI support
 pip install -e .[all]
@@ -148,45 +151,20 @@ equitrcoder tui --mode multi
 ```
 
 **TUI Features:**
-- 📊 **Bottom Status Bar**: Shows mode, models, stage, agent count, and cost
-- 📋 **Left Todo Sidebar**: Real-time todo progress with priority indicators
-- 💬 **Center Chat Window**: Live agent outputs with syntax highlighting
-- 🪟 **Parallel Agent Tabs**: Split windows for multiple agents
-- ⌨️ **Keyboard Controls**: Enter to execute, Ctrl+C to quit
+- 📊 **Bottom Status Bar**: Shows mode, models, stage, agent count, and live cost updates
+- 📋 **Left Todo Sidebar**: Real-time todo progress with priority indicators and icons
+- 💬 **Center Chat Window**: Live agent outputs with syntax highlighting and color-coded roles
+- 🪟 **Parallel Agent Tabs**: Split windows for multiple agents with enhanced visuals
+- ⌨️ **Keyboard Controls**: Enter to execute, Ctrl+C to quit, 'm' for model selection
 
-### 3. Command Line Interface
+### 3. API Server (Programmatic Integration)
 
-Direct task execution from command line:
-
-```bash
-# Single agent mode
-equitrcoder single "Fix the authentication bug in user.py" \
-  --model gpt-4.1 \
-  --max-cost 2.0 \
-  --max-iterations 20 \
-  --session-id "auth-session"
-
-# Multi-agent mode  
-equitrcoder multi "Build a complete web application with authentication" \
-  --workers 3 \
-  --supervisor-model o3 \
-  --worker-model gpt-4.1 \
-  --max-cost 15.0 \
-  --global-timeout 3600
-
-# Tool management
-equitrcoder tools --list
-equitrcoder tools --discover
-equitrcoder tools --test read_file --args '{"file_path": "README.md"}'
-```
-
-### 4. API Server
-
-RESTful API for integration:
+RESTful API for integration into your applications:
 
 ```bash
-# Start API server
-equitrcoder api --host localhost --port 8000
+# Start API server programmatically
+from equitrcoder.api.server import start_server
+start_server(host="localhost", port=8000)
 
 # Execute tasks via HTTP
 curl -X POST http://localhost:8000/execute_task \
