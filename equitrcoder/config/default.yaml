@@ -49,6 +49,8 @@ orchestrator:
   max_iterations: 20
   error_retry_limit: 3
   error_retry_delay: 1.0
+  supervisor_model: "o3"
+  worker_model: "moonshot/kimi-k2-0711-preview"
 
 profiles:
   default: default
