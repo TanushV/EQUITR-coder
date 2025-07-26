@@ -18,7 +18,7 @@ if requirements_path.exists():
 
 setup(
     name="equitrcoder",
-    version="1.0.2",
+    version="1.1.0",
     description="Modular AI coding assistant supporting single and multi-agent workflows",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -59,13 +59,13 @@ setup(
             "rich>=13.0.0",
         ]
     },
-    entry_points={
-        "console_scripts": [
-            "equitrcoder=equitrcoder.cli.unified_main:main",
-            "equitr-single=equitrcoder.cli.unified_main:main",  # Alias for single mode
-            "equitr-multi=equitrcoder.cli.unified_main:main",   # Alias for multi mode
-        ]
-    },
+    # entry_points={
+    #     "console_scripts": [
+    #         "equitrcoder=equitrcoder.cli.unified_main:main",
+    #         "equitr-single=equitrcoder.cli.unified_main:main",  # Alias for single mode
+    #         "equitr-multi=equitrcoder.cli.unified_main:main",   # Alias for multi mode
+    #     ]
+    # },
     python_requires=">=3.8",
     classifiers=[
         "Development Status :: 4 - Beta",
