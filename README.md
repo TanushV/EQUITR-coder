@@ -161,20 +161,23 @@ Direct task execution from command line:
 ```bash
 # Single agent mode
 equitrcoder single "Fix the authentication bug in user.py" \
-  --model gpt-4 \
+  --model gpt-4.1 \
   --max-cost 2.0 \
-  --max-iterations 20
+  --max-iterations 20 \
+  --session-id "auth-session"
 
 # Multi-agent mode  
 equitrcoder multi "Build a complete web application with authentication" \
   --workers 3 \
-  --supervisor-model gpt-4 \
-  --worker-model gpt-3.5-turbo \
-  --max-cost 15.0
+  --supervisor-model o3 \
+  --worker-model gpt-4.1 \
+  --max-cost 15.0 \
+  --global-timeout 3600
 
 # Tool management
 equitrcoder tools --list
 equitrcoder tools --discover
+equitrcoder tools --test read_file --args '{"file_path": "README.md"}'
 ```
 
 ### 4. API Server
@@ -450,6 +453,59 @@ tasks = [
 results = await coder.execute_parallel_tasks(tasks)
 ```
 
+## Best Practices
+
+### Cost Management
+
+```python
+# Set appropriate limits
+agent = BaseAgent(
+    max_cost=1.0,      # Start small
+    max_iterations=10  # Prevent runaway
+)
+
+# Monitor costs
+status = agent.get_status()
+if status['current_cost'] > 0.8 * agent.max_cost:
+    print("⚠️  Approaching cost limit")
+```
+
+### Error Handling
+
+```python
+try:
+    result = await orchestrator.execute_task("Complex task")
+    
+    if not result["success"]:
+        # Check specific failure reasons
+        if "cost" in result["error"].lower():
+            print("Cost limit exceeded - increase budget")
+        elif "iteration" in result["error"].lower():
+            print("Iteration limit exceeded - increase limit or simplify task")
+        else:
+            print(f"Task failed: {result['error']}")
+            
+except Exception as e:
+    print(f"Execution error: {e}")
+```
+
+### Security Best Practices
+
+```python
+# Always use restricted workers for untrusted tasks
+worker = WorkerAgent(
+    worker_id="untrusted_task",
+    scope_paths=["safe/directory/"],  # Limit scope
+    allowed_tools=["read_file"],      # Minimal tools
+    max_cost=0.5,                     # Low limits
+    max_iterations=5
+)
+
+# Validate file paths
+if not worker.can_access_file(user_provided_path):
+    raise SecurityError("Access denied to file")
+```
+
 ## 🤝 Contributing
 
 1. **Fork** the repository
@@ -475,3 +531,29 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **EQUITR Coder**: Where strategic intelligence meets tactical execution. 🧠⚡ 
+
+## 📋 Troubleshooting
+
+Common issues and solutions:
+
+### 1. API Key Not Found
+- **Symptom**: "Invalid API key" errors.
+- **Solution**: Set `export OPENAI_API_KEY="your-key"` or add to config. Verify with `echo $OPENAI_API_KEY`.
+
+### 2. Budget Exceeded
+- **Symptom**: Tasks stop with "Budget limit reached".
+- **Solution**: Increase budget in config.yaml (`llm: budget: 50.0`) or use `--max-cost` in CLI.
+
+### 3. Model Not Available
+- **Symptom**: "Model not found" when selecting in TUI/CLI.
+- **Solution**: Ensure API keys are set for the provider (e.g., ANTHROPIC_API_KEY for Claude models). Use `/model` in TUI to check dynamic availability.
+
+### 4. Git Commit Fails
+- **Symptom**: "Git not initialized" or permission errors.
+- **Solution**: Run `git init` in your repo, or set `git: auto_commit: true` in config. Check permissions with `git status`.
+
+### 5. TUI Not Launching
+- **Symptom**: "Textual not found" error.
+- **Solution**: Install with `pip install -e .[all]`. For simple TUI fallback, remove Textual deps.
+
+For more, see [CONFIGURATION_GUIDE.md](equitrcoder/docs/CONFIGURATION_GUIDE.md#troubleshooting-common-issues). 

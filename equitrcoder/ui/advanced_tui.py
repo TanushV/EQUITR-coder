@@ -14,23 +14,26 @@ from datetime import datetime
 from typing import Optional, Dict, List, Any, Callable
 from pathlib import Path
 
+import os
+import litellm
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
+from textual.widgets import (
+    Header, Footer, Static, Label, Input, Button, 
+    ProgressBar, Tree, RichLog, Placeholder, TabbedContent, TabPane, ListView, ListItem
+)
+from textual.reactive import reactive
+from textual.message import Message
+from textual.events import Key
+from rich.console import Console
+from rich.text import Text
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.table import Table
+from rich.live import Live
+from rich.syntax import Syntax
+
 try:
-    from textual.app import App, ComposeResult
-    from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-    from textual.widgets import (
-        Header, Footer, Static, Label, Input, Button, 
-        ProgressBar, Tree, RichLog, Placeholder, TabbedContent, TabPane
-    )
-    from textual.reactive import reactive
-    from textual.message import Message
-    from textual.events import Key
-    from rich.console import Console
-    from rich.text import Text
-    from rich.panel import Panel
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-    from rich.table import Table
-    from rich.live import Live
-    from rich.syntax import Syntax
     TEXTUAL_AVAILABLE = True
 except ImportError:
     TEXTUAL_AVAILABLE = False
@@ -255,6 +258,17 @@ class ParallelAgentTabs(TabbedContent):
             del self.agent_windows[agent_id]
 
 
+class ModelSuggestion(ListItem):
+    """Custom list item for model suggestions."""
+    
+    def __init__(self, model_name: str, provider: str):
+        super().__init__()
+        self.model_name = model_name
+        self.provider = provider
+    
+    def compose(self) -> ComposeResult:
+        yield Label(f"{self.model_name} ({self.provider})")
+
 class EquitrTUI(App):
     """Main TUI application for EQUITR Coder."""
     
@@ -358,6 +372,8 @@ class EquitrTUI(App):
         self.status_bar = StatusBar()
         self.task_input = TaskInputPanel()
         self.agent_tabs = ParallelAgentTabs()
+        self.model_suggestions = ListView(classes="model-suggestions hidden")
+        self.available_models: Dict[str, List[str]] = self.get_available_models()
         
         # Set initial status
         self.status_bar.mode = mode
@@ -373,6 +389,13 @@ class EquitrTUI(App):
             with Vertical(classes="main-content"):
                 yield self.task_input
                 yield self.agent_tabs
+                # Add model suggestions container
+                with Container(id="model-selector", classes="hidden"):
+                    yield Label("Select Model", classes="panel-title")
+                    yield Input(placeholder="Type to search models...", id="model-input")
+                    yield self.model_suggestions
+                    yield Button("Confirm", variant="primary", id="btn-model-confirm")
+                    yield Button("Cancel", variant="warning", id="btn-model-cancel")
         
         yield self.status_bar
     
@@ -400,6 +423,79 @@ class EquitrTUI(App):
         self.coder.on_tool_call = self.on_tool_call
         self.coder.on_message = self.on_message
     
+    def get_available_models(self) -> Dict[str, List[str]]:
+        """Detect available providers and their models using environment variables and Litellm."""
+        models = {}
+        
+        # OpenAI
+        if os.getenv("OPENAI_API_KEY"):
+            models["openai"] = ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"]
+        
+        # Anthropic
+        if os.getenv("ANTHROPIC_API_KEY"):
+            models["anthropic"] = ["claude-3-sonnet", "claude-3-haiku", "claude-2"]
+        
+        # Azure
+        if os.getenv("AZURE_API_KEY"):
+            models["azure"] = ["azure/gpt-4", "azure/gpt-3.5-turbo"]
+        
+        # AWS Sagemaker/Bedrock
+        if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
+            # Use Litellm to get supported models (example; expand as needed)
+            models["aws"] = [f"sagemaker/{m}" for m in ["jumpstart-dft-meta-textgeneration-llama-2-7b", "bedrock/anthropic.claude-v2"]]
+        
+        # Add more providers based on env vars (e.g., COHERE_API_KEY, etc.)
+        if os.getenv("COHERE_API_KEY"):
+            models["cohere"] = ["command-nightly"]
+        
+        # Flatten for easier searching
+        all_models = []
+        for provider, model_list in models.items():
+            for model in model_list:
+                all_models.append((model, provider))
+        
+        return {"all": sorted(all_models), "by_provider": models}
+    
+    def select_model(self):
+        """Show model selector with dynamic suggestions."""
+        selector = self.query_one("#model-selector")
+        selector.remove_class("hidden")
+        
+        input_widget = self.query_one("#model-input", Input)
+        input_widget.focus()
+        
+        # Initial update
+        self.update_model_suggestions("")
+    
+    def update_model_suggestions(self, query: str):
+        """Update the list of model suggestions based on user input."""
+        self.model_suggestions.clear()
+        
+        matched = [
+            (model, provider) for model, provider in self.available_models["all"]
+            if query.lower() in model.lower() or query.lower() in provider.lower()
+        ]
+        
+        if not matched:
+            self.model_suggestions.mount(Label("No matching models found", classes="todo-empty"))
+            return
+        
+        for model, provider in matched[:10]:  # Limit to top 10 suggestions
+            self.model_suggestions.mount(ModelSuggestion(model, provider))
+        
+        self.model_suggestions.add_class("visible")
+    
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle changes in the model input field."""
+        if event.input.id == "model-input":
+            self.update_model_suggestions(event.value)
+    
+    async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        """Auto-select highlighted suggestion into input."""
+        if event.item and isinstance(event.item, ModelSuggestion):
+            input_widget = self.query_one("#model-input", Input)
+            input_widget.value = event.item.model_name
+    
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == "btn-single":
@@ -408,6 +504,17 @@ class EquitrTUI(App):
             await self.execute_task("multi")
         elif event.button.id == "btn-clear":
             await self.clear_chat()
+        elif event.button.id == "btn-model-confirm":
+            input_widget = self.query_one("#model-input", Input)
+            selected_model = input_widget.value.strip()
+            if selected_model:
+                self.current_model = selected_model
+                self.status_bar.models = selected_model  # Update status bar
+                main_window = self.agent_tabs.get_agent_window("main")
+                main_window.add_status_update(f"Model set to: {selected_model}", "success")
+            self.hide_model_selector()
+        elif event.button.id == "btn-model-cancel":
+            self.hide_model_selector()
     
     async def on_key(self, event: Key) -> None:
         """Handle key presses."""
@@ -417,6 +524,8 @@ class EquitrTUI(App):
             task_input = self.query_one("#task-input", Input)
             if task_input.value and not self.task_running:
                 await self.execute_task(self.mode)
+        elif event.key == "m" and not self.task_running:  # Example: 'm' for model
+            self.select_model()
     
     async def execute_task(self, mode: str):
         """Execute a task using the specified mode."""
@@ -556,6 +665,12 @@ class EquitrTUI(App):
         """Clean up resources on shutdown."""
         if self.coder:
             await self.coder.cleanup()
+
+    def hide_model_selector(self):
+        selector = self.query_one("#model-selector")
+        selector.add_class("hidden")
+        self.model_suggestions.clear()
+        self.model_suggestions.add_class("hidden")
 
 
 def launch_advanced_tui(mode: str = "single") -> int:
