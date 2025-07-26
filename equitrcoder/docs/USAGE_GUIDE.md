@@ -10,9 +10,10 @@ This guide covers how to use equitrcoder's modular architecture for both single-
 4. [Security and Restrictions](#security-and-restrictions)
 5. [Session Management](#session-management)
 6. [Tool System](#tool-system)
-7. [CLI Usage](#cli-usage)
-8. [Configuration](#configuration)
-9. [Best Practices](#best-practices)
+7. [Configuration](#configuration)
+8. [Best Practices](#best-practices)
+
+Note: EQUITR Coder supports two primary modes: Programmatic (via Python API) and TUI (Terminal User Interface). CLI mode has been deprecated.
 
 ## Quick Start
 
@@ -408,78 +409,6 @@ for tool in tools:
     print(f"- {tool.get_name()}: {tool.get_description()}")
 ```
 
-## CLI Usage
-
-### Single Agent Mode
-
-```bash
-# Basic usage
-equitrcoder single "Fix the authentication bug"
-
-# With options
-equitrcoder single "Optimize database queries" \
-    --max-cost 2.0 \
-    --max-iterations 15 \
-    --model gpt-4
-
-# With session
-equitrcoder single "Continue working on feature X" \
-    --session-id "feature-x-dev"
-```
-
-### Multi-Agent Mode
-
-```bash
-# Basic multi-agent
-equitrcoder multi "Implement user management system" \
-    --workers 3 \
-    --max-cost 10.0
-
-# Advanced configuration
-equitrcoder multi "Build REST API" \
-    --workers 2 \
-    --max-cost 5.0 \
-    --global-timeout 3600 \
-    --enable-supervisor
-```
-
-### Interactive TUI
-
-```bash
-# Start interactive mode
-equitrcoder tui --mode single
-
-# Multi-agent interactive
-equitrcoder tui --mode multi --workers 3
-```
-
-### API Server
-
-```bash
-# Start API server
-equitrcoder api --host 0.0.0.0 --port 8000
-
-# With configuration
-equitrcoder api \
-    --host 127.0.0.1 \
-    --port 8080 \
-    --workers 4 \
-    --max-cost 20.0
-```
-
-### Tool Management
-
-```bash
-# List available tools
-equitrcoder tools --list
-
-# Discover new tools
-equitrcoder tools --discover
-
-# Test a tool
-equitrcoder tools --test read_file --args '{"file_path": "README.md"}'
-```
-
 ## Configuration
 
 ### Environment Variables
@@ -705,6 +634,9 @@ agent = BaseAgent(debug=True)
 - Review the configuration guide in `equitrcoder/docs/CONFIGURATION_GUIDE.md`
 - Run the basic functionality test: `python test_basic_functionality.py`
 - Use the CLI help: `equitrcoder --help`
+- Review the configuration guide in `equitrcoder/docs/CONFIGURATION_GUIDE.md`
+- Run the basic functionality test: `python test_basic_functionality.py`
+- Launch the TUI for interactive help: `python -m equitrcoder.ui.advanced_tui`
 
 ---
 

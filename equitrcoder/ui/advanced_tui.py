@@ -302,6 +302,8 @@ class EquitrTUI(App):
     .todo-item {
         padding: 0 1;
         margin: 1 0;
+        border: thin $accent;
+        border-radius: 4;
     }
     
     .todo-red {
@@ -327,13 +329,14 @@ class EquitrTUI(App):
     
     .status-item {
         padding: 0 2;
-        background: $surface;
+        background: $surface-dark;
         color: $text;
         border-right: solid $accent;
     }
     
     #task-input {
         margin: 1 0;
+        border: thin $primary;
     }
     
     StatusBar {
@@ -349,10 +352,26 @@ class EquitrTUI(App):
     TaskInputPanel {
         height: 8;
         border-bottom: solid $accent;
+        background: $surface-light;
     }
     
     ParallelAgentTabs {
         border: solid $accent;
+        tab-background: $surface;
+        tab-active-background: $primary;
+    }
+    
+    .model-suggestions {
+        background: $surface;
+        border: thin $accent;
+        max-height: 20;
+        overflow: auto;
+    }
+    
+    ModelSuggestion {
+        padding: 1;
+        background: $boost;
+        hover-background: $primary 20%;
     }
     """
     
@@ -422,6 +441,7 @@ class EquitrTUI(App):
         self.coder.on_task_complete = self.on_task_complete
         self.coder.on_tool_call = self.on_tool_call
         self.coder.on_message = self.on_message
+        self.coder.on_iteration = self.on_iteration  # Add for live costs
     
     def get_available_models(self) -> Dict[str, List[str]]:
         """Detect available providers and their models using environment variables and Litellm."""
@@ -635,6 +655,12 @@ class EquitrTUI(App):
             main_window.add_status_update("Task execution completed", "success")
         else:
             main_window.add_status_update("Task execution failed", "error")
+    
+    def on_iteration(self, iteration: int, cost: float):
+        """Called on each iteration to update live cost."""
+        self.status_bar.current_cost = cost
+        main_window = self.agent_tabs.get_agent_window("main")
+        main_window.add_status_update(f"Iteration {iteration} | Current Cost: ${cost:.4f}", "info")
     
     def on_tool_call(self, tool_data: Dict[str, Any]):
         """Called when a tool is executed."""
