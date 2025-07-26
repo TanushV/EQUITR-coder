@@ -87,12 +87,17 @@ EQUITR-coder/
 │   ├── providers/             # LLM providers
 │   │   ├── openrouter.py      # OpenRouter provider
 │   │   └── litellm.py         # LiteLLM provider
+│   ├── programmatic/          # Programmatic API
+│   │   ├── __init__.py
+│   │   └── interface.py       # OOP interface
 │   ├── tools/                 # Tool system
 │   │   ├── __init__.py
 │   │   ├── registry.py        # Tool registry
 │   │   └── builtin/           # Built-in tools
 │   └── ui/                    # User interface
-│       └── tui.py             # Terminal UI
+│       ├── __init__.py
+│       ├── tui.py             # Simple TUI
+│       └── advanced_tui.py     # Advanced Textual TUI
 ├── tests/                     # Test suite
 ├── examples/                  # Usage examples
 ├── docs/                      # Documentation
@@ -495,6 +500,45 @@ from EQUITR_coder.interactive_cli import main
 async def test_full_workflow():
     # Test complete workflow
     pass
+```
+
+## TUI Development
+
+### Setting Up Textual Dev Tools
+```bash
+# Install Textual dev extras
+pip install textual[dev]
+
+# Run TUI in dev mode
+textual run --dev equitrcoder.ui.advanced_tui:EquitrTUI
+
+# Debug console
+textual console  # In separate terminal
+```
+
+### Testing TUI Components
+```python
+# tests/test_tui.py
+import pytest
+from textual.app import App
+from equitrcoder.ui.advanced_tui import EquitrTUI
+
+class TestApp(App):
+    def compose(self):
+        yield Label("Test")
+
+@pytest.mark.asyncio
+async def test_tui():
+    async with TestApp().run_test() as pilot:
+        assert pilot.app is not None
+```
+
+### Mocking Models for TUI Tests
+Use Litellm mocking:
+```python
+import litellm
+litellm.set_verbose = True
+litellm.success_callback = [lambda x: "Mock response"]
 ```
 
 ## Documentation
