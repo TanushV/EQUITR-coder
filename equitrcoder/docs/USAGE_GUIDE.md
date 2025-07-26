@@ -641,3 +641,44 @@ agent = BaseAgent(debug=True)
 ---
 
 For more advanced usage patterns, see the examples in the `equitrcoder/examples/` directory.
+
+## Programmatic Usage
+
+### Basic Setup
+
+```python
+import asyncio
+from equitrcoder import EquitrCoder, TaskConfiguration
+
+async def main():
+    coder = EquitrCoder()
+    result = await coder.execute_task("Analyze project structure")
+    print(result)
+
+asyncio.run(main())
+```
+
+### Checking API Keys and Model Availability
+
+Before executing tasks, you can verify available API keys and model status:
+
+```python
+async def check_setup():
+    coder = EquitrCoder()
+    
+    # Check available API keys
+    keys = coder.check_available_api_keys()
+    print(f"Available providers: {keys}")
+    
+    # Check if a model is available (basic check)
+    basic_check = await coder.check_model_availability("gpt-4")
+    print(f"Basic availability: {basic_check}")
+    
+    # Check with test call (verifies API connectivity)
+    test_check = await coder.check_model_availability("gpt-4", test_call=True)
+    print(f"Test call successful: {test_check}")
+
+asyncio.run(check_setup())
+```
+
+This helps ensure your environment is properly configured before running tasks.

@@ -80,6 +80,16 @@ async def main():
     # Create coder instance
     coder = EquitrCoder(mode="single", git_enabled=True)
     
+    # Check available API keys
+    available_keys = coder.check_available_api_keys()
+    print(f"Available providers: {available_keys}")
+    
+    # Check model availability
+    model_ok = await coder.check_model_availability("gpt-4", test_call=True)
+    if not model_ok:
+        print("Selected model is not available")
+        return
+    
     # Configure task
     config = TaskConfiguration(
         description="Analyze and improve code",
@@ -94,7 +104,6 @@ async def main():
         config=config
     )
     
-    # Check results
     if result.success:
         print(f"✅ Success! Cost: ${result.cost:.4f}")
         if result.git_committed:
