@@ -10,6 +10,8 @@ from typing import Optional, List, Dict, Any, Callable, Union
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
+import os
+import litellm
 
 from ..agents.base_agent import BaseAgent
 from ..agents.worker_agent import WorkerAgent
@@ -139,6 +141,37 @@ class EquitrCoder:
         self.on_task_complete: Optional[Callable] = None
         self.on_tool_call: Optional[Callable] = None
         self.on_message: Optional[Callable] = None
+    
+    def check_available_api_keys(self) -> Dict[str, bool]:
+        """Check which API keys are available in the environment."""
+        providers = {
+            "openai": bool(os.getenv("OPENAI_API_KEY")),
+            "anthropic": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "azure": bool(os.getenv("AZURE_API_KEY")),
+            "aws": bool(os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY")),
+            "cohere": bool(os.getenv("COHERE_API_KEY")),
+            # Add more providers as needed
+        }
+        return {provider: available for provider, available in providers.items() if available}
+    
+    async def check_model_availability(self, model: str, test_call: bool = False) -> bool:
+        """Check if a model is available and optionally verify with a test call."""
+        try:
+            # Basic check if model is supported by litellm
+            if model not in litellm.model_list:
+                return False
+            
+            if test_call:
+                # Make a small test completion
+                response = await litellm.acompletion(
+                    model=model,
+                    messages=[{"role": "user", "content": "Test"}],
+                    max_tokens=1
+                )
+                return bool(response and response.choices)
+            return True
+        except Exception:
+            return False
     
     async def execute_task(
         self,
