@@ -26,7 +26,8 @@ class SimpleTUI:
         self.config = config
         self.session_manager = SessionManagerV2(config.session.session_dir)
         self.current_session_id = "default"
-        self.current_model = ""
+        self.supervisor_model = ""
+        self.worker_model = ""
         self.available_models = [
             "moonshot/kimi-k2-0711-preview",
             "openai/gpt-4",
@@ -49,7 +50,8 @@ class SimpleTUI:
         if anthropic_key:
             print(f"  {SUCCESS_COLOR}Anthropic: ****{anthropic_key[-4:]}{RESET}")
         # Add other providers if needed
-        print(f"{HEADER_COLOR}Selected Model: {self.current_model or 'Not selected'}{RESET}")
+        print(f"{HEADER_COLOR}Selected Supervisor: {self.supervisor_model or 'Not selected'}{RESET}")
+        print(f"{HEADER_COLOR}Selected Worker: {self.worker_model or 'Not selected'}{RESET}")
         print(f"{HEADER_COLOR}Session: {self.current_session_id}{RESET}")
         print(f"{HEADER_COLOR}-" * 60 + RESET)
         
@@ -71,17 +73,31 @@ class SimpleTUI:
         print("  0. Enter custom model")
         
         try:
-            choice = input("\nSelect model (number): ").strip()
+            # Select supervisor
+            choice = input("\nSelect supervisor model (number): ").strip()
             if choice == "0":
-                custom_model = input("Enter custom model: ").strip()
+                custom_model = input("Enter custom supervisor model: ").strip()
                 if custom_model:
-                    self.current_model = custom_model
-                    print(f"Model set to: {custom_model}")
+                    self.supervisor_model = custom_model
+                    print(f"Supervisor model set to: {custom_model}")
             elif choice.isdigit() and 1 <= int(choice) <= len(self.available_models):
-                self.current_model = self.available_models[int(choice) - 1]
-                print(f"Model set to: {self.current_model}")
+                self.supervisor_model = self.available_models[int(choice) - 1]
+                print(f"Supervisor model set to: {self.supervisor_model}")
             else:
-                print("Invalid selection")
+                print("Invalid selection for supervisor")
+            
+            # Select worker
+            choice = input("\nSelect worker model (number): ").strip()
+            if choice == "0":
+                custom_model = input("Enter custom worker model: ").strip()
+                if custom_model:
+                    self.worker_model = custom_model
+                    print(f"Worker model set to: {custom_model}")
+            elif choice.isdigit() and 1 <= int(choice) <= len(self.available_models):
+                self.worker_model = self.available_models[int(choice) - 1]
+                print(f"Worker model set to: {self.worker_model}")
+            else:
+                print("Invalid selection for worker")
         except (ValueError, KeyboardInterrupt):
             print("Selection cancelled")
             
@@ -114,8 +130,8 @@ class SimpleTUI:
             
     async def execute_task(self, task: str):
         """Execute a coding task."""
-        if not self.current_model:
-            print(f"{WARNING_COLOR}❌ No model selected. Use /model to select one.{RESET}")
+        if not self.worker_model and not self.supervisor_model:
+            print(f"{WARNING_COLOR}❌ No models selected. Use /model to select.{RESET}")
             return
             
         try:
@@ -129,7 +145,7 @@ class SimpleTUI:
                 
             orchestrator = SingleAgentOrchestrator(
                 agent=agent,
-                model=self.current_model,
+                model=self.worker_model or self.supervisor_model,  # Use worker or fallback to supervisor
                 session_manager=self.session_manager
             )
             
@@ -199,8 +215,8 @@ class SimpleTUI:
             try:
                 self.print_header()
                 
-                if not self.current_model:
-                    print(f"\n{WARNING_COLOR}⚠️  No model selected. Please select a model first.{RESET}")
+                if not self.worker_model and not self.supervisor_model:
+                    print(f"\n{WARNING_COLOR}⚠️  No models selected. Please select a model first.{RESET}")
                     self.print_menu()
                     
                 user_input = input(f"\nequitrcoder> {RESET}").strip()

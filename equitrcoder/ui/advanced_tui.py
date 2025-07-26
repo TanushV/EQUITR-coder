@@ -385,6 +385,8 @@ class EquitrTUI(App):
         self.coder: Optional[EquitrCoder] = None
         self.current_task: Optional[str] = None
         self.task_running = False
+        self.supervisor_model: Optional[str] = None
+        self.worker_model: Optional[str] = None
         
         # Initialize components
         self.todo_sidebar = TodoSidebar(classes="sidebar")
@@ -397,7 +399,7 @@ class EquitrTUI(App):
         # Set initial status
         self.status_bar.mode = mode
         self.status_bar.stage = "ready"
-        
+    
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
         yield Header()
@@ -408,10 +410,11 @@ class EquitrTUI(App):
             with Vertical(classes="main-content"):
                 yield self.task_input
                 yield self.agent_tabs
-                # Add model suggestions container
+                # Add model selectors container
                 with Container(id="model-selector", classes="hidden"):
-                    yield Label("Select Model", classes="panel-title")
-                    yield Input(placeholder="Type to search models...", id="model-input")
+                    yield Label("Select Models", classes="panel-title")
+                    yield Input(placeholder="Supervisor model...", id="supervisor-input")
+                    yield Input(placeholder="Worker model...", id="worker-input")
                     yield self.model_suggestions
                     yield Button("Confirm", variant="primary", id="btn-model-confirm")
                     yield Button("Cancel", variant="warning", id="btn-model-cancel")
@@ -477,12 +480,13 @@ class EquitrTUI(App):
         return {"all": sorted(all_models), "by_provider": models}
     
     def select_model(self):
-        """Show model selector with dynamic suggestions."""
+        """Show model selector with dynamic suggestions for both models."""
         selector = self.query_one("#model-selector")
         selector.remove_class("hidden")
         
-        input_widget = self.query_one("#model-input", Input)
-        input_widget.focus()
+        supervisor_input = self.query_one("#supervisor-input", Input)
+        worker_input = self.query_one("#worker-input", Input)
+        supervisor_input.focus()
         
         # Initial update
         self.update_model_suggestions("")
@@ -506,15 +510,17 @@ class EquitrTUI(App):
         self.model_suggestions.add_class("visible")
     
     async def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle changes in the model input field."""
-        if event.input.id == "model-input":
+        """Handle changes in the model input fields."""
+        if event.input.id in ["supervisor-input", "worker-input"]:
             self.update_model_suggestions(event.value)
     
     async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        """Auto-select highlighted suggestion into input."""
+        """Auto-select highlighted suggestion into the focused input."""
         if event.item and isinstance(event.item, ModelSuggestion):
-            input_widget = self.query_one("#model-input", Input)
-            input_widget.value = event.item.model_name
+            if self.query_one("#supervisor-input").has_focus:
+                self.query_one("#supervisor-input", Input).value = event.item.model_name
+            elif self.query_one("#worker-input").has_focus:
+                self.query_one("#worker-input", Input).value = event.item.model_name
     
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -525,13 +531,16 @@ class EquitrTUI(App):
         elif event.button.id == "btn-clear":
             await self.clear_chat()
         elif event.button.id == "btn-model-confirm":
-            input_widget = self.query_one("#model-input", Input)
-            selected_model = input_widget.value.strip()
-            if selected_model:
-                self.current_model = selected_model
-                self.status_bar.models = selected_model  # Update status bar
-                main_window = self.agent_tabs.get_agent_window("main")
-                main_window.add_status_update(f"Model set to: {selected_model}", "success")
+            supervisor_input = self.query_one("#supervisor-input", Input).value.strip()
+            worker_input = self.query_one("#worker-input", Input).value.strip()
+            if supervisor_input:
+                self.supervisor_model = supervisor_input
+            if worker_input:
+                self.worker_model = worker_input
+            models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
+            self.status_bar.models = models_display
+            main_window = self.agent_tabs.get_agent_window("main")
+            main_window.add_status_update(f"Models set: {models_display}", "success")
             self.hide_model_selector()
         elif event.button.id == "btn-model-cancel":
             self.hide_model_selector()
@@ -581,14 +590,17 @@ class EquitrTUI(App):
                     max_iterations=20,
                     auto_commit=True
                 )
+                if self.worker_model:  # Use worker model for single mode
+                    # Assuming single mode uses worker model
+                    pass  # Integrate with coder if needed
                 self.status_bar.update_cost_limit(5.0)
             else:
                 config = MultiAgentTaskConfiguration(
                     description=task_description,
                     max_workers=3,
                     max_cost=15.0,
-                    supervisor_model="gpt-4",
-                    worker_model="gpt-3.5-turbo",
+                    supervisor_model=self.supervisor_model or "gpt-4",
+                    worker_model=self.worker_model or "gpt-3.5-turbo",
                     auto_commit=True
                 )
                 self.status_bar.update_cost_limit(15.0)
