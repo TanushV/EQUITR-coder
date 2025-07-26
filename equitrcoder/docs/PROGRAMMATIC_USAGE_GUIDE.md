@@ -457,69 +457,32 @@ async def retry_execution(task_description, max_retries=3):
     return None  # All retries failed
 ```
 
+## Advanced Features
+
+### Environment Validation
+
+EQUITR Coder provides methods to validate your setup:
+
+- `check_available_api_keys()`: Returns dict of available providers.
+- `check_model_availability(model, test_call=False)`: Async method to check if a model is supported and working.
+
+Example:
+
+```python
+coder = EquitrCoder()
+keys = coder.check_available_api_keys()
+if 'openai' not in keys:
+    print("OpenAI key missing")
+
+model_status = await coder.check_model_availability("claude-3-sonnet", test_call=True)
+if model_status:
+    print("Model is ready")
+```
+
+Use these before tasks to avoid runtime errors.
+
 ## Integration Examples
 
 ### Flask Web Application
 
-```python
-from flask import Flask, request, jsonify
-from equitrcoder import EquitrCoder, TaskConfiguration
-import asyncio
-
-app = Flask(__name__)
-
-@app.route('/execute_task', methods=['POST'])
-def execute_task():
-    data = request.json
-    task_description = data.get('task')
-    
-    async def run_task():
-        coder = EquitrCoder()
-        config = TaskConfiguration(
-            description=task_description,
-            max_cost=data.get('max_cost', 2.0)
-        )
-        
-        result = await coder.execute_task(task_description, config)
-        await coder.cleanup()
-        return result
-    
-    # Run async task in sync context
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    result = loop.run_until_complete(run_task())
-    loop.close()
-    
-    return jsonify({
-        'success': result.success,
-        'cost': result.cost,
-        'iterations': result.iterations,
-        'error': result.error
-    })
 ```
-
-### Jupyter Notebook
-
-```python
-# Jupyter Notebook cell
-import asyncio
-from equitrcoder import EquitrCoder, TaskConfiguration
-
-# Create and execute task
-coder = EquitrCoder()
-config = TaskConfiguration(description="Analyze data", max_cost=1.0)
-
-result = await coder.execute_task("Analyze the CSV data and create visualizations", config)
-
-if result.success:
-    print(f"✅ Analysis completed in {result.execution_time:.2f}s")
-    print(f"Cost: ${result.cost:.4f}")
-else:
-    print(f"❌ Analysis failed: {result.error}")
-
-await coder.cleanup()
-```
-
----
-
-The programmatic interface provides a clean, Pythonic way to integrate EQUITR Coder into your applications while maintaining full control over execution parameters and handling. 
