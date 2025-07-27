@@ -310,7 +310,7 @@ class SingleAgentOrchestrator:
             if not audit_manager.should_trigger_audit():
                 return False
 
-            print("🔍 All todos completed! Triggering automatic audit via supervisor...")
+            print("🔍 Worker finished! Triggering automatic audit via supervisor...")
 
             # Infinite audit loop with failure tracking
             while True:
@@ -319,7 +319,7 @@ class SingleAgentOrchestrator:
                     # Get audit context first
                     audit_context = audit_manager.get_audit_context()
                     if not audit_context:
-                        print("ℹ️  No audit needed - no completed todos found")
+                        print("ℹ️  No audit needed - no todos found")
                         break
 
                     # Execute audit via supervisor (which has its own loop)

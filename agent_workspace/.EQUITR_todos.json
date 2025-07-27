@@ -1,0 +1,397 @@
+{
+  "todos": [
+    {
+      "id": "todo_20250727_010559_0",
+      "title": "Test todo",
+      "description": "Test description",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:05:59.803983",
+      "updated_at": "2025-07-27T01:05:59.803983",
+      "due_date": null,
+      "tags": [
+        "test"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_1",
+      "title": "Create project directory structure:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.876698",
+      "updated_at": "2025-07-27T01:12:18.876698",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_2",
+      "title": "Create `calculator.py` with initial file structure:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.877541",
+      "updated_at": "2025-07-27T01:12:18.877541",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_3",
+      "title": "Implement `CalculatorState` class:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.877902",
+      "updated_at": "2025-07-27T01:12:18.877902",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_4",
+      "title": "Implement `CalculatorEngine` class:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.878226",
+      "updated_at": "2025-07-27T01:12:18.878226",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_5",
+      "title": "Create basic Tkinter window in `CalculatorGUI` class:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.878656",
+      "updated_at": "2025-07-27T01:12:18.878656",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_6",
+      "title": "Create button layout constants:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.879003",
+      "updated_at": "2025-07-27T01:12:18.879003",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_7",
+      "title": "Implement `create_widgets()` method in `CalculatorGUI`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.879298",
+      "updated_at": "2025-07-27T01:12:18.879298",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_8",
+      "title": "Implement `CalculatorController` class:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.879578",
+      "updated_at": "2025-07-27T01:12:18.879578",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_9",
+      "title": "Wire button commands:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.879873",
+      "updated_at": "2025-07-27T01:12:18.879873",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_10",
+      "title": "Implement display formatting:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.880188",
+      "updated_at": "2025-07-27T01:12:18.880188",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_11",
+      "title": "Implement error handling in `CalculatorEngine`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.880531",
+      "updated_at": "2025-07-27T01:12:18.880531",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_12",
+      "title": "Add error state to `CalculatorState`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.880820",
+      "updated_at": "2025-07-27T01:12:18.880820",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_13",
+      "title": "Update display to show \"Error\":",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.881289",
+      "updated_at": "2025-07-27T01:12:18.881289",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_14",
+      "title": "Implement keyboard support:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.881579",
+      "updated_at": "2025-07-27T01:12:18.881579",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_15",
+      "title": "Add visual feedback:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.881874",
+      "updated_at": "2025-07-27T01:12:18.881874",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_16",
+      "title": "Add memory methods to `CalculatorController`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.882182",
+      "updated_at": "2025-07-27T01:12:18.882182",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_17",
+      "title": "Add memory buttons to layout:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.882512",
+      "updated_at": "2025-07-27T01:12:18.882512",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_18",
+      "title": "Update display for memory:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.882888",
+      "updated_at": "2025-07-27T01:12:18.882888",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_19",
+      "title": "Implement percentage functionality:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.883396",
+      "updated_at": "2025-07-27T01:12:18.883396",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_20",
+      "title": "Create test files:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.883825",
+      "updated_at": "2025-07-27T01:12:18.883825",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_21",
+      "title": "Write unit tests for `CalculatorEngine`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.884217",
+      "updated_at": "2025-07-27T01:12:18.884217",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_22",
+      "title": "Write unit tests for `CalculatorState`:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.884608",
+      "updated_at": "2025-07-27T01:12:18.884608",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_23",
+      "title": "Write integration tests:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.884998",
+      "updated_at": "2025-07-27T01:12:18.884998",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_24",
+      "title": "Create PyInstaller configuration:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.885359",
+      "updated_at": "2025-07-27T01:12:18.885359",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_25",
+      "title": "Final testing:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.885737",
+      "updated_at": "2025-07-27T01:12:18.885737",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_26",
+      "title": "Add docstrings:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.886106",
+      "updated_at": "2025-07-27T01:12:18.886106",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_011218_27",
+      "title": "Create README.md in docs/:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:12:18.886467",
+      "updated_at": "2025-07-27T01:12:18.886467",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    }
+  ],
+  "metadata": {}
+}
