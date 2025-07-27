@@ -241,82 +241,214 @@ class EquitrCoder:
         task_description: str,
         config: Optional[TaskConfiguration]
     ) -> ExecutionResult:
-        """Execute task in single-agent mode."""
+        """Execute task in single-agent mode with mandatory 3-document creation."""
         if not config:
             config = TaskConfiguration(description=task_description)
         
-        # Create agent
-        agent = BaseAgent(
-            max_cost=config.max_cost,
-            max_iterations=config.max_iterations
-        )
-        
-        # Set callbacks
-        if self.on_tool_call:
-            agent.on_tool_call_callback = self.on_tool_call
-        
-        # Create orchestrator
-        if not self._single_orchestrator:
-            self._single_orchestrator = SingleAgentOrchestrator(
-                agent=agent,
-                session_manager=self.session_manager,
-                model=config.model
+        try:
+            # MANDATORY: Create the 3 documents first (automatic for programmatic mode)
+            from ..core.document_workflow import DocumentWorkflowManager
+            
+            doc_manager = DocumentWorkflowManager(model=config.model or "moonshot/kimi-k2-0711-preview")
+            
+            # Create documents automatically (no user interaction in programmatic mode)
+            doc_result = await doc_manager.create_documents_programmatic(
+                user_prompt=task_description,
+                project_path=str(self.repo_path)
             )
-        
-        # Set callbacks
-        if self.on_message:
-            self._single_orchestrator.set_callbacks(on_message=self.on_message)
-        
-        # Execute task
-        result = await self._single_orchestrator.execute_task(
-            task_description=task_description,
-            session_id=config.session_id
-        )
-        
-        return ExecutionResult(
-            success=result["success"],
-            content=result.get("content", ""),
-            cost=result.get("cost", 0.0),
-            iterations=result.get("iterations", 0),
-            session_id=result.get("session_id", ""),
-            execution_time=0.0,  # Will be set by caller
-            error=result.get("error")
-        )
+            
+            if not doc_result.success:
+                return ExecutionResult(
+                    success=False,
+                    content="",
+                    cost=0.0,
+                    iterations=0,
+                    session_id="error",
+                    execution_time=0.0,
+                    error=f"Failed to create planning documents: {doc_result.error}"
+                )
+            
+            # Create agent
+            agent = BaseAgent(
+                max_cost=config.max_cost,
+                max_iterations=config.max_iterations
+            )
+            
+            # Set callbacks
+            if self.on_tool_call:
+                agent.on_tool_call_callback = self.on_tool_call
+            
+            # Create orchestrator
+            if not self._single_orchestrator:
+                self._single_orchestrator = SingleAgentOrchestrator(
+                    agent=agent,
+                    session_manager=self.session_manager,
+                    model=config.model or "moonshot/kimi-k2-0711-preview"
+                )
+            
+            # Set callbacks
+            if self.on_message:
+                self._single_orchestrator.set_callbacks(on_message=self.on_message)
+            
+            # Enhanced task description with document context
+            enhanced_task = f"""
+Original task: {task_description}
+
+You have access to the following planning documents that were automatically created:
+- Requirements: {doc_result.requirements_path}
+- Design: {doc_result.design_path}  
+- Todos: {doc_result.todos_path}
+
+Please read these documents first, then execute the task according to the plan.
+Focus on completing the todos one by one, following the design specifications.
+"""
+            
+            # Execute task
+            result = await self._single_orchestrator.execute_task(
+                task_description=enhanced_task,
+                session_id=config.session_id
+            )
+            
+            return ExecutionResult(
+                success=result["success"],
+                content=result.get("content", ""),
+                cost=result.get("cost", 0.0),
+                iterations=result.get("iterations", 0),
+                session_id=result.get("session_id", ""),
+                execution_time=0.0,  # Will be set by caller
+                error=result.get("error")
+            )
+            
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                content="",
+                cost=0.0,
+                iterations=0,
+                session_id="error",
+                execution_time=0.0,
+                error=str(e)
+            )
     
     async def _execute_multi_task(
         self,
         task_description: str,
         config: Optional[MultiAgentTaskConfiguration]
     ) -> ExecutionResult:
-        """Execute task in multi-agent mode."""
+        """Execute task in multi-agent mode with mandatory 3-document creation and split todos."""
         if not config:
             config = MultiAgentTaskConfiguration(description=task_description)
         
-        # Create providers
-        supervisor_provider = LiteLLMProvider(model=config.supervisor_model or "gpt-4")
-        worker_provider = LiteLLMProvider(model=config.worker_model or "gpt-3.5-turbo")
-        
-        # Create orchestrator
-        if not self._multi_orchestrator:
-            self._multi_orchestrator = MultiAgentOrchestrator(
-                supervisor_provider=supervisor_provider,
-                worker_provider=worker_provider,
-                max_concurrent_workers=config.max_workers,
-                global_cost_limit=config.max_cost
+        try:
+            # MANDATORY: Create the 3 documents first (automatic for programmatic mode)
+            from ..core.document_workflow import DocumentWorkflowManager
+            
+            doc_manager = DocumentWorkflowManager(model=config.supervisor_model or "moonshot/kimi-k2-0711-preview")
+            
+            # Create shared requirements and design documents
+            print("🔍 Creating shared requirements document...")
+            requirements_content = await doc_manager._generate_requirements(task_description)
+            requirements_path = Path(self.repo_path) / "docs" / "requirements.md"
+            requirements_path.parent.mkdir(exist_ok=True)
+            requirements_path.write_text(requirements_content)
+            
+            print("🏗️ Creating shared design document...")
+            design_content = await doc_manager._generate_design(task_description, requirements_content)
+            design_path = Path(self.repo_path) / "docs" / "design.md"
+            design_path.write_text(design_content)
+            
+            # Create split todos for parallel agents
+            print(f"📋 Creating split todos for {config.max_workers} agents...")
+            agent_todo_files = await doc_manager.create_split_todos_for_parallel_agents(
+                user_prompt=task_description,
+                requirements_content=requirements_content,
+                design_content=design_content,
+                num_agents=config.max_workers,
+                project_path=str(self.repo_path)
             )
-        
-        # Execute coordination task
-        result = await self._multi_orchestrator.coordinate_workers(task_description)
-        
-        return ExecutionResult(
-            success=result["success"],
-            content=result.get("content", ""),
-            cost=result.get("total_cost", 0.0),
-            iterations=len(result.get("worker_results", [])),
-            session_id="multi_agent_session",
-            execution_time=0.0,  # Will be set by caller
-            error=result.get("error")
-        )
+            
+            if not agent_todo_files:
+                return ExecutionResult(
+                    success=False,
+                    content="",
+                    cost=0.0,
+                    iterations=0,
+                    session_id="error",
+                    execution_time=0.0,
+                    error="Failed to create split todos for parallel agents"
+                )
+            
+            # Create providers
+            supervisor_provider = LiteLLMProvider(model=config.supervisor_model or "moonshot/kimi-k2-0711-preview")
+            worker_provider = LiteLLMProvider(model=config.worker_model or "moonshot/kimi-k2-0711-preview")
+            
+            # Create orchestrator
+            if not self._multi_orchestrator:
+                self._multi_orchestrator = MultiAgentOrchestrator(
+                    supervisor_provider=supervisor_provider,
+                    worker_provider=worker_provider,
+                    max_concurrent_workers=config.max_workers,
+                    global_cost_limit=config.max_cost
+                )
+            
+            # Create worker tasks with individual todo assignments
+            worker_tasks = []
+            for i, todo_file in enumerate(agent_todo_files):
+                enhanced_task = f"""
+Original task: {task_description}
+
+You are Agent {i + 1} of {config.max_workers}.
+
+You have access to the following planning documents:
+- Requirements: {requirements_path}
+- Design: {design_path}
+- Your assigned todos: {todo_file}
+
+CRITICAL INSTRUCTIONS:
+1. Read the requirements.md and design.md files for context
+2. Read your assigned todos file: {todo_file}
+3. Complete ALL todos assigned to you
+4. You cannot finish until ALL your todos are marked as completed
+5. Use the update_todo tool to mark todos as completed when done
+6. Work systematically through each todo
+7. Follow the design specifications exactly
+
+You are working in parallel with other agents. Focus only on your assigned todos.
+"""
+                
+                worker_tasks.append({
+                    "task_id": f"agent_{i + 1}_todos",
+                    "worker_id": f"agent_{i + 1}",
+                    "task_description": enhanced_task,
+                    "context": {"agent_id": i + 1, "todo_file": todo_file}
+                })
+            
+            # Execute coordination with split todos
+            result = await self._multi_orchestrator.coordinate_workers(
+                coordination_task=f"Multi-agent execution: {task_description}",
+                worker_tasks=worker_tasks
+            )
+            
+            return ExecutionResult(
+                success=result["success"],
+                content=result.get("content", ""),
+                cost=result.get("total_cost", 0.0),
+                iterations=len(result.get("worker_results", [])),
+                session_id="multi_agent_session",
+                execution_time=0.0,  # Will be set by caller
+                error=result.get("error")
+            )
+            
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                content="",
+                cost=0.0,
+                iterations=0,
+                session_id="error",
+                execution_time=0.0,
+                error=str(e)
+            )
     
     def create_worker(self, config: WorkerConfiguration) -> WorkerAgent:
         """

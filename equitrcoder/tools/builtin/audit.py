@@ -47,16 +47,10 @@ class AutoAuditManager:
             print(f"Warning: Could not save audit history: {e}")
 
     def should_trigger_audit(self) -> bool:
-        """Check if audit should be triggered based on todo completion."""
-        todos = self.todo_manager.list_todos()
-        if not todos:
-            return False
-
-        # Check if all todos are completed
-        incomplete_todos = [
-            todo for todo in todos if todo.status not in ["completed", "cancelled"]
-        ]
-        return len(incomplete_todos) == 0
+        """Check if audit should be triggered - ALWAYS returns True after worker completion."""
+        # CRITICAL: Audits should ALWAYS run after ANY worker finishes, regardless of todo status
+        # This ensures work quality and creates new todos when work is incomplete
+        return True
 
     def record_audit_result(self, passed: bool, audit_result: str = "") -> bool:
         """
@@ -188,6 +182,7 @@ Please resolve this issue to allow the audit to pass.
     def _prepare_audit_context(self, todos: List[Any]) -> str:
         """Prepare context for audit."""
         completed_todos = [todo for todo in todos if todo.status == "completed"]
+        pending_todos = [todo for todo in todos if todo.status not in ["completed", "cancelled"]]
         
         failure_history = ""
         if self.audit_failure_count > 0:
@@ -200,12 +195,18 @@ This audit must be thorough to avoid escalation to user.
         if self.audit_failure_count > 0:
             attempt_info += "\nPrevious audits failed - be extra thorough!"
 
-        completed_list = "\n".join([f"✅ {todo.title}" for todo in completed_todos])
+        completed_list = "\n".join([f"✅ {todo.title}" for todo in completed_todos]) if completed_todos else "No todos completed yet"
+        pending_list = "\n".join([f"⏳ {todo.title}" for todo in pending_todos]) if pending_todos else "No pending todos"
 
-        return f"""TODOS COMPLETED: {len(completed_todos)}/{len(todos)}
+        return f"""WORKER COMPLETION AUDIT
 ==================================================
+TODOS COMPLETED: {len(completed_todos)}/{len(todos)}
 {completed_list}
+
+TODOS STILL PENDING: {len(pending_todos)}
+{pending_list}
 {failure_history}
+
 AUDIT TOOLS AVAILABLE:
 - read_file: Read any file in the codebase
 - list_files: List files in directories
@@ -216,35 +217,33 @@ AUDIT TOOLS AVAILABLE:
 
 🔍 CRITICAL AUDIT INSTRUCTIONS:
 1. FIRST: Use list_files to examine the entire project structure
-2. THEN: Use read_file to check for docs/requirements.md or docs/design.md
-3. IF requirements exist: Verify EVERY requirement is implemented
-4. IF no requirements: Check for basic project completeness:
-   - Source code files (.py, .js, .ts, etc.)
-   - Configuration files (package.json, requirements.txt, etc.)
-   - Documentation (README.md)
-   - Tests directory
-5. Use grep_search to verify implementations match requirements
-6. Be EXTREMELY thorough - check every detail
+2. THEN: Use read_file to check for docs/requirements.md and docs/design.md
+3. VERIFY: Check if completed todos were actually implemented correctly
+4. CHECK: Ensure all requirements from docs/requirements.md are being addressed
+5. VALIDATE: Confirm the work matches the design in docs/design.md
+6. ASSESS: Determine if any additional todos are needed for missing work
+7. Be EXTREMELY thorough - a worker just finished, verify their work quality
 
 ⚠️  AUDIT FAILURE CRITERIA:
-- Missing required files specified in requirements
+- Completed todos were not actually implemented
+- Work doesn't match requirements or design
+- Missing files that should have been created
+- Code quality issues or bugs
 - Incomplete implementations
-- No source code in a software project
-- Missing documentation
-- Requirements not matching implementation
+- Missing tests or documentation
 
 ✅ AUDIT SUCCESS CRITERIA:
-- ALL requirements from docs/ are implemented
-- OR if no requirements: basic project structure exists
+- ALL completed todos are properly implemented
+- Work matches requirements and design documents
 - Code quality is acceptable
-- Documentation matches implementation
+- No missing critical components
 
 🎯 REQUIRED RESPONSES:
 - If audit passes: Respond EXACTLY with 'AUDIT PASSED'
 - If audit fails: Respond EXACTLY with 'AUDIT FAILED' followed by:
-  * List each specific missing item
-  * Use create_todo tool for EACH missing item
-  * Be specific about what needs to be implemented
+  * List each specific issue found
+  * Use create_todo tool for EACH missing or incorrect item
+  * Be specific about what needs to be fixed or implemented
 
 {attempt_info}"""
 
