@@ -37,28 +37,39 @@ class DocumentCreationResult:
 class DocumentWorkflowManager:
     """Manages the 3-document creation workflow."""
     
-    def __init__(self, model: str = "moonshot/kimi-k2-0711-preview"):
+    def __init__(self, model: str = "moonshot/kimi-k2-0711-preview", todo_file: str = None):
         # Auto-load environment variables
         from ..utils.env_loader import auto_load_environment
         auto_load_environment()
         
         self.model = model
         self.provider = LiteLLMProvider(model=model)
-        self.todo_manager = TodoManager()
+        self.todo_manager = TodoManager(todo_file=todo_file)
         
     async def create_documents_programmatic(
         self, 
         user_prompt: str, 
-        project_path: str = "."
+        project_path: str = ".",
+        task_name: str = None
     ) -> DocumentCreationResult:
         """
         Create all 3 documents automatically for programmatic mode.
         AI decides everything without user interaction.
+        Creates isolated folder for each task.
         """
         try:
             project_path = Path(project_path)
-            docs_dir = project_path / "docs"
-            docs_dir.mkdir(exist_ok=True)
+            
+            # Create unique task folder
+            if not task_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                task_name = f"task_{timestamp}"
+            
+            # Create task-specific docs directory
+            docs_dir = project_path / "docs" / task_name
+            docs_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"📁 Creating documents in: {docs_dir}")
             
             # Step 1: Create requirements document
             print("🔍 Creating requirements document...")
@@ -80,7 +91,7 @@ class DocumentWorkflowManager:
             
             # Step 4: Parse todos and create them in the todo system
             print("📝 Parsing and creating todos in the system...")
-            await self._parse_and_create_todos(todos_content)
+            await self._parse_and_create_todos(todos_content, task_name)
             
             return DocumentCreationResult(
                 success=True,
@@ -99,16 +110,27 @@ class DocumentWorkflowManager:
         self, 
         user_prompt: str, 
         project_path: str = ".",
-        interaction_callback=None
+        interaction_callback=None,
+        task_name: str = None
     ) -> DocumentCreationResult:
         """
         Create all 3 documents through interactive discussion for TUI mode.
         AI and user discuss back and forth until completion.
+        Creates isolated folder for each task.
         """
         try:
             project_path = Path(project_path)
-            docs_dir = project_path / "docs"
-            docs_dir.mkdir(exist_ok=True)
+            
+            # Create unique task folder
+            if not task_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                task_name = f"task_{timestamp}"
+            
+            # Create task-specific docs directory
+            docs_dir = project_path / "docs" / task_name
+            docs_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"📁 Creating documents in: {docs_dir}")
             
             conversation_log = []
             
@@ -143,7 +165,7 @@ class DocumentWorkflowManager:
             todos_path.write_text(todos_content)
             
             # Step 4: Parse todos and create them in the todo system
-            await self._parse_and_create_todos(todos_content)
+            await self._parse_and_create_todos(todos_content, task_name)
             
             return DocumentCreationResult(
                 success=True,
@@ -201,25 +223,114 @@ Be technical and specific. Use markdown format."""
         return response.content
     
     async def _generate_todos(self, user_prompt: str, requirements: str, design: str) -> str:
-        """Generate todos document automatically."""
-        system_prompt = """You are a project manager. Your job is to break down the design into specific, actionable tasks.
+        """Generate todos document automatically with grouped, reasonable tasks using tool calls."""
+        system_prompt = """You are a project manager creating a well-organized task breakdown for potential parallel execution.
 
-Create a todos.md document that includes:
-1. A numbered list of specific tasks
-2. Each task should be clear and actionable
-3. Tasks should be in logical order
-4. Include file creation, coding, testing tasks
-5. Use checkbox format: - [ ] Task description
+CRITICAL REQUIREMENTS:
+1. Create 1-25 tasks total (flexible based on project complexity)
+2. Group tasks into 3-6 logical categories for easy parallel agent distribution
+3. Each category should be self-contained and independent
+4. Tasks within categories should be related and sequential
+5. Use clear, actionable descriptions
+6. You can work on multiple todos at once if they're related
 
-Be specific about what files to create and what code to write. Use markdown format."""
+WORKFLOW:
+1. Analyze the requirements and design
+2. Create logical categories for parallel agent distribution
+3. Use the create_todo_category tool to create each category with its tasks
+4. Each category should have 2-8 tasks that can be worked on by one agent
+5. Categories should have minimal dependencies on each other
+
+RULES FOR PARALLEL AGENT DISTRIBUTION:
+- Each category should be assignable to a separate agent
+- Categories should have minimal dependencies on each other
+- Aim for 3-6 categories to allow 2-6 parallel agents
+- Tasks should be specific and actionable
+- Focus on what needs to be delivered, not how to do it
+- Multiple related tasks can be worked on simultaneously
+
+Available tools:
+- create_todo_category: Use this to create each category with its associated tasks"""
+
+        # Define the create_todo_category tool
+        create_todo_tool = {
+            "type": "function",
+            "function": {
+                "name": "create_todo_category",
+                "description": "Create a category of related todos for parallel agent execution",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "category_name": {
+                            "type": "string",
+                            "description": "Name of the category (e.g., 'Setup & Configuration', 'Core Implementation')"
+                        },
+                        "tasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "description": "Clear, actionable task title"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Detailed description of what needs to be done"
+                                    },
+                                    "can_work_parallel": {
+                                        "type": "boolean",
+                                        "description": "Whether this task can be worked on simultaneously with other tasks in the category"
+                                    }
+                                },
+                                "required": ["title", "description", "can_work_parallel"]
+                            },
+                            "description": "List of tasks in this category"
+                        }
+                    },
+                    "required": ["category_name", "tasks"]
+                }
+            }
+        }
 
         messages = [
             Message(role="system", content=system_prompt),
             Message(role="user", content=f"User prompt: {user_prompt}\n\nRequirements:\n{requirements}\n\nDesign:\n{design}")
         ]
         
-        response = await self.provider.chat(messages=messages)
-        return response.content
+        # Collect all categories and tasks
+        categories = []
+        
+        while True:
+            response = await self.provider.chat(messages=messages, tools=[create_todo_tool])
+            
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    if tool_call.function['name'] == 'create_todo_category':
+                        args = json.loads(tool_call.function['arguments'])
+                        categories.append(args)
+                        
+                        # Add tool response to continue conversation
+                        tool_calls_dict = [{"id": tc.id, "type": tc.type, "function": tc.function} for tc in response.tool_calls]
+                        messages.append(Message(role="assistant", content=response.content or "", tool_calls=tool_calls_dict))
+                        messages.append(Message(role="tool", content=f"Created category: {args['category_name']} with {len(args['tasks'])} tasks", tool_call_id=tool_call.id))
+            else:
+                # No more tool calls, we're done
+                break
+        
+        # Generate markdown from collected categories
+        todos_content = "# Project Tasks\n\n"
+        
+        for category in categories:
+            todos_content += f"## {category['category_name']}\n"
+            for task in category['tasks']:
+                parallel_note = " (can work in parallel)" if task.get('can_work_parallel', False) else ""
+                todos_content += f"- [ ] {task['title']}{parallel_note}\n"
+                if task.get('description') and task['description'] != task['title']:
+                    todos_content += f"  - {task['description']}\n"
+            todos_content += "\n"
+        
+        return todos_content
     
     async def _interactive_requirements(
         self, 
@@ -458,11 +569,19 @@ Available functions:
                 final_todos = await self._generate_todos(user_prompt, requirements, design)
                 return final_todos, conversation_log
     
-    async def _parse_and_create_todos(self, todos_content: str):
-        """Parse the todos document and create todos in the system."""
+    async def _parse_and_create_todos(self, todos_content: str, task_folder: str = None):
+        """Parse the todos document and create todos only for this specific task."""
         print(f"📝 Parsing todos content (length: {len(todos_content)} chars)")
         lines = todos_content.split('\n')
         print(f"📝 Found {len(lines)} lines in todos document")
+        
+        # Clear existing todos for this task to prevent compounding
+        if task_folder:
+            existing_todos = self.todo_manager.list_todos()
+            task_todos = [t for t in existing_todos if task_folder in t.tags]
+            for todo in task_todos:
+                self.todo_manager.delete_todo(todo.id)
+            print(f"🧹 Cleared {len(task_todos)} existing todos for task: {task_folder}")
         
         todo_count = 0
         for i, line in enumerate(lines):
@@ -472,11 +591,15 @@ Available functions:
                 task_description = line[5:].strip()  # Remove '- [ ] '
                 if task_description:
                     try:
+                        tags = ["auto-generated"]
+                        if task_folder:
+                            tags.append(f"task-{task_folder}")
+                        
                         todo = self.todo_manager.create_todo(
                             title=task_description,
-                            description=f"Auto-generated from todos document",
+                            description=f"Auto-generated from todos document for task: {task_folder or 'unknown'}",
                             priority="medium",
-                            tags=["auto-generated"],
+                            tags=tags,
                             assignee=None
                         )
                         print(f"✅ Created todo {todo_count + 1}: {todo.id} - {task_description}")
@@ -485,17 +608,20 @@ Available functions:
                         print(f"❌ Warning: Could not create todo '{task_description}': {e}")
                 else:
                     print(f"⚠️ Empty task description on line {i + 1}: '{line}'")
-            elif line and not line.startswith('#') and not line.startswith('##'):
-                # Show non-empty, non-header lines that don't match the pattern
-                print(f"🔍 Line {i + 1} doesn't match todo pattern: '{line}'")
         
-        print(f"📝 Total todos created: {todo_count}")
+        print(f"📝 Total todos created for this task: {todo_count}")
         
-        # Verify todos were created
-        all_todos = self.todo_manager.list_todos()
-        print(f"📝 Total todos in system: {len(all_todos)}")
-        for todo in all_todos[-todo_count:]:  # Show the last created todos
-            print(f"  - {todo.status}: {todo.title}")
+        # Show only todos for this specific task
+        if task_folder:
+            task_todos = [t for t in self.todo_manager.list_todos() if f"task-{task_folder}" in t.tags]
+            print(f"📝 Todos for task '{task_folder}': {len(task_todos)}")
+            for todo in task_todos:
+                print(f"  - {todo.status}: {todo.title}")
+        else:
+            all_todos = self.todo_manager.list_todos()
+            print(f"📝 Total todos in system: {len(all_todos)}")
+            for todo in all_todos[-todo_count:]:  # Show the last created todos
+                print(f"  - {todo.status}: {todo.title}")
     
     async def create_split_todos_for_parallel_agents(
         self, 

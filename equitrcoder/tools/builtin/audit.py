@@ -180,7 +180,7 @@ Please resolve this issue to allow the audit to pass.
         return self._prepare_audit_context(todos)
 
     def _prepare_audit_context(self, todos: List[Any]) -> str:
-        """Prepare context for audit."""
+        """Prepare context for audit with improved reliability."""
         completed_todos = [todo for todo in todos if todo.status == "completed"]
         pending_todos = [todo for todo in todos if todo.status not in ["completed", "cancelled"]]
         
@@ -195,10 +195,17 @@ This audit must be thorough to avoid escalation to user.
         if self.audit_failure_count > 0:
             attempt_info += "\nPrevious audits failed - be extra thorough!"
 
-        completed_list = "\n".join([f"✅ {todo.title}" for todo in completed_todos]) if completed_todos else "No todos completed yet"
-        pending_list = "\n".join([f"⏳ {todo.title}" for todo in pending_todos]) if pending_todos else "No pending todos"
+        # Show only recent completed todos to avoid overwhelming context
+        recent_completed = completed_todos[-10:] if len(completed_todos) > 10 else completed_todos
+        completed_list = "\n".join([f"✅ {todo.title}" for todo in recent_completed]) if recent_completed else "No todos completed yet"
+        
+        # Show only first few pending todos
+        first_pending = pending_todos[:5] if len(pending_todos) > 5 else pending_todos
+        pending_list = "\n".join([f"⏳ {todo.title}" for todo in first_pending]) if first_pending else "No pending todos"
+        if len(pending_todos) > 5:
+            pending_list += f"\n... and {len(pending_todos) - 5} more pending todos"
 
-        return f"""WORKER COMPLETION AUDIT
+        return f"""WORKER COMPLETION AUDIT - STRUCTURED VALIDATION
 ==================================================
 TODOS COMPLETED: {len(completed_todos)}/{len(todos)}
 {completed_list}
@@ -215,37 +222,61 @@ AUDIT TOOLS AVAILABLE:
 - git_diff: See changes made
 - create_todo: Create new todos for missing items
 
-🔍 CRITICAL AUDIT INSTRUCTIONS:
-1. FIRST: Use list_files to examine the entire project structure
-2. THEN: Use read_file to check for docs/requirements.md and docs/design.md
-3. VERIFY: Check if completed todos were actually implemented correctly
-4. CHECK: Ensure all requirements from docs/requirements.md are being addressed
-5. VALIDATE: Confirm the work matches the design in docs/design.md
-6. ASSESS: Determine if any additional todos are needed for missing work
-7. Be EXTREMELY thorough - a worker just finished, verify their work quality
+🔍 STRUCTURED AUDIT PROCESS:
+Follow this exact sequence for reliable audits:
 
-⚠️  AUDIT FAILURE CRITERIA:
-- Completed todos were not actually implemented
-- Work doesn't match requirements or design
-- Missing files that should have been created
-- Code quality issues or bugs
-- Incomplete implementations
-- Missing tests or documentation
+STEP 1: DOCUMENT VALIDATION
+- Use read_file to check docs/requirements.md exists and is complete
+- Use read_file to check docs/design.md exists and is complete
+- Verify these documents contain clear, actionable specifications
+
+STEP 2: PROJECT STRUCTURE CHECK
+- Use list_files to examine the project structure
+- Verify expected directories and files exist as per design
+- Check for any missing core files or directories
+
+STEP 3: IMPLEMENTATION VERIFICATION
+- For each completed todo, verify the actual work was done
+- Use read_file to check if files mentioned in todos exist
+- Use grep_search to verify code implementations match requirements
+- Check that code quality is acceptable (no obvious bugs)
+
+STEP 4: REQUIREMENTS COMPLIANCE
+- Cross-reference completed work against docs/requirements.md
+- Ensure all functional requirements are being addressed
+- Verify technical requirements are being followed
+
+STEP 5: DESIGN COMPLIANCE
+- Cross-reference completed work against docs/design.md
+- Ensure implementation follows the specified architecture
+- Verify components are built as designed
+
+⚠️  AUDIT FAILURE CRITERIA (be specific):
+- Required documents (requirements.md, design.md) are missing or incomplete
+- Completed todos were not actually implemented (files don't exist)
+- Work doesn't match requirements specifications
+- Work doesn't follow design architecture
+- Missing critical files that should have been created
+- Code has obvious bugs or quality issues
+- Incomplete implementations that claim to be complete
 
 ✅ AUDIT SUCCESS CRITERIA:
-- ALL completed todos are properly implemented
-- Work matches requirements and design documents
-- Code quality is acceptable
-- No missing critical components
+- Documents exist and are complete
+- ALL completed todos have corresponding implementations
+- Work matches both requirements and design documents
+- Code quality is acceptable for the project stage
+- No critical missing components for current progress
 
-🎯 REQUIRED RESPONSES:
+🎯 REQUIRED RESPONSE FORMAT:
 - If audit passes: Respond EXACTLY with 'AUDIT PASSED'
 - If audit fails: Respond EXACTLY with 'AUDIT FAILED' followed by:
-  * List each specific issue found
-  * Use create_todo tool for EACH missing or incorrect item
-  * Be specific about what needs to be fixed or implemented
+  * SPECIFIC ISSUES FOUND: List each concrete problem
+  * For each issue, use create_todo tool to create a fix task
+  * Be precise about what needs to be fixed or implemented
 
-{attempt_info}"""
+{attempt_info}
+
+REMEMBER: Focus on whether completed todos were actually implemented, not on future work."""
 
 
 # Global audit manager instance

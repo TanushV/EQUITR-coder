@@ -73,4 +73,7 @@ sessions/
 
 # Temporary files
 tmp/
-temp/ 
+temp/
+
+# Kiro IDE
+.kiro/ 
