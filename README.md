@@ -66,6 +66,82 @@ export EQUITR_MAX_COST="5.0"
 export EQUITR_MODEL="gpt-4"
 ```
 
+## 🚀 Mandatory 3-Document Workflow
+
+EQUITR Coder implements a **mandatory 3-document creation workflow** that ensures proper planning before any code execution:
+
+### 📋 Task-Isolated Document Structure
+Each task creates its own isolated folder to prevent todo compounding:
+```
+docs/
+├── task_20250127_143022/          # Unique timestamp folder
+│   ├── requirements.md            # What to build
+│   ├── design.md                  # How to build it  
+│   └── todos.md                   # 8-15 grouped tasks
+└── task_20250127_144155/          # Next task folder
+    ├── requirements.md
+    ├── design.md
+    └── todos.md
+```
+
+### 🔄 Workflow by Mode
+
+#### Programmatic Mode (Automatic)
+```python
+from equitrcoder import EquitrCoder, TaskConfiguration
+
+coder = EquitrCoder(mode='single')
+result = await coder.execute_task('Build a web server', TaskConfiguration(
+    model='moonshot/kimi-k2-0711-preview'
+))
+# → Creates docs/task_YYYYMMDD_HHMMSS/ with all 3 documents automatically
+```
+
+#### TUI Mode (Interactive)
+```bash
+equitrcoder tui
+# → Interactive back-and-forth discussion to create each document
+# → AI asks clarifying questions until documents are complete
+# → User can exit discussion with 'done' or AI exits with structured calls
+```
+
+#### CLI Mode (Automatic)
+```bash
+equitrcoder single "Build a web server" --model moonshot/kimi-k2-0711-preview
+# → Creates docs/task_YYYYMMDD_HHMMSS/ with all 3 documents automatically
+```
+
+### 🤝 Parallel Agent Communication
+
+For multi-agent tasks, agents communicate using built-in tools:
+- `send_agent_message` - Send messages to other agents
+- `receive_agent_messages` - Check for messages from other agents  
+- `get_message_history` - View communication history
+- `get_active_agents` - See which agents are currently active
+
+```bash
+equitrcoder multi "Build a web server" --workers 3 --supervisor-model moonshot/kimi-k2-0711-preview
+# → Creates shared requirements.md and design.md
+# → Splits todos into categorized todos_agent_1.md, todos_agent_2.md, todos_agent_3.md
+# → Agents communicate and coordinate their work
+```
+
+### 🔍 Always-On Auditing
+
+Audits run **after every worker completion** to ensure quality:
+- Validates work against requirements and design documents
+- Creates new todos when work is incomplete or incorrect
+- Escalates to user after maximum failures
+- Ensures continuous quality control
+
+### 📋 Improved Task Management
+
+- **Flexible Task Count**: 1-25 tasks per document (based on project complexity)
+- **Categorized Structure**: Tasks organized into 3-6 logical categories for parallel execution
+- **Parallel-Ready**: Categories designed for easy distribution among 2-6 agents
+- **No Todo Compounding**: Each task uses isolated todo tracking in timestamped folders
+- **Self-Contained Categories**: Each category can be worked on independently
+
 ## 💻 Usage Modes
 
 ### 1. Programmatic Interface (Recommended)
