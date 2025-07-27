@@ -100,3 +100,54 @@ This specification outlines the comprehensive fixes and enhancements needed for 
 3. WHEN models are unavailable THEN the system SHALL suggest available alternatives
 4. WHEN file permissions are insufficient THEN the system SHALL provide clear permission requirements
 5. WHEN network issues occur THEN the system SHALL provide connectivity troubleshooting guidance
+
+### Requirement 9: Mandatory 3-Document Workflow
+
+**User Story:** As a developer, I want every task to start with proper planning through requirements, design, and todos documents so that all work is well-structured and auditable.
+
+#### Acceptance Criteria
+
+1. WHEN I execute any task THEN the system SHALL create requirements.md, design.md, and todos.md before starting work
+2. WHEN using programmatic interface THEN the system SHALL automatically generate all 3 documents without user interaction
+3. WHEN using TUI interface THEN the system SHALL engage in interactive discussion to create each document with user input
+4. WHEN using CLI interface THEN the system SHALL automatically generate all 3 documents for both single and multi-agent modes
+5. WHEN documents are created THEN the system SHALL parse todos and add them to the centralized todo management system
+6. WHEN multi-agent mode is used THEN the system SHALL create shared requirements.md and design.md with individual todos_agent_N.md files
+
+### Requirement 10: Always-On Auditing System
+
+**User Story:** As a quality-conscious user, I want automatic auditing after every worker completion to ensure work meets requirements and design specifications.
+
+#### Acceptance Criteria
+
+1. WHEN any worker completes work THEN the system SHALL automatically trigger an audit regardless of todo completion status
+2. WHEN audit runs THEN the system SHALL validate work against the requirements.md and design.md documents
+3. WHEN audit finds issues THEN the system SHALL create new todos for missing or incorrect work
+4. WHEN audit fails multiple times THEN the system SHALL escalate to user with clear explanation
+5. WHEN audit passes THEN the system SHALL reset failure counters and continue workflow
+6. WHEN audit context is generated THEN the system SHALL include worker completion details and document references
+
+### Requirement 11: Parallel Agent Communication
+
+**User Story:** As a user running multi-agent tasks, I want agents to communicate and coordinate their work to avoid conflicts and ensure proper integration.
+
+#### Acceptance Criteria
+
+1. WHEN parallel agents are created THEN the system SHALL equip each agent with 4 communication tools: send_agent_message, receive_agent_messages, get_message_history, get_active_agents
+2. WHEN agents send messages THEN the system SHALL route messages through a centralized message pool
+3. WHEN agents receive messages THEN the system SHALL provide access to messages from other agents
+4. WHEN agents check history THEN the system SHALL provide complete communication history
+5. WHEN agents check active status THEN the system SHALL show which agents are currently running
+6. WHEN agents coordinate work THEN the system SHALL enable them to share progress and avoid conflicts
+
+### Requirement 12: Worker Completion Logic
+
+**User Story:** As a user, I want workers to complete individual todos rather than entire tasks so that work is properly tracked and audited.
+
+#### Acceptance Criteria
+
+1. WHEN workers execute THEN the system SHALL only allow completion of individual todos, not entire tasks
+2. WHEN workers attempt to finish early THEN the system SHALL prevent completion until all assigned todos are done
+3. WHEN workers complete todos THEN the system SHALL update the centralized todo tracking system
+4. WHEN multi-agent mode runs THEN the system SHALL assign specific todos to each agent through individual todos files
+5. WHEN task context is provided THEN the system SHALL include references to requirements.md, design.md, and assigned todos
