@@ -391,6 +391,330 @@
         "auto-generated"
       ],
       "assignee": null
+    },
+    {
+      "id": "todo_20250727_012758_28",
+      "title": "\ud83d\udea8 URGENT: Manual Review Required - Audit Failed Multiple Times",
+      "description": "CRITICAL: The automated audit has failed 2 times.\nManual intervention is required to resolve the issues.\n\nLast audit result:\nAUDIT FAILED\n\nThe project audit has revealed significant issues:\n\n1. **Requirements Mismatch**: The requirements.md and design.md files describe a web server, but the todos are for a calculator application\n2. **No Implementation**: None of the 28+ calculator-related todos have been completed\n3. **Missing Core Files**: No calculator.py, no actual calculator implementation\n4. **Wrong Project Structure**: No calculator-specific files or directories exist\n5. **Documentation Issues**: The documentation doesn't match the intended calculator project\n\nI have created 8 new urgent todos to correct the project direction and implement the actual calculator application. The project needs to:\n1. Fix the requirements.md and design.md to describe a calculator\n2. Implement the 4 main calculator classes\n3. Create proper tests\n4. Build the complete calculator application\n\nThis project is far from complete and requires significant work to meet the intended calculator functionality.\n\nAction required:\n1. Review the audit findings above\n2. Manually fix the identified issues\n3. Reset the audit failure count by deleting .EQUITR_audit_history.json\n4. Re-run the system to continue automated auditing\n\nThis todo has been marked as high priority and assigned for immediate attention.",
+      "status": "pending",
+      "priority": "high",
+      "created_at": "2025-07-27T01:27:58.808368",
+      "updated_at": "2025-07-27T01:27:58.808368",
+      "due_date": null,
+      "tags": [
+        "urgent",
+        "manual-review",
+        "audit-failure"
+      ],
+      "assignee": "user"
+    },
+    {
+      "id": "todo_20250727_013027_29",
+      "title": "Create project directory `hello-world/`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.834534",
+      "updated_at": "2025-07-27T01:30:27.834534",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_30",
+      "title": "Initialize git repository in `hello-world/`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.835676",
+      "updated_at": "2025-07-27T01:30:27.835676",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_31",
+      "title": "Create `.gitignore` file with Python cache patterns",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.836408",
+      "updated_at": "2025-07-27T01:30:27.836408",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_32",
+      "title": "Create empty file `hello.py` in project root",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.837046",
+      "updated_at": "2025-07-27T01:30:27.837046",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_33",
+      "title": "Open `hello.py` in text editor with UTF-8 encoding",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.837590",
+      "updated_at": "2025-07-27T01:30:27.837590",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_34",
+      "title": "Add shebang line `#!/usr/bin/env python3` as first line",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.838133",
+      "updated_at": "2025-07-27T01:30:27.838133",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_35",
+      "title": "Add newline after shebang line",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.838671",
+      "updated_at": "2025-07-27T01:30:27.838671",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_36",
+      "title": "Add `print(\"Hello, World!\")` as second line",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.839248",
+      "updated_at": "2025-07-27T01:30:27.839248",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_37",
+      "title": "Save file and verify encoding is UTF-8",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.839835",
+      "updated_at": "2025-07-27T01:30:27.839835",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_38",
+      "title": "Run `python hello.py` and verify output is exactly `Hello, World!`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.840536",
+      "updated_at": "2025-07-27T01:30:27.840536",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_39",
+      "title": "Run `echo $?` (Unix) or `echo %ERRORLEVEL%` (Windows) to verify exit code 0",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.841228",
+      "updated_at": "2025-07-27T01:30:27.841228",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_40",
+      "title": "Run `chmod +x hello.py` on Unix-like systems",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.841950",
+      "updated_at": "2025-07-27T01:30:27.841950",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_41",
+      "title": "Run `./hello.py` and verify same output",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.842577",
+      "updated_at": "2025-07-27T01:30:27.842577",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_42",
+      "title": "Run `wc -c hello.py` and verify file size \u2264 100 bytes",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.843185",
+      "updated_at": "2025-07-27T01:30:27.843185",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_43",
+      "title": "Install flake8 if not present: `pip install flake8`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.843803",
+      "updated_at": "2025-07-27T01:30:27.843803",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_44",
+      "title": "Run `flake8 hello.py` and verify no warnings or errors",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.844376",
+      "updated_at": "2025-07-27T01:30:27.844376",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_45",
+      "title": "Run `python -m py_compile hello.py` to verify syntax",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.845348",
+      "updated_at": "2025-07-27T01:30:27.845348",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_46",
+      "title": "Create `README.md` with usage instructions",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.846275",
+      "updated_at": "2025-07-27T01:30:27.846275",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_47",
+      "title": "Add content to README:",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.847554",
+      "updated_at": "2025-07-27T01:30:27.847554",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_48",
+      "title": "Stage all files: `git add .`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.849240",
+      "updated_at": "2025-07-27T01:30:27.849240",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_49",
+      "title": "Commit with message: \"feat: add hello world script\"",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.850828",
+      "updated_at": "2025-07-27T01:30:27.850828",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
+    },
+    {
+      "id": "todo_20250727_013027_50",
+      "title": "Create tag: `git tag -a v1.0.0 -m \"Initial release\"`",
+      "description": "Auto-generated from todos document",
+      "status": "pending",
+      "priority": "medium",
+      "created_at": "2025-07-27T01:30:27.852318",
+      "updated_at": "2025-07-27T01:30:27.852318",
+      "due_date": null,
+      "tags": [
+        "auto-generated"
+      ],
+      "assignee": null
     }
   ],
   "metadata": {}
