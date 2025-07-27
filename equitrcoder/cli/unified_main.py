@@ -185,9 +185,44 @@ async def run_single_agent(args) -> int:
         print(f"🤖 Starting single agent task: {args.task}")
         print("=" * 60)
         
+        # MANDATORY: Create the 3 documents first (automatic for CLI mode)
+        from ..core.document_workflow import DocumentWorkflowManager
+        
+        doc_manager = DocumentWorkflowManager(model=args.model)
+        
+        print("🔍 Creating mandatory planning documents...")
+        doc_result = await doc_manager.create_documents_programmatic(
+            user_prompt=args.task,
+            project_path="."
+        )
+        
+        if not doc_result.success:
+            print(f"❌ Failed to create planning documents: {doc_result.error}")
+            return 1
+        
+        print(f"✅ Documents created:")
+        print(f"📄 Requirements: {doc_result.requirements_path}")
+        print(f"🏗️ Design: {doc_result.design_path}")
+        print(f"📋 Todos: {doc_result.todos_path}")
+        print("=" * 60)
+        
+        # Enhanced task description with document context
+        enhanced_task = f"""
+Original task: {args.task}
+
+You have access to the following planning documents that were created:
+- Requirements: {doc_result.requirements_path}
+- Design: {doc_result.design_path}  
+- Todos: {doc_result.todos_path}
+
+Please read these documents first, then execute the task according to the plan.
+Focus on completing the todos one by one, following the design specifications.
+You cannot finish until ALL todos are marked as completed.
+"""
+        
         # Execute task
         result = await orchestrator.execute_task(
-            task_description=args.task,
+            task_description=enhanced_task,
             session_id=args.session_id
         )
         
@@ -287,26 +322,104 @@ async def run_multi_agent(args) -> int:
         print(f"⚡ Worker Model: {args.worker_model}")
         print("=" * 60)
         
-        # Create worker tasks by breaking down the main task
-        worker_tasks = []
-        task_parts = [
-            f"Part {i+1} of {args.workers}: {args.coordination_task}",
-            f"Focus on implementation aspect {i+1} of the overall task: {args.coordination_task}",
-            f"Handle component {i+1} for: {args.coordination_task}",
-        ]
+        # MANDATORY: Create the 3 documents first with split todos for parallel agents
+        from ..core.document_workflow import DocumentWorkflowManager
         
+        doc_manager = DocumentWorkflowManager(model=args.supervisor_model)
+        
+        print("🔍 Creating shared requirements document...")
+        requirements_content = await doc_manager._generate_requirements(args.coordination_task)
+        requirements_path = Path(".") / "docs" / "requirements.md"
+        requirements_path.parent.mkdir(exist_ok=True)
+        requirements_path.write_text(requirements_content)
+        
+        print("🏗️ Creating shared design document...")
+        design_content = await doc_manager._generate_design(args.coordination_task, requirements_content)
+        design_path = Path(".") / "docs" / "design.md"
+        design_path.write_text(design_content)
+        
+        print(f"📋 Creating split todos for {args.workers} agents...")
+        agent_todo_files = await doc_manager.create_split_todos_for_parallel_agents(
+            user_prompt=args.coordination_task,
+            requirements_content=requirements_content,
+            design_content=design_content,
+            num_agents=args.workers,
+            project_path="."
+        )
+        
+        if not agent_todo_files:
+            print("❌ Failed to create split todos for parallel agents")
+            return 1
+        
+        print(f"✅ Documents created:")
+        print(f"📄 Shared Requirements: {requirements_path}")
+        print(f"🏗️ Shared Design: {design_path}")
+        for i, todo_file in enumerate(agent_todo_files):
+            print(f"📋 Agent {i+1} Todos: {todo_file}")
+        print("=" * 60)
+        
+        # Create enhanced coordination task with document context and communication instructions
+        enhanced_task = f"""
+Original coordination task: {args.coordination_task}
+
+You are coordinating {args.workers} parallel agents with the following setup:
+- Shared Requirements: {requirements_path}
+- Shared Design: {design_path}
+- Split todos: Each agent has their own todos file
+
+COMMUNICATION INSTRUCTIONS:
+- Agents can communicate using send_agent_message and receive_agent_messages tools
+- Agents should coordinate to avoid conflicts and share progress
+- Use get_active_agents to see which agents are available
+- Use get_message_history to review past communications
+
+COORDINATION STRATEGY:
+1. Each agent reads the shared requirements and design documents
+2. Each agent works on their assigned todos from their individual todos file
+3. Agents communicate progress and coordinate dependencies
+4. Agents cannot finish until ALL their assigned todos are completed
+5. Final coordination ensures all work integrates properly
+
+Agent assignments:
+{chr(10).join([f'- Agent {i+1}: {todo_file}' for i, todo_file in enumerate(agent_todo_files)])}
+"""
+        
+        # Create worker tasks with document context
+        worker_tasks = []
         for i, config in enumerate(worker_configs):
-            task_description = task_parts[i % len(task_parts)]
+            task_description = f"""
+Agent {i+1} Task: {args.coordination_task}
+
+DOCUMENT CONTEXT:
+- Requirements: {requirements_path}
+- Design: {design_path}
+- Your Todos: {agent_todo_files[i]}
+
+INSTRUCTIONS:
+1. Read the requirements and design documents for context
+2. Work through ALL todos in your assigned todos file
+3. Use communication tools to coordinate with other agents
+4. You cannot complete until ALL your todos are done
+5. Communicate progress and coordinate dependencies
+
+Your specific todos file: {agent_todo_files[i]}
+"""
             worker_tasks.append({
-                "task_id": f"subtask_{i+1}",
+                "task_id": f"agent_{i+1}",
                 "worker_id": config.worker_id,
                 "task_description": task_description,
-                "context": {"part": i+1, "total_parts": len(worker_configs)}
+                "context": {
+                    "agent_number": i+1,
+                    "total_agents": len(worker_configs),
+                    "todos_file": agent_todo_files[i],
+                    "requirements_file": str(requirements_path),
+                    "design_file": str(design_path)
+                }
             })
         
-        # Execute coordination
+        # Execute coordination with enhanced task
         result = await orchestrator.coordinate_workers(
-            coordination_task=args.coordination_task,
+            coordination_task=enhanced_task,
             worker_tasks=worker_tasks
         )
         

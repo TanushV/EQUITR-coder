@@ -507,7 +507,7 @@ Available functions:
     ) -> List[str]:
         """
         Create split todos documents for parallel agents.
-        Each agent gets the same requirements.md and design.md, but different todos.
+        Each agent gets complete categories of todos, not individual todos.
         
         Returns list of todos file paths for each agent.
         """
@@ -516,47 +516,115 @@ Available functions:
             docs_dir = project_path / "docs"
             docs_dir.mkdir(exist_ok=True)
             
-            # First generate the complete todos
-            complete_todos = await self._generate_todos(user_prompt, requirements_content, design_content)
+            # Generate todos with categorized structure
+            system_prompt = """You are a project manager creating a categorized task breakdown for parallel agents.
+
+Create a todos.md document with clear categories that can be distributed among multiple agents.
+Each category should be a complete, self-contained set of related tasks.
+
+Format:
+# Project Todos
+
+## Category 1: [Category Name]
+- [ ] Task 1 for this category
+- [ ] Task 2 for this category
+- [ ] Task 3 for this category
+
+## Category 2: [Category Name]  
+- [ ] Task 1 for this category
+- [ ] Task 2 for this category
+
+## Category 3: [Category Name]
+- [ ] Task 1 for this category
+- [ ] Task 2 for this category
+
+Make sure each category is independent and can be worked on by a separate agent.
+Create at least as many categories as there will be agents.
+Use clear, descriptive category names like "Setup & Configuration", "Core Implementation", "Testing & Validation", etc."""
+
+            from ..providers.litellm import LiteLLMProvider, Message
+            provider = LiteLLMProvider(model=self.model)
             
-            # Parse todos into individual tasks
-            todo_lines = []
+            messages = [
+                Message(role="system", content=system_prompt),
+                Message(role="user", content=f"User prompt: {user_prompt}\n\nRequirements:\n{requirements_content}\n\nDesign:\n{design_content}\n\nNumber of agents: {num_agents}")
+            ]
+            
+            response = await provider.chat(messages=messages)
+            complete_todos = response.content
+            
+            # Parse todos into categories
+            categories = []
+            current_category = None
+            current_todos = []
+            
             for line in complete_todos.split('\n'):
                 line = line.strip()
-                if line.startswith('- [ ]'):
-                    todo_lines.append(line)
+                if line.startswith('## '):
+                    # Save previous category
+                    if current_category and current_todos:
+                        categories.append({
+                            'name': current_category,
+                            'todos': current_todos.copy()
+                        })
+                    # Start new category
+                    current_category = line[3:].strip()  # Remove '## '
+                    current_todos = []
+                elif line.startswith('- [ ]'):
+                    if current_category:
+                        current_todos.append(line)
             
-            if not todo_lines:
-                raise Exception("No todos found to split among agents")
+            # Save last category
+            if current_category and current_todos:
+                categories.append({
+                    'name': current_category,
+                    'todos': current_todos.copy()
+                })
             
-            # Split todos among agents
-            todos_per_agent = len(todo_lines) // num_agents
-            remainder = len(todo_lines) % num_agents
+            if not categories:
+                raise Exception("No categorized todos found to split among agents")
             
+            print(f"📋 Found {len(categories)} categories: {[cat['name'] for cat in categories]}")
+            
+            # Distribute categories among agents
             agent_todo_files = []
-            start_idx = 0
             
             for agent_idx in range(num_agents):
-                # Calculate how many todos this agent gets
-                agent_todo_count = todos_per_agent + (1 if agent_idx < remainder else 0)
-                end_idx = start_idx + agent_todo_count
+                # Assign categories to this agent (round-robin distribution)
+                agent_categories = []
+                for cat_idx, category in enumerate(categories):
+                    if cat_idx % num_agents == agent_idx:
+                        agent_categories.append(category)
                 
-                # Get todos for this agent
-                agent_todos = todo_lines[start_idx:end_idx]
+                if not agent_categories:
+                    # If no categories assigned, create a coordination category
+                    agent_categories = [{
+                        'name': 'Coordination & Integration',
+                        'todos': ['- [ ] Coordinate with other agents and integrate their work']
+                    }]
                 
                 # Create todos document for this agent
                 agent_todos_content = f"""# Todos for Agent {agent_idx + 1}
 
-## Assigned Tasks
-{chr(10).join(agent_todos)}
+## Assigned Categories
+Agent {agent_idx + 1} is responsible for the following categories:
 
-## Instructions
+"""
+                
+                for category in agent_categories:
+                    agent_todos_content += f"## {category['name']}\n"
+                    for todo in category['todos']:
+                        agent_todos_content += f"{todo}\n"
+                    agent_todos_content += "\n"
+                
+                agent_todos_content += f"""## Instructions
 - You are Agent {agent_idx + 1} of {num_agents}
-- Complete ALL assigned todos above
+- Complete ALL todos in your assigned categories above
+- Each category is a complete, self-contained set of related tasks
 - You cannot finish until ALL your todos are marked as completed
-- Use the update_todo tool to mark todos as completed when done
+- Use communication tools to coordinate with other agents
 - Read the requirements.md and design.md files for context
-- Work systematically through each todo
+- Work systematically through each category
 """
                 
                 # Save to file
@@ -564,22 +632,23 @@ Available functions:
                 agent_todos_path.write_text(agent_todos_content)
                 agent_todo_files.append(str(agent_todos_path))
                 
-                # Create todos in the system for this agent
-                for todo_line in agent_todos:
-                    task_description = todo_line[5:].strip()  # Remove '- [ ] '
-                    if task_description:
-                        try:
-                            self.todo_manager.create_todo(
-                                title=task_description,
-                                description=f"Assigned to Agent {agent_idx + 1}",
-                                priority="medium",
-                                tags=["auto-generated", f"agent-{agent_idx + 1}"],
-                                assignee=f"agent_{agent_idx + 1}"
-                            )
-                        except Exception as e:
-                            print(f"Warning: Could not create todo '{task_description}': {e}")
+                print(f"📋 Agent {agent_idx + 1} assigned categories: {[cat['name'] for cat in agent_categories]}")
                 
-                start_idx = end_idx
+                # Create todos in the system for this agent
+                for category in agent_categories:
+                    for todo_line in category['todos']:
+                        task_description = todo_line[5:].strip()  # Remove '- [ ] '
+                        if task_description:
+                            try:
+                                self.todo_manager.create_todo(
+                                    title=task_description,
+                                    description=f"Category: {category['name']} - Assigned to Agent {agent_idx + 1}",
+                                    priority="medium",
+                                    tags=["auto-generated", f"agent-{agent_idx + 1}", category['name'].lower().replace(' ', '-')],
+                                    assignee=f"agent_{agent_idx + 1}"
+                                )
+                            except Exception as e:
+                                print(f"Warning: Could not create todo '{task_description}': {e}")
             
             return agent_todo_files
             

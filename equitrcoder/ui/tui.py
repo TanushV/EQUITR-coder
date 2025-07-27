@@ -36,6 +36,15 @@ class SimpleTUI:
             "anthropic/claude-3-haiku"
         ]
         
+        # Auto-load environment and set default model
+        from ..utils.env_loader import auto_load_environment
+        env_status = auto_load_environment()
+        
+        # Set default model if moonshot is available
+        if env_status.get('providers', {}).get('moonshot', {}).get('available'):
+            self.worker_model = "moonshot/kimi-k2-0711-preview"
+            self.supervisor_model = "moonshot/kimi-k2-0711-preview"
+        
     def print_header(self):
         """Print ASCII header."""
         print(f"{HEADER_COLOR}\n" + "=" * 60)

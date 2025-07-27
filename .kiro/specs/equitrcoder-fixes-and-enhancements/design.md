@@ -13,6 +13,15 @@ This design document outlines the technical approach for implementing comprehens
 │                    ENHANCED EQUITR CODER                   │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────┐    ┌─────────────────┐                │
+│  │ Document        │    │ Audit System    │                │
+│  │ Workflow Mgr    │    │ - Always-On     │                │
+│  │ - 3 Documents   │    │ - Doc Validation│                │
+│  │ - Interactive   │    │ - Todo Creation │                │
+│  │ - Auto Creation │    │ - Escalation    │                │
+│  └─────────────────┘    └─────────────────┘                │
+│           │                       │                        │
+│           ▼                       ▼                        │
+│  ┌─────────────────┐    ┌─────────────────┐                │
 │  │  Model Manager  │    │ Error Handler   │                │
 │  │  - Validation   │    │ - Clear Messages│                │
 │  │  - Cost Est.    │    │ - Suggestions   │                │
@@ -21,26 +30,96 @@ This design document outlines the technical approach for implementing comprehens
 │           │                       │                        │
 │           ▼                       ▼                        │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │            EXISTING CORE SYSTEM                         ││
+│  │            ENHANCED CORE SYSTEM                         ││
 │  │  ┌─────────────────┐    ┌─────────────────┐            ││
 │  │  │   SUPERVISOR    │    │ WORKER AGENTS   │            ││
-│  │  │ (Strong Model)  │    │ (Weak Models)   │            ││
+│  │  │ (Strong Model)  │    │ (Todo-Based)    │            ││
+│  │  │ - Doc Context   │    │ - Communication │            ││
 │  │  └─────────────────┘    └─────────────────┘            ││
 │  └─────────────────────────────────────────────────────────┘│
 │           │                       │                        │
 │           ▼                       ▼                        │
 │  ┌─────────────────┐    ┌─────────────────┐                │
-│  │ Performance     │    │ Integration     │                │
-│  │ Monitor         │    │ Tests           │                │
-│  │ - Metrics       │    │ - E2E Tests     │                │
-│  │ - Alerts        │    │ - Validation    │                │
+│  │ Agent Comm      │    │ Performance     │                │
+│  │ - Message Pool  │    │ Monitor         │                │
+│  │ - 4 Tools       │    │ - Metrics       │                │
+│  │ - Coordination  │    │ - Alerts        │                │
 │  └─────────────────┘    └─────────────────┘                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Components and Interfaces
 
-### 1. Enhanced Model Manager
+### 1. Document Workflow Manager
+
+**Purpose**: Manages the mandatory 3-document creation workflow for all modes.
+
+**Interface**:
+```python
+class DocumentWorkflowManager:
+    async def create_documents_programmatic(self, user_prompt: str, project_path: str) -> DocumentCreationResult
+    async def create_documents_interactive(self, user_prompt: str, project_path: str) -> DocumentCreationResult
+    async def create_split_todos_for_parallel_agents(self, user_prompt: str, requirements_content: str, design_content: str, num_agents: int, project_path: str) -> List[str]
+    async def _generate_requirements(self, user_prompt: str) -> str
+    async def _generate_design(self, user_prompt: str, requirements_content: str) -> str
+    async def _generate_todos(self, user_prompt: str, requirements_content: str, design_content: str) -> str
+```
+
+**Key Features**:
+- Automatic document generation for programmatic mode
+- Interactive document creation for TUI mode
+- Todo splitting for parallel agents
+- Centralized todo system integration
+- Document validation and formatting
+
+### 2. Always-On Audit System
+
+**Purpose**: Validates worker completion against requirements and design documents.
+
+**Interface**:
+```python
+class AuditManager:
+    def should_trigger_audit(self) -> bool  # Always returns True
+    def get_audit_context(self) -> str
+    async def run_audit(self, context: str) -> AuditResult
+    def handle_audit_failure(self, failure_count: int) -> AuditAction
+    def create_escalation_todo(self, audit_result: AuditResult) -> str
+```
+
+**Key Features**:
+- Always triggers after worker completion
+- Document-based validation
+- Automatic todo creation for issues
+- Escalation after maximum failures
+- Comprehensive audit context generation
+
+### 3. Agent Communication System
+
+**Purpose**: Enables parallel agents to communicate and coordinate work.
+
+**Interface**:
+```python
+class MessagePool:
+    def send_message(self, from_agent: str, to_agent: str, message: str) -> bool
+    def get_messages_for_agent(self, agent_id: str) -> List[Message]
+    def get_message_history(self, agent_id: str) -> List[Message]
+    def get_active_agents(self) -> List[str]
+    def register_agent(self, agent_id: str) -> None
+    def unregister_agent(self, agent_id: str) -> None
+
+# Communication Tools (4 tools per agent)
+def create_agent_communication_tools(agent_id: str) -> List[Tool]:
+    # Returns: send_agent_message, receive_agent_messages, get_message_history, get_active_agents
+```
+
+**Key Features**:
+- Centralized message routing
+- 4 communication tools per agent
+- Message history tracking
+- Active agent monitoring
+- Thread-safe message handling
+
+### 4. Enhanced Model Manager
 
 **Purpose**: Centralized model validation, cost estimation, and availability checking.
 
@@ -60,7 +139,7 @@ class ModelManager:
 - Function calling capability validation
 - Provider-specific configuration management
 
-### 2. Enhanced Error Handler
+### 5. Enhanced Error Handler
 
 **Purpose**: Provide clear, actionable error messages with recovery suggestions.
 
@@ -78,7 +157,7 @@ class ErrorHandler:
 - Recovery plan generation
 - User-friendly error formatting
 
-### 3. Performance Monitor
+### 6. Performance Monitor
 
 **Purpose**: Track and report system performance metrics.
 
@@ -97,7 +176,7 @@ class PerformanceMonitor:
 - Success rate analysis
 - Performance threshold alerts
 
-### 4. Integration Test Framework
+### 7. Integration Test Framework
 
 **Purpose**: Comprehensive end-to-end testing of all workflows.
 
@@ -125,6 +204,42 @@ tests/
 ```
 
 ## Data Models
+
+### DocumentCreationResult
+```python
+@dataclass
+class DocumentCreationResult:
+    success: bool
+    requirements_path: str
+    design_path: str
+    todos_path: str
+    todos_created: int
+    error: Optional[str] = None
+```
+
+### AuditResult
+```python
+@dataclass
+class AuditResult:
+    success: bool
+    issues_found: List[str]
+    new_todos_created: List[str]
+    escalation_required: bool
+    audit_context: str
+    failure_count: int
+```
+
+### Message
+```python
+@dataclass
+class Message:
+    id: str
+    from_agent: str
+    to_agent: str
+    content: str
+    timestamp: datetime
+    message_type: str = "general"
+```
 
 ### ModelValidationResult
 ```python
