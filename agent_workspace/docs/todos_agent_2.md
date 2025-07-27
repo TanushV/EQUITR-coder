@@ -1,0 +1,67 @@
+# Todos for Agent 2
+
+## Assigned Tasks
+- [ ] If directory, check for index.html
+- [ ] Return None if file not found
+- [ ] Implement directory traversal protection
+- [ ] Verify resolved path starts with served directory
+- [ ] Handle symlinks safely (resolve but check final path)
+- [ ] Add unit tests for edge cases
+- [ ] Implement file serving
+- [ ] Create `serve_file(self, file_path: Path)` method
+- [ ] Open file in binary mode
+- [ ] Read and stream file contents
+- [ ] Handle file read errors gracefully
+- [ ] Implement MIME type mapping
+- [ ] Create `get_mime_type(self, file_path: Path) -> str` method
+- [ ] Map extensions: .html, .css, .js, .json, .png, .jpg, .svg, .txt
+- [ ] Default to application/octet-stream for unknown types
+- [ ] Add proper HTTP headers
+- [ ] Add Content-Type header based on MIME type
+- [ ] Add Content-Length header
+- [ ] Add Server: header
+- [ ] Add Date: header
+- [ ] Add Connection: close
+- [ ] Implement file streaming for large files
+- [ ] Use chunked reading instead of loading entire file
+- [ ] Set buffer size to 8192 bytes
+- [ ] Handle partial content requests (bonus)
+- [ ] Implement request logging
+- [ ] Create `log_request(self, method: str, path: str, status: int)` method
+- [ ] Format timestamp as YYYY-MM-DD HH:MM:SS
+- [ ] Print to stdout in format: `<timestamp> <method> <path> <status>`
+- [ ] Call from RequestHandler.handle() for all requests
+- [ ] Create example files
+- [ ] Create `public/index.html` with basic HTML5 structure
+- [ ] Create `public/css/style.css` with simple styling
+- [ ] Create `public/js/app.js` with console.log message
+- [ ] Add sample image to `public/images/`
+- [ ] Test all success criteria
+- [ ] Test server starts with default arguments
+- [ ] Test server starts with custom port and directory
+- [ ] Test serving index.html from root
+- [ ] Test serving CSS file with correct MIME type
+- [ ] Test 404 for missing files
+- [ ] Test 405 for POST requests
+- [ ] Test logging output
+- [ ] Test graceful shutdown with Ctrl-C
+- [ ] Create README.md
+- [ ] Add project description
+- [ ] Add usage instructions
+- [ ] Add command-line examples
+- [ ] Add requirements (Python 3.8+)
+- [ ] Add testing instructions
+- [ ] Final testing and cleanup
+- [ ] Test on Windows, macOS, and Linux
+- [ ] Test with spaces in directory names
+- [ ] Test with special characters in filenames
+- [ ] Review code for edge cases
+- [ ] Add docstrings to all methods
+
+## Instructions
+- You are Agent 2 of 2
+- Complete ALL assigned todos above
+- You cannot finish until ALL your todos are marked as completed
+- Use the update_todo tool to mark todos as completed when done
+- Read the requirements.md and design.md files for context
+- Work systematically through each todo
