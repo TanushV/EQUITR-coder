@@ -77,3 +77,4 @@ temp/
 
 # Kiro IDE
 .kiro/ 
+.kiro/specs/equitrcoder-fixes-and-enhancements/tasks.md
