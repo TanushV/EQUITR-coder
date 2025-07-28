@@ -1,76 +1,142 @@
 # requirements.md
 
 ## 1. Project Overview
-Build a lightweight, web-based task management system that allows individuals or small teams to create, organize, track, and complete tasks. The system must be accessible from any modern browser, require no installation, and support real-time collaboration for up to 10 concurrent users per workspace.
+Build a lightweight, web-based task management system that allows individuals or small teams to create, track, and complete tasks. The system should be simple enough for personal use yet flexible enough for small collaborative projects.
 
 ## 2. Functional Requirements
 
-### 2.1 Core Task Operations
-- **Create Task**: Users can add a new task with title, description, due date, priority (Low, Medium, High), and assignee.
-- **Edit Task**: Users can modify any field of an existing task.
-- **Delete Task**: Users can remove a task with a confirmation prompt.
-- **Mark Complete**: One-click toggle to mark/unmark a task as complete; completed tasks move to a separate “Done” section.
+### 2.1 Core Task Management
+- **Create Task**: Users can create a new task with title, description, due date, priority (Low/Medium/High), and status (To Do/In Progress/Done)
+- **Edit Task**: Users can modify any field of an existing task
+- **Delete Task**: Users can permanently remove a task
+- **View Tasks**: Users can see all tasks in a list view with filtering and sorting options
 
-### 2.2 Organization & Views
-- **Lists/Projects**: Users can group tasks into named lists (e.g., “Marketing Launch”, “Personal”).
-- **Kanban Board**: Default view showing columns for To-Do, In-Progress, and Done; drag-and-drop to change status.
-- **List View**: Compact table view with sortable columns (title, due date, priority, assignee).
-- **Filter & Search**: Filter by assignee, priority, due date range, or keyword search in title/description.
+### 2.2 User Management
+- **User Registration**: New users can sign up with email and password
+- **User Login**: Existing users can log in with credentials
+- **User Profile**: Users can view and update their profile information
+- **Session Management**: System maintains user sessions for 24 hours
 
-### 2.3 Collaboration
-- **Share Workspace**: Generate a shareable link or invite by email; invited users can view and edit tasks.
-- **Real-time Updates**: Changes made by any user appear instantly for all others in the same workspace.
-- **Comments**: Users can add threaded comments to any task.
+### 2.3 Collaboration Features
+- **Share Task**: Users can share individual tasks with other users via email
+- **Assign Task**: Task creators can assign tasks to other registered users
+- **Comments**: Users can add comments to tasks for discussion
+- **Notifications**: Users receive email notifications for task assignments and comments
 
-### 2.4 Notifications
-- **Due-date Reminders**: Email or in-app notification 24 h before a task is due.
-- **Assignment Notification**: When a user is assigned or unassigned from a task.
+### 2.4 Organization Features
+- **Tags**: Users can add multiple tags to tasks for categorization
+- **Search**: Full-text search across task titles, descriptions, and comments
+- **Filter**: Filter tasks by status, priority, assignee, tags, and due date
+- **Sort**: Sort tasks by creation date, due date, priority, or title
 
-### 2.5 User Management
-- **Sign-up/Login**: Email + password or Google OAuth.
-- **Guest Mode**: Allow limited use without account (tasks stored in local storage, no collaboration).
-- **Profile**: Change display name and avatar.
+### 2.5 Dashboard
+- **Overview**: Display summary statistics (total tasks, completed today, overdue)
+- **Quick Add**: One-click task creation from dashboard
+- **Recent Activity**: Show 5 most recent updates across all tasks
 
 ## 3. Technical Requirements
 
 ### 3.1 Architecture
-- **Frontend**: Single-page application built with React 18 + TypeScript.
-- **Backend**: Node.js 20 + Express REST API.
-- **Database**: PostgreSQL 15 with tables: users, workspaces, lists, tasks, comments.
-- **Real-time**: WebSockets via Socket.IO for live updates.
-- **Hosting**: Deploy on Vercel (frontend) and Railway (backend + DB).
+- **Frontend**: React.js with TypeScript
+- **Backend**: Node.js with Express.js
+- **Database**: PostgreSQL for persistent storage
+- **Authentication**: JWT tokens for session management
+- **Email Service**: SendGrid for email notifications
 
-### 3.2 API Endpoints (v1)
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST   | /api/auth/register | Create account |
-| POST   | /api/auth/login | Obtain JWT |
-| GET    | /api/workspaces | List user workspaces |
-| POST   | /api/workspaces | Create workspace |
-| GET    | /api/workspaces/:id/tasks | Get all tasks |
-| POST   | /api/tasks | Create task |
-| PATCH  | /api/tasks/:id | Update task |
-| DELETE | /api/tasks/:id | Delete task |
-| POST   | /api/tasks/:id/comments | Add comment |
+### 3.2 API Design
+- RESTful API with following endpoints:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `POST /api/auth/logout`
+  - `GET /api/tasks` (with query parameters for filtering/sorting)
+  - `POST /api/tasks`
+  - `PUT /api/tasks/:id`
+  - `DELETE /api/tasks/:id`
+  - `POST /api/tasks/:id/comments`
+  - `POST /api/tasks/:id/share`
 
-### 3.3 Non-Functional
-- **Performance**: Page load < 2 s on 3G; drag-and-drop updates < 100 ms.
-- **Security**: HTTPS only, JWT with 24 h expiry, hashed passwords (bcrypt 12 rounds), CORS whitelist.
-- **Accessibility**: WCAG 2.1 AA compliance, keyboard navigation, screen-reader labels.
-- **Browser Support**: Chrome 110+, Firefox 102+, Safari 15+, Edge 110+.
+### 3.3 Data Models
+```typescript
+// User
+{
+  id: UUID,
+  email: string,
+  name: string,
+  createdAt: Date,
+  updatedAt: Date
+}
 
-### 3.4 DevOps
-- **CI/CD**: GitHub Actions → run tests → deploy to staging on push to `develop`, to production on `main`.
-- **Testing**: 80 % unit test coverage (Jest + React Testing Library), Cypress e2e for critical flows.
-- **Monitoring**: Sentry for error tracking, UptimeRobot for uptime alerts.
+// Task
+{
+  id: UUID,
+  title: string,
+  description: string,
+  status: 'todo' | 'inprogress' | 'done',
+  priority: 'low' | 'medium' | 'high',
+  dueDate: Date,
+  tags: string[],
+  assigneeId: UUID | null,
+  creatorId: UUID,
+  createdAt: Date,
+  updatedAt: Date
+}
+
+// Comment
+{
+  id: UUID,
+  taskId: UUID,
+  userId: UUID,
+  content: string,
+  createdAt: Date
+}
+```
+
+### 3.4 Security
+- Passwords hashed using bcrypt
+- HTTPS only in production
+- Rate limiting: 100 requests per minute per IP
+- Input validation on all endpoints
+- SQL injection prevention through parameterized queries
+
+### 3.5 Performance
+- Page load time < 2 seconds
+- API response time < 500ms for 95% of requests
+- Support 100 concurrent users
+- Database queries optimized with proper indexing
+
+### 3.6 Deployment
+- Docker containers for easy deployment
+- CI/CD pipeline using GitHub Actions
+- Environment-based configuration
+- Health check endpoint at `/health`
 
 ## 4. Success Criteria
 
-| # | Criterion | Measurement |
-|---|-----------|-------------|
-| 1 | Core CRUD | User can create, read, update, delete a task in < 5 s end-to-end. |
-| 2 | Real-time Sync | Two users on different machines see each other’s changes within 1 s. |
-| 3 | Zero P1 Bugs | No critical production bugs for 7 consecutive days after launch. |
-| 4 | Performance | Lighthouse score ≥ 90 on Performance, Accessibility, Best Practices, SEO. |
-| 5 | Adoption | 100 registered users and 50 active workspaces within 30 days of launch. |
-| 6 | Feedback | ≥ 4.0/5 average rating in post-sign-up survey (min 30 responses). |
+### 4.1 Functional Testing
+- [ ] User can register, login, and logout successfully
+- [ ] User can create, edit, and delete tasks
+- [ ] User can filter and sort tasks effectively
+- [ ] Email notifications are sent for task assignments
+- [ ] Search returns relevant results quickly
+- [ ] Comments are properly associated with tasks
+
+### 4.2 Performance Testing
+- [ ] Load test passes with 100 concurrent users
+- [ ] All API endpoints respond within 500ms
+- [ ] Database handles 1000 tasks per user without degradation
+
+### 4.3 Security Testing
+- [ ] All endpoints require authentication except register/login
+- [ ] Users can only access their own tasks
+- [ ] SQL injection attempts are blocked
+- [ ] Passwords are never returned in API responses
+
+### 4.4 User Acceptance
+- [ ] 5 beta users can complete basic task management workflow without assistance
+- [ ] Users report the interface as "intuitive" in feedback survey
+- [ ] Zero critical bugs reported in first week of use
+
+### 4.5 Documentation
+- [ ] API documentation is complete and accurate
+- [ ] User guide with screenshots is provided
+- [ ] README includes setup instructions for local development

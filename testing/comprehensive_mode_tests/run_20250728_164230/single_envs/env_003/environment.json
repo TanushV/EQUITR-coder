@@ -1,0 +1,10 @@
+{
+  "env_id": "env_003",
+  "mode": "single",
+  "model": "moonshot/kimi-k2-0711-preview",
+  "max_cost": 5.0,
+  "max_iterations": 20,
+  "timeout_seconds": 300,
+  "created_at": "1753735795.1189523",
+  "initialized": true
+}

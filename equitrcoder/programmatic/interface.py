@@ -246,32 +246,10 @@ class EquitrCoder:
             config = TaskConfiguration(description=task_description)
         
         try:
-            # MANDATORY: Create the 3 documents first (automatic for programmatic mode)
-            from ..core.document_workflow import DocumentWorkflowManager
-            
-            doc_manager = DocumentWorkflowManager(model=config.model or "moonshot/kimi-k2-0711-preview")
-            
-            # Create documents automatically (no user interaction in programmatic mode)
-            doc_result = await doc_manager.create_documents_programmatic(
-                user_prompt=task_description,
-                project_path=str(self.repo_path)
-            )
-            
-            if not doc_result.success:
-                return ExecutionResult(
-                    success=False,
-                    content="",
-                    cost=0.0,
-                    iterations=0,
-                    session_id="error",
-                    execution_time=0.0,
-                    error=f"Failed to create planning documents: {doc_result.error}"
-                )
-            
-            # Create agent
+            # Create agent with NO iteration limit and proper tool configuration
             agent = BaseAgent(
                 max_cost=config.max_cost,
-                max_iterations=config.max_iterations
+                max_iterations=999999  # Effectively unlimited
             )
             
             # Set callbacks
@@ -290,23 +268,44 @@ class EquitrCoder:
             if self.on_message:
                 self._single_orchestrator.set_callbacks(on_message=self.on_message)
             
-            # Enhanced task description with document context
+            # Simple task description focused on actual work
             enhanced_task = f"""
-Original task: {task_description}
+🚨 CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE EXACTLY:
 
-You have access to the following planning documents that were automatically created:
-- Requirements: {doc_result.requirements_path}
-- Design: {doc_result.design_path}  
-- Todos: {doc_result.todos_path}
+You are a coding assistant that MUST create actual working code files.
 
-Please read these documents first, then execute the task according to the plan.
-Focus on completing the todos one by one, following the design specifications.
+## YOUR TASK:
+{task_description}
+
+## EXECUTION STRATEGY:
+1. FIRST: Use list_todos to see what needs to be done (if any todos exist)
+2. WORK ON ACTUAL CODE: Create .py files, write functions, implement features
+3. MARK TODOS COMPLETE: Use update_todo when you finish each task (if todos exist)
+4. CREATE WORKING SOFTWARE: Focus on building the actual application
+5. NO PLANNING DOCUMENTS: Do not create requirements.md, design.md, or todos.md files
+
+## MANDATORY TOOL USE:
+- list_todos: Check current todos (START WITH THIS)
+- update_todo: Mark todos completed (if todos exist)
+- create_file: Create Python files (.py files)
+- edit_file: Modify code files
+- run_command: Test your code
+- read_file: Check file contents
+
+## WHAT TO BUILD:
+Create a working calculator application with:
+- calculator.py (main implementation)
+- test_calculator.py (unit tests)
+- Proper error handling for division by zero
+- Command-line interface
+
+START NOW with list_todos to see your tasks, then CREATE ACTUAL CODE FILES!
 """
             
-            # Execute task
+            # Execute task with verbose output
             result = await self._single_orchestrator.execute_task(
                 task_description=enhanced_task,
-                session_id=config.session_id
+                session_id=config.session_id or f"task_{config.description[:8]}"
             )
             
             return ExecutionResult(

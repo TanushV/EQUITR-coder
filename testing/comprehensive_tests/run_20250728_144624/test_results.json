@@ -1,0 +1,240 @@
+{
+  "single_agent_results": {
+    "document_creation": {
+      "test_name": "single_agent_document_creation",
+      "status": "failed",
+      "success": false,
+      "execution_time": 0.002534151077270508,
+      "cost": 0.1,
+      "iterations": 0,
+      "error_message": "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'",
+      "root_cause": "Exception during document creation test",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": {
+        "error_category": "document_creation_error",
+        "root_cause": "Exception during document creation",
+        "error_message": "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'",
+        "stack_trace": "Traceback (most recent call last):\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/testing/test_single_agent_suite.py\", line 76, in test_document_creation\n    doc_manager = DocumentWorkflowManager(model=self.model)\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/equitrcoder/core/document_workflow.py\", line 48, in __init__\n    self.todo_manager = TodoManager(todo_file=todo_file)\n                        ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/equitrcoder/tools/builtin/todo.py\", line 75, in __init__\n    self.todo_file = Path(todo_file)\n                     ~~~~^^^^^^^^^^^\n  File \"/opt/homebrew/Caskroom/miniconda/base/lib/python3.13/pathlib/_local.py\", line 503, in __init__\n    super().__init__(*args)\n    ~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/opt/homebrew/Caskroom/miniconda/base/lib/python3.13/pathlib/_local.py\", line 132, in __init__\n    raise TypeError(\n    ...<2 lines>...\n        f\"not {type(path).__name__!r}\")\nTypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'\n",
+        "suggested_fixes": [
+          "Check API key configuration",
+          "Verify model availability",
+          "Check network connectivity"
+        ],
+        "context": {
+          "model": "moonshot/kimi-k2-0711-preview",
+          "task": "Create a simple calculator application with basic arithmetic operations (add, subtract, multiply, divide), a command-line interface, input validation, error handling for division by zero, and comprehensive unit tests"
+        }
+      }
+    },
+    "todo_completion": {
+      "test_name": "single_agent_todo_completion",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.0025522708892822,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "agent_execution": {
+      "test_name": "single_agent_execution",
+      "status": "failed",
+      "success": false,
+      "execution_time": 0.014880895614624023,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'",
+      "root_cause": "Agent execution failed",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "audit_functionality": {
+      "test_name": "single_agent_audit",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.0033090114593506,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "overall_success": false,
+    "total_execution_time": 2.0254509449005127,
+    "total_cost": 0.1
+  },
+  "multi_agent_sequential_results": {
+    "document_creation": {
+      "test_name": "multi_agent_sequential_document_creation",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 2.003528118133545,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "todo_completion": {
+      "test_name": "multi_agent_sequential_todo_completion",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 2.002501964569092,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "agent_coordination": {
+      "test_name": "multi_agent_sequential_coordination",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.5113389492034912,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "audit_functionality": {
+      "test_name": "multi_agent_sequential_audit",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.0027379989624023,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "overall_success": false,
+    "total_execution_time": 6.520338773727417,
+    "total_cost": 0.0,
+    "mode": "sequential"
+  },
+  "multi_agent_parallel_results": {
+    "document_creation": {
+      "test_name": "multi_agent_parallel_document_creation",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 2.00311017036438,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "todo_completion": {
+      "test_name": "multi_agent_parallel_todo_completion",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 2.004521131515503,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "agent_coordination": {
+      "test_name": "multi_agent_parallel_coordination",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.5029351711273193,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "audit_functionality": {
+      "test_name": "multi_agent_parallel_audit",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 1.002629041671753,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "parallel_execution": {
+      "test_name": "multi_agent_parallel_execution",
+      "status": "skipped",
+      "success": false,
+      "execution_time": 2.0041098594665527,
+      "cost": 0.0,
+      "iterations": 0,
+      "error_message": "Test not yet implemented",
+      "root_cause": "Implementation pending",
+      "performance_metrics": null,
+      "artifacts": null,
+      "failure_analysis": null
+    },
+    "overall_success": false,
+    "total_execution_time": 8.51760482788086,
+    "total_cost": 0.0,
+    "mode": "parallel"
+  },
+  "overall_success": false,
+  "total_execution_time": 17.069545030593872,
+  "total_cost": 0.1,
+  "failure_analysis": [
+    {
+      "error_category": "document_creation_error",
+      "root_cause": "Exception during document creation",
+      "error_message": "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'",
+      "stack_trace": "Traceback (most recent call last):\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/testing/test_single_agent_suite.py\", line 76, in test_document_creation\n    doc_manager = DocumentWorkflowManager(model=self.model)\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/equitrcoder/core/document_workflow.py\", line 48, in __init__\n    self.todo_manager = TodoManager(todo_file=todo_file)\n                        ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/tanushvanarase/Documents/EQUITR-coder/equitrcoder/tools/builtin/todo.py\", line 75, in __init__\n    self.todo_file = Path(todo_file)\n                     ~~~~^^^^^^^^^^^\n  File \"/opt/homebrew/Caskroom/miniconda/base/lib/python3.13/pathlib/_local.py\", line 503, in __init__\n    super().__init__(*args)\n    ~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/opt/homebrew/Caskroom/miniconda/base/lib/python3.13/pathlib/_local.py\", line 132, in __init__\n    raise TypeError(\n    ...<2 lines>...\n        f\"not {type(path).__name__!r}\")\nTypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'\n",
+      "suggested_fixes": [
+        "Check API key configuration",
+        "Verify model availability",
+        "Check network connectivity"
+      ],
+      "context": {
+        "model": "moonshot/kimi-k2-0711-preview",
+        "task": "Create a simple calculator application with basic arithmetic operations (add, subtract, multiply, divide), a command-line interface, input validation, error handling for division by zero, and comprehensive unit tests"
+      }
+    }
+  ],
+  "performance_comparison": {
+    "execution_time_comparison": {
+      "single_agent": 2.0254509449005127,
+      "multi_agent_sequential": 6.520338773727417,
+      "multi_agent_parallel": 8.51760482788086
+    },
+    "cost_comparison": {
+      "single_agent": 0.1,
+      "multi_agent_sequential": 0.0,
+      "multi_agent_parallel": 0.0
+    },
+    "success_rate_comparison": {
+      "single_agent": false,
+      "multi_agent_sequential": false,
+      "multi_agent_parallel": false
+    }
+  },
+  "test_timestamp": "2025-07-28T14:46:41.456842"
+}

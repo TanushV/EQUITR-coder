@@ -500,24 +500,24 @@ class MultiAgentOrchestrator:
                 "worker_results": []
             }
 
-    async def _check_and_trigger_audit(self):
+    async def _check_and_trigger_audit(self, task_name: str = None):
         """Check if audit should be triggered and run it using supervisor with infinite loop."""
         try:
             # Import audit manager
             from ..tools.builtin.audit import audit_manager
 
-            # Check if audit should be triggered
-            if not audit_manager.should_trigger_audit():
+            # Check if audit should be triggered for specific task
+            if not audit_manager.should_trigger_audit(task_name):
                 return False
 
-            print("🔍 All todos completed! Triggering automatic audit via supervisor...")
+            print(f"🔍 All todos completed for task: {task_name or 'all todos'}! Triggering automatic audit...")
 
             # Use supervisor if available, otherwise create a specialized audit worker
             if self.supervisor:
                 await self.supervisor.trigger_audit()
             else:
                 # Fallback: create an audit worker if no supervisor - with infinite loop
-                await self._trigger_audit_with_worker_loop()
+                await self._trigger_audit_with_worker_loop(task_name)
 
             return True
 
@@ -525,17 +525,17 @@ class MultiAgentOrchestrator:
             print(f"⚠️ Multi-agent audit trigger error: {e}")
             return False
 
-    async def _trigger_audit_with_worker_loop(self):
+    async def _trigger_audit_with_worker_loop(self, task_name: str = None):
         """Trigger audit using a dedicated audit worker with infinite loop when no supervisor is available."""
         try:
             from ..tools.builtin.audit import audit_manager
             
             # Infinite audit loop with failure tracking
             while True:
-                print("🔍 Starting audit with dedicated worker...")
+                print(f"🔍 Starting audit with dedicated worker for task: {task_name or 'all todos'}...")
 
-                # Get audit context
-                audit_context = audit_manager.get_audit_context()
+                # Get audit context for specific task
+                audit_context = audit_manager.get_audit_context(task_name)
                 if not audit_context:
                     print("ℹ️  No audit needed - no completed todos found")
                     break
@@ -574,28 +574,51 @@ If issues found: conclude with "AUDIT FAILED" and list specific issues for fixin
                     context={"audit": True}
                 )
 
-                # Process audit result
+                # Process audit result and extract reason
                 audit_result_content = ""
                 audit_passed = False
+                audit_reason = ""
 
                 if audit_result.success:
                     audit_result_content = str(audit_result.result)
                     if "AUDIT PASSED" in audit_result_content:
                         print("✅ Multi-agent audit completed successfully!")
                         audit_passed = True
+                        # Extract reason after "AUDIT PASSED"
+                        lines = audit_result_content.split('\n')
+                        for line in lines:
+                            if line.strip().startswith("REASON FOR PASSING:") or "AUDIT PASSED" in line:
+                                audit_reason = line.replace("AUDIT PASSED", "").replace("REASON FOR PASSING:", "").strip()
+                                if audit_reason.startswith("-"):
+                                    audit_reason = audit_reason[1:].strip()
+                                break
+                        if not audit_reason:
+                            audit_reason = "Audit passed but no specific reason provided"
                     elif "AUDIT FAILED" in audit_result_content:
                         print("❌ Multi-agent audit failed - issues found")
                         audit_passed = False
+                        # Extract reason after "AUDIT FAILED"
+                        lines = audit_result_content.split('\n')
+                        for line in lines:
+                            if line.strip().startswith("REASON FOR FAILING:") or "AUDIT FAILED" in line:
+                                audit_reason = line.replace("AUDIT FAILED", "").replace("REASON FOR FAILING:", "").strip()
+                                if audit_reason.startswith("-"):
+                                    audit_reason = audit_reason[1:].strip()
+                                break
+                        if not audit_reason:
+                            audit_reason = "Audit failed but no specific reason provided"
                     else:
                         print("⚠️ Multi-agent audit completed with unclear result")
                         audit_passed = False
+                        audit_reason = "Audit result unclear - no AUDIT PASSED/FAILED found"
                 else:
                     print("❌ Multi-agent audit execution failed")
                     audit_result_content = audit_result.error or "Audit execution failed"
                     audit_passed = False
+                    audit_reason = "Audit execution failed"
 
-                # Record audit result and determine next action
-                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content)
+                # Record audit result with reason and determine next action
+                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content, audit_reason)
                 
                 if audit_passed:
                     # Audit passed - exit the loop
@@ -606,7 +629,7 @@ If issues found: conclude with "AUDIT FAILED" and list specific issues for fixin
                     break
                 else:
                     # Audit failed but should continue - create todos and loop again
-                    audit_manager.create_todos_from_audit_failure(audit_result_content)
+                    audit_manager.create_todos_from_audit_failure(audit_result_content, audit_reason)
                     print("🔄 New todos created from audit findings. Continuing audit cycle...")
                     
                     # Small delay before next audit attempt

@@ -2,193 +2,168 @@
 
 ## 1. System Architecture
 
-The calculator is a **single-process, single-threaded command-line application** with a linear execution flow:
+The calculator is a **single-process, console application** that follows a **linear control flow**:
 
 ```
-┌─────────────────┐
-│   User Input    │
-│  (stdin)        │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│  Input Parser   │
-│  & Validator    │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│   Calculator    │
-│   Engine        │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│   Output        │
-│   Formatter     │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│   stdout        │
-└─────────────────┘
+┌─────────────────────────────┐
+│  User runs calculator.py    │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  1. Read first number       │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  2. Read second number      │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  3. Read operation choice   │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  4. Validate all inputs     │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  5. Compute result          │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  6. Display result / error  │
+└────────────┬────────────────┘
+             │
+┌────────────▼────────────────┐
+│  7. Exit                    │
+└─────────────────────────────┘
 ```
 
 ## 2. Components
 
-### 2.1 Input Parser (`parse_input()`)
-- **Purpose**: Extract and validate user inputs
-- **Responsibilities**:
-  - Read two numbers from stdin
-  - Read operator from stdin
-  - Convert strings to appropriate types
-  - Validate format and ranges
+### 2.1 Core Components (all in `calculator.py`)
 
-### 2.2 Calculator Engine (`calculate()`)
-- **Purpose**: Perform mathematical operations
-- **Responsibilities**:
-  - Execute addition operation
-  - Execute subtraction operation
-  - Return precise result
+| Component | Responsibility | Lines (approx) |
+|-----------|----------------|----------------|
+| `main()` | Orchestrates the entire flow | 15-20 |
+| `read_number(prompt)` | Reads and validates numeric input | 8-12 |
+| `read_operation()` | Reads and validates operation choice | 6-10 |
+| `calculate(a, b, op)` | Performs the arithmetic | 4-6 |
+| `display_result(value)` | Prints formatted result | 2-3 |
+| `display_error(reason)` | Prints formatted error and exits | 3-4 |
 
-### 2.3 Error Handler (`handle_error()`)
-- **Purpose**: Centralized error handling
-- **Responsibilities**:
-  - Format error messages
-  - Exit with appropriate codes
-  - Ensure clean termination
+### 2.2 Helper Constants
 
-### 2.4 Main Controller (`main()`)
-- **Purpose**: Orchestrate the flow
-- **Responsibilities**:
-  - Call components in sequence
-  - Manage program lifecycle
+```python
+VALID_OPERATIONS = {"add", "subtract"}
+```
 
 ## 3. Data Flow
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Main
-    participant Parser
-    participant Calculator
-    participant Output
-    
-    User->>Main: Run calculator.py
-    Main->>Parser: Request inputs
-    Parser->>User: Prompt "Enter first number: "
-    User->>Parser: "5"
-    Parser->>User: Prompt "Enter second number: "
-    User->>Parser: "3"
-    Parser->>User: Prompt "Enter operator (+ or -): "
-    User->>Parser: "+"
-    
-    Parser->>Parser: Validate inputs
-    alt Invalid input
-        Parser->>Main: Error
-        Main->>User: Error message & exit(1)
-    else Valid input
-        Parser->>Calculator: (5, 3, '+')
-        Calculator->>Calculator: 5 + 3 = 8
-        Calculator->>Output: 8
-        Output->>User: "Result: 8"
-    end
+### 3.1 Happy Path Flow
 ```
+User Input → String → Float Conversion → Validation → Calculation → Output
+```
+
+### 3.2 Error Path Flow
+```
+User Input → String → Validation Failure → Error Message → Exit(1)
+```
+
+### 3.3 Data Types
+| Stage | Type | Example |
+|-------|------|---------|
+| Raw input | `str` | `"5.2"` |
+| Parsed number | `float` | `5.2` |
+| Operation | `str` | `"add"` |
+| Result | `float` | `8.7` |
 
 ## 4. Implementation Plan
 
-### Phase 1: Core Structure (15 min)
-1. Create `calculator.py` file
-2. Implement `main()` function with basic flow
-3. Add shebang line: `#!/usr/bin/env python3`
+### Phase 1: Skeleton (5 min)
+1. Create `calculator.py`
+2. Add shebang: `#!/usr/bin/env python3`
+3. Add `if __name__ == "__main__":` guard
+4. Create empty `main()` function
 
-### Phase 2: Input Handling (20 min)
-1. Implement `get_number_input(prompt)` function
-   - Use `input()` with custom prompt
-   - Wrap `float()` conversion in try-except
-   - Return parsed float or raise ValueError
-2. Implement `get_operator_input(prompt)` function
-   - Accept '+' or '-' (case-insensitive)
-   - Return normalized operator or raise ValueError
+### Phase 2: Input Functions (10 min)
+1. Implement `read_number(prompt)` with try/except for `ValueError`
+2. Implement `read_operation()` with validation against `VALID_OPERATIONS`
+3. Test both functions manually
 
-### Phase 3: Calculation Logic (10 min)
-1. Implement `calculate(num1, num2, operator)` function
-   - Use dictionary dispatch pattern:
-     ```python
-     operations = {
-         '+': lambda x, y: x + y,
-         '-': lambda x, y: x - y
-     }
-     ```
+### Phase 3: Core Logic (5 min)
+1. Implement `calculate(a, b, op)` with simple if/else
+2. Add basic tests in comments
 
-### Phase 4: Error Handling (10 min)
-1. Create centralized error handler
-2. Map error types to messages:
-   - `ValueError` → "Invalid number format"
-   - `InvalidOperatorError` → "Invalid operator. Use + or -"
-3. Ensure `sys.exit(1)` on errors
+### Phase 4: Output Functions (3 min)
+1. Implement `display_result(value)` with format string
+2. Implement `display_error(reason)` with `sys.exit(1)`
 
-### Phase 5: Integration & Testing (15 min)
+### Phase 5: Integration (5 min)
 1. Wire all components in `main()`
-2. Test happy path scenarios
-3. Test error scenarios
-4. Add docstrings
+2. Test success criteria cases
+
+### Phase 6: Polish (2 min)
+1. Add docstrings
+2. Run final test suite
 
 ## 5. File Structure
 
 ```
 calculator/
-├── calculator.py          # Main application file
-├── README.md             # Usage instructions
-└── tests/
-    ├── test_calculator.py  # Unit tests (optional)
-    └── test_cases.txt     # Manual test cases
+└── calculator.py          # Single file containing all code
 ```
 
-### calculator.py Structure
+### 5.1 File Layout (`calculator.py`)
+
 ```python
 #!/usr/bin/env python3
 """
 Simple command-line calculator for addition and subtraction.
 
 Usage:
-    $ python calculator.py
-    Enter first number: 5
-    Enter second number: 3
-    Enter operator (+ or -): +
-    Result: 8
+    python calculator.py
 """
 
 import sys
 
-class InvalidOperatorError(Exception):
-    """Raised when an invalid operator is provided."""
-    pass
+VALID_OPERATIONS = {"add", "subtract"}
 
-def get_number_input(prompt: str) -> float:
-    """Get and validate numeric input from user."""
-    pass
+def read_number(prompt):
+    """Read and validate a number from user input."""
+    ...
 
-def get_operator_input(prompt: str) -> str:
-    """Get and validate operator input from user."""
-    pass
+def read_operation():
+    """Read and validate the operation choice."""
+    ...
 
-def calculate(num1: float, num2: float, operator: str) -> float:
-    """Perform calculation based on operator."""
-    pass
+def calculate(a, b, operation):
+    """Perform the requested calculation."""
+    ...
 
-def handle_error(message: str) -> None:
-    """Handle errors by printing message and exiting."""
-    pass
+def display_result(value):
+    """Display the calculation result."""
+    ...
 
-def main() -> None:
-    """Main application entry point."""
-    pass
+def display_error(reason):
+    """Display an error message and exit."""
+    ...
+
+def main():
+    """Main program entry point."""
+    ...
 
 if __name__ == "__main__":
     main()
 ```
 
-### Key Design Decisions
-1. **No external dependencies**: Uses only Python standard library
-2. **Float precision**: Leverages Python's native float handling
-3. **Single file**: Meets requirement for minimal structure
-4. **Exit codes**: 0 for success, 1 for any error
-5. **Case-insensitive operators**: Accepts both '+' and '+'
-6. **Clean separation**: Each function has single responsibility
+### 5.2 Testing Commands
+
+```bash
+# Success cases
+echo -e "5\n3\nadd" | python calculator.py      # Should print "Result: 8"
+echo -e "10\n4\nsubtract" | python calculator.py # Should print "Result: 6"
+
+# Error cases
+echo -e "abc\n3\nadd" | python calculator.py     # Should print "Error: Invalid number"
+echo -e "5\n3\nmultiply" | python calculator.py  # Should print "Error: Invalid operation"
+```

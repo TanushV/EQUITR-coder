@@ -136,7 +136,17 @@ class SingleAgentOrchestrator:
             # ALWAYS check and trigger audit after successful task completion
             print("🔍 Checking if audit should be triggered...")
             try:
-                await self._check_and_trigger_audit()
+                # Extract task name from enhanced task description if available
+                task_name = None
+                if "Documents:" in task_description and "docs/" in task_description:
+                    # Try to extract task name from document paths
+                    import re
+                    match = re.search(r'docs/([^/]+)/', task_description)
+                    if match:
+                        task_name = match.group(1)
+                        print(f"📋 Extracted task name for audit: {task_name}")
+                
+                await self._check_and_trigger_audit(task_name)
             except Exception as audit_error:
                 print(f"⚠️ Audit check failed: {audit_error}")
                 # Continue execution even if audit fails
@@ -170,7 +180,32 @@ class SingleAgentOrchestrator:
         
         # Add system prompt if no system message exists
         if not messages or messages[0].role != 'system':
-            system_prompt = 'You are an AI coding assistant. Use the available tools to complete the task. Be thorough and create working code.'
+            system_prompt = """You are an AI coding assistant that MUST use tools in every response.
+
+🚨 CRITICAL RULES - VIOLATION WILL RESULT IN ERROR:
+1. **MANDATORY TOOL USE**: You MUST make at least one tool call in EVERY response. Text-only responses are FORBIDDEN.
+2. **TODO COMPLETION**: When you finish a task, you MUST use update_todo to mark it completed.
+3. **SYSTEMATIC APPROACH**: Start with list_todos, work through each todo, mark as completed when done.
+4. **CONTINUOUS PROGRESS**: Always use tools to make progress - create files, edit code, run tests, etc.
+
+🔧 AVAILABLE TOOLS (USE THESE CONSTANTLY):
+- list_todos: Check current todos and their status
+- update_todo: Mark todos as completed (ESSENTIAL!)
+- create_file: Create new files
+- edit_file: Modify existing files  
+- read_file: Read file contents
+- run_command: Execute shell commands
+- search_files: Search for content in files
+
+🎯 WORKFLOW:
+1. ALWAYS start by calling list_todos to see what needs to be done
+2. Pick the first incomplete todo
+3. Use appropriate tools to work on it (create_file, edit_file, run_command, etc.)
+4. When complete, call update_todo to mark it done
+5. Call list_todos again to see remaining work
+6. Repeat until all todos are completed
+
+⚠️ REMEMBER: Every response MUST include tool calls. Never respond with just text!"""
             messages.insert(0, Message(role='system', content=system_prompt))
         
         # Get available tools and their schemas
@@ -182,7 +217,7 @@ class SingleAgentOrchestrator:
                 tool_schemas.append(tool.get_json_schema())
         
         iteration = 0
-        max_iterations = self.max_iterations or 10
+        max_iterations = self.max_iterations or 999999  # Effectively unlimited by default
         
         while iteration < max_iterations:
             iteration += 1
@@ -204,6 +239,18 @@ class SingleAgentOrchestrator:
                     self.total_cost += response.cost
                     self.agent.current_cost += response.cost
                 
+                # VERBOSE: Show LLM response (only if callback is set, indicating verbose mode)
+                if self.on_message_callback:
+                    print(f"\n🤖 LLM Response (Iteration {iteration}):")
+                    print(f"💬 Content: {response.content or '(No content - tool calls only)'}")
+                    if response.tool_calls:
+                        print(f"🔧 Tool calls: {len(response.tool_calls)}")
+                        for i, tc in enumerate(response.tool_calls):
+                            print(f"   {i+1}. {tc.function['name']}({tc.function['arguments']})")
+                    else:
+                        print("⚠️  NO TOOL CALLS - This will trigger a warning!")
+                    print(f"💰 Cost: ${response.cost:.4f}" if hasattr(response, 'cost') and response.cost else "💰 Cost: Unknown")
+                
                 # Add assistant message
                 assistant_message = Message(role='assistant', content=response.content or "Working...")
                 messages.append(assistant_message)
@@ -216,7 +263,9 @@ class SingleAgentOrchestrator:
                     self.on_message_callback({
                         'role': 'assistant',
                         'content': response.content or "Working...",
-                        'iteration': iteration
+                        'iteration': iteration,
+                        'tool_calls': len(response.tool_calls) if response.tool_calls else 0,
+                        'cost': response.cost if hasattr(response, 'cost') else 0
                     })
                 
                 # Handle tool calls
@@ -236,6 +285,11 @@ class SingleAgentOrchestrator:
                                 'tool_name': tool_name,
                                 'success': tool_result['success']
                             })
+                            
+                            # VERBOSE: Show tool result
+                            if self.on_message_callback:
+                                print(f"   🔧 Tool Result: {tool_name} -> {'✅ SUCCESS' if tool_result['success'] else '❌ FAILED'}")
+                                print(f"      📄 Output: {result_content[:200]}{'...' if len(result_content) > 200 else ''}")
                             
                             # Call message callback for tool result
                             if self.on_message_callback:
@@ -270,8 +324,24 @@ class SingleAgentOrchestrator:
                     # Continue to next iteration
                     continue
                 else:
-                    # No tool calls, task is complete
-                    break
+                    # No tool calls - this is NOT allowed! Force the agent to use tools
+                    warning_message = "ERROR: You must use tools in every response! You cannot just provide text without tool calls. Please use a tool like list_todos, create_file, or update_todo to continue working."
+                    user_message = Message(role='user', content=warning_message)
+                    messages.append(user_message)
+                    
+                    # Add to agent messages too
+                    self.agent.add_message('user', warning_message, {'system_generated': True, 'warning': True})
+                    
+                    # Call message callback for warning
+                    if self.on_message_callback:
+                        self.on_message_callback({
+                            'role': 'user',
+                            'content': warning_message,
+                            'warning': True
+                        })
+                    
+                    # Continue to force tool use
+                    continue
                     
             except Exception as e:
                 error_msg = f"Error in iteration {iteration}: {str(e)}"
@@ -300,26 +370,26 @@ class SingleAgentOrchestrator:
             "worker_status": "completed"
         }
 
-    async def _check_and_trigger_audit(self):
+    async def _check_and_trigger_audit(self, task_name: str = None):
         """Check if audit should be triggered and run it using supervisor with infinite loop."""
         try:
             # Import audit manager
             from ..tools.builtin.audit import audit_manager
 
-            # Check if audit should be triggered
-            if not audit_manager.should_trigger_audit():
+            # Check if audit should be triggered for specific task
+            if not audit_manager.should_trigger_audit(task_name):
                 return False
 
-            print("🔍 Worker finished! Triggering automatic audit via supervisor...")
+            print(f"🔍 Worker finished! Triggering automatic audit for task: {task_name or 'all todos'}")
 
             # Infinite audit loop with failure tracking
             while True:
                 # Use supervisor to trigger audit if available
                 if self.supervisor:
-                    # Get audit context first
-                    audit_context = audit_manager.get_audit_context()
+                    # Get audit context first for specific task
+                    audit_context = audit_manager.get_audit_context(task_name)
                     if not audit_context:
-                        print("ℹ️  No audit needed - no todos found")
+                        print("ℹ️  No audit needed - no todos found or all todos completed")
                         break
 
                     # Execute audit via supervisor (which has its own loop)
@@ -329,8 +399,8 @@ class SingleAgentOrchestrator:
                     print("❌ Supervisor not available for audit")
                     
                     # Record supervisor unavailable as audit failure
-                    audit_manager.record_audit_result(False, "Supervisor not available for audit")
-                    audit_manager.create_todos_from_audit_failure("Supervisor not available for audit")
+                    audit_manager.record_audit_result(False, "Supervisor not available for audit", "Supervisor not available for audit")
+                    audit_manager.create_todos_from_audit_failure("Supervisor not available for audit", "Supervisor not available for audit")
                     break
 
             return True
@@ -340,8 +410,8 @@ class SingleAgentOrchestrator:
             
             # Record the exception as an audit failure
             from ..tools.builtin.audit import audit_manager
-            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
-            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")
+            audit_manager.record_audit_result(False, f"Audit system error: {str(e)}", f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}", f"Audit system error: {str(e)}")
             return False
     
     def set_callbacks(self, on_message=None, on_iteration=None, on_completion=None):
