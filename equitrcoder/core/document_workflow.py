@@ -639,49 +639,16 @@ Available functions:
             docs_dir = project_path / "docs"
             docs_dir.mkdir(exist_ok=True)
             
-            # Generate todos with categorized structure
-            system_prompt = """You are a project manager creating a categorized task breakdown for parallel agents.
+            # Generate todos with categorized structure using the improved method
+            todos_content = await self._generate_todos(user_prompt, requirements_content, design_content)
 
-Create a todos.md document with clear categories that can be distributed among multiple agents.
-Each category should be a complete, self-contained set of related tasks.
-
-Format:
-# Project Todos
-
-## Category 1: [Category Name]
-- [ ] Task 1 for this category
-- [ ] Task 2 for this category
-- [ ] Task 3 for this category
-
-## Category 2: [Category Name]  
-- [ ] Task 1 for this category
-- [ ] Task 2 for this category
-
-## Category 3: [Category Name]
-- [ ] Task 1 for this category
-- [ ] Task 2 for this category
-
-Make sure each category is independent and can be worked on by a separate agent.
-Create at least as many categories as there will be agents.
-Use clear, descriptive category names like "Setup & Configuration", "Core Implementation", "Testing & Validation", etc."""
-
-            from ..providers.litellm import LiteLLMProvider, Message
-            provider = LiteLLMProvider(model=self.model)
-            
-            messages = [
-                Message(role="system", content=system_prompt),
-                Message(role="user", content=f"User prompt: {user_prompt}\n\nRequirements:\n{requirements_content}\n\nDesign:\n{design_content}\n\nNumber of agents: {num_agents}")
-            ]
-            
-            response = await provider.chat(messages=messages)
-            complete_todos = response.content
             
             # Parse todos into categories
             categories = []
             current_category = None
             current_todos = []
             
-            for line in complete_todos.split('\n'):
+            for line in todos_content.split('\n'):
                 line = line.strip()
                 if line.startswith('## '):
                     # Save previous category
