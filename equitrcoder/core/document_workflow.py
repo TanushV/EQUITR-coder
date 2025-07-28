@@ -30,6 +30,7 @@ class DocumentCreationResult:
     requirements_path: Optional[str] = None
     design_path: Optional[str] = None
     todos_path: Optional[str] = None
+    task_name: Optional[str] = None
     error: Optional[str] = None
     conversation_log: List[Dict[str, str]] = None
 
@@ -44,7 +45,8 @@ class DocumentWorkflowManager:
         
         self.model = model
         self.provider = LiteLLMProvider(model=model)
-        self.todo_manager = TodoManager(todo_file=todo_file)
+        # Use default todo file if none provided
+        self.todo_manager = TodoManager(todo_file=todo_file or ".EQUITR_todos.json")
         
     async def create_documents_programmatic(
         self, 
@@ -97,7 +99,8 @@ class DocumentWorkflowManager:
                 success=True,
                 requirements_path=str(requirements_path),
                 design_path=str(design_path),
-                todos_path=str(todos_path)
+                todos_path=str(todos_path),
+                task_name=task_name
             )
             
         except Exception as e:
@@ -172,6 +175,7 @@ class DocumentWorkflowManager:
                 requirements_path=str(requirements_path),
                 design_path=str(design_path),
                 todos_path=str(todos_path),
+                task_name=task_name,
                 conversation_log=conversation_log
             )
             
@@ -575,13 +579,12 @@ Available functions:
         lines = todos_content.split('\n')
         print(f"📝 Found {len(lines)} lines in todos document")
         
-        # Clear existing todos for this task to prevent compounding
-        if task_folder:
-            existing_todos = self.todo_manager.list_todos()
-            task_todos = [t for t in existing_todos if task_folder in t.tags]
-            for todo in task_todos:
-                self.todo_manager.delete_todo(todo.id)
-            print(f"🧹 Cleared {len(task_todos)} existing todos for task: {task_folder}")
+        # IMPORTANT: Clear ALL existing todos in this isolated todo file
+        # This ensures each task has its own isolated set of todos
+        existing_todos = self.todo_manager.list_todos()
+        for todo in existing_todos:
+            self.todo_manager.delete_todo(todo.id)
+        print(f"🧹 Cleared {len(existing_todos)} existing todos from isolated todo file")
         
         todo_count = 0
         for i, line in enumerate(lines):
@@ -609,19 +612,13 @@ Available functions:
                 else:
                     print(f"⚠️ Empty task description on line {i + 1}: '{line}'")
         
-        print(f"📝 Total todos created for this task: {todo_count}")
+        print(f"📝 Total todos created for this isolated task: {todo_count}")
         
-        # Show only todos for this specific task
-        if task_folder:
-            task_todos = [t for t in self.todo_manager.list_todos() if f"task-{task_folder}" in t.tags]
-            print(f"📝 Todos for task '{task_folder}': {len(task_todos)}")
-            for todo in task_todos:
-                print(f"  - {todo.status}: {todo.title}")
-        else:
-            all_todos = self.todo_manager.list_todos()
-            print(f"📝 Total todos in system: {len(all_todos)}")
-            for todo in all_todos[-todo_count:]:  # Show the last created todos
-                print(f"  - {todo.status}: {todo.title}")
+        # Show all todos in this isolated file
+        all_todos = self.todo_manager.list_todos()
+        print(f"📝 Todos in isolated file: {len(all_todos)}")
+        for todo in all_todos:
+            print(f"  - {todo.status}: {todo.title}")
     
     async def create_split_todos_for_parallel_agents(
         self, 

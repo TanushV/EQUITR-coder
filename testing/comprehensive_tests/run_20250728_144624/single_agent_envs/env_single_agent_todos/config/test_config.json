@@ -1,0 +1,10 @@
+{
+  "test_name": "single_agent_todos",
+  "model": "moonshot/kimi-k2-0711-preview",
+  "test_task": "Create a simple calculator application with basic arithmetic operations (add, subtract, multiply, divide), a command-line interface, input validation, error handling for division by zero, and comprehensive unit tests",
+  "max_cost": 5.0,
+  "max_iterations": 20,
+  "timeout_seconds": 300,
+  "created_at": "/Users/tanushvanarase/Documents/EQUITR-coder",
+  "environment_path": "testing/comprehensive_tests/run_20250728_144624/single_agent_envs/env_single_agent_todos"
+}

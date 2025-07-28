@@ -46,42 +46,96 @@ class AutoAuditManager:
         except Exception as e:
             print(f"Warning: Could not save audit history: {e}")
 
-    def should_trigger_audit(self) -> bool:
-        """Check if audit should be triggered - ALWAYS returns True after worker completion."""
-        # CRITICAL: Audits should ALWAYS run after ANY worker finishes, regardless of todo status
-        # This ensures work quality and creates new todos when work is incomplete
-        return True
+    def should_trigger_audit(self, task_name: str = None) -> bool:
+        """
+        Check if audit should be triggered - only when ALL todos for a task are completed.
+        
+        Args:
+            task_name: Specific task to check (e.g., "task_20241227_143022")
+                      If None, checks all todos in the system
+        """
+        todos = self.todo_manager.list_todos()
+        
+        if task_name:
+            # Filter todos for specific task
+            task_todos = [t for t in todos if f"task-{task_name}" in t.tags]
+            if not task_todos:
+                print(f"⚠️ No todos found for task: {task_name}")
+                return False
+            
+            # Check if ALL todos for this task are completed
+            pending_todos = [t for t in task_todos if t.status not in ["completed", "cancelled"]]
+            completed_todos = [t for t in task_todos if t.status == "completed"]
+            
+            print(f"📊 Task '{task_name}' status: {len(completed_todos)}/{len(task_todos)} todos completed")
+            
+            if pending_todos:
+                print(f"⏳ Audit not triggered - {len(pending_todos)} todos still pending for task '{task_name}':")
+                for todo in pending_todos[:3]:  # Show first 3 pending
+                    print(f"  - {todo.title}")
+                if len(pending_todos) > 3:
+                    print(f"  ... and {len(pending_todos) - 3} more")
+                return False
+            else:
+                print(f"✅ All todos completed for task '{task_name}' - audit triggered!")
+                return True
+        else:
+            # Check all todos in system (legacy behavior)
+            pending_todos = [t for t in todos if t.status not in ["completed", "cancelled"]]
+            completed_todos = [t for t in todos if t.status == "completed"]
+            
+            print(f"📊 System status: {len(completed_todos)}/{len(todos)} todos completed")
+            
+            if pending_todos:
+                print(f"⏳ Audit not triggered - {len(pending_todos)} todos still pending")
+                return False
+            else:
+                print(f"✅ All todos completed - audit triggered!")
+                return True
 
-    def record_audit_result(self, passed: bool, audit_result: str = "") -> bool:
+    def record_audit_result(self, passed: bool, audit_result: str = "", reason: str = "") -> bool:
         """
         Record audit result and handle failure logic.
         Returns True if audit cycle should continue, False if escalated to user.
+        
+        Args:
+            passed: Whether the audit passed or failed
+            audit_result: Full audit result content
+            reason: Specific reason for pass/fail decision (required)
         """
+        if not reason:
+            print("⚠️ Warning: No reason provided for audit result - this may affect audit quality")
+            reason = "No specific reason provided"
+        
         if passed:
-            print("✅ Audit passed! Resetting failure count.")
+            print(f"✅ Audit passed! Reason: {reason}")
+            print("🔄 Resetting failure count.")
             self.audit_failure_count = 0
             self._save_audit_history()
             return False  # Audit cycle complete
         else:
             self.audit_failure_count += 1
             print(f"❌ Audit failed (attempt {self.audit_failure_count}/{self.max_failures_before_escalation})")
+            print(f"📝 Failure reason: {reason}")
             
             if self.audit_failure_count >= self.max_failures_before_escalation:
                 print("🚨 Maximum audit failures reached - escalating to user!")
-                self._escalate_to_user(audit_result)
+                self._escalate_to_user(audit_result, reason)
                 return False  # Stop audit cycle, escalate to user
             else:
                 print("🔄 Creating new todos from audit findings and continuing cycle...")
                 self._save_audit_history()
                 return True  # Continue audit cycle
 
-    def _escalate_to_user(self, audit_result: str):
+    def _escalate_to_user(self, audit_result: str, reason: str = ""):
         """Escalate to user after maximum failures."""
         escalation_todo = self.todo_manager.create_todo(
             title="🚨 URGENT: Manual Review Required - Audit Failed Multiple Times",
             description=f"""
 CRITICAL: The automated audit has failed {self.audit_failure_count} times.
 Manual intervention is required to resolve the issues.
+
+Last failure reason: {reason}
 
 Last audit result:
 {audit_result}
@@ -148,7 +202,7 @@ This todo has been marked as high priority and assigned for immediate attention.
         
         return findings
 
-    def create_todos_from_audit_failure(self, audit_result: str):
+    def create_todos_from_audit_failure(self, audit_result: str, reason: str = ""):
         """Create specific todos based on audit failure findings."""
         findings = self.parse_audit_findings(audit_result)
         
@@ -159,6 +213,8 @@ This todo has been marked as high priority and assigned for immediate attention.
                 title=f"Fix: {finding['title']}",
                 description=f"""
 Audit Failure Issue #{i+1}:
+
+Failure Reason: {reason if reason else 'No specific reason provided'}
 
 {finding['description']}
 
@@ -171,15 +227,23 @@ Please resolve this issue to allow the audit to pass.
             )
             print(f"  ✓ Created todo: {todo.id} - {todo.title}")
 
-    def get_audit_context(self) -> Optional[str]:
-        """Get audit context if audit should be triggered."""
-        if not self.should_trigger_audit():
+    def get_audit_context(self, task_name: str = None) -> Optional[str]:
+        """Get audit context if audit should be triggered for a specific task."""
+        if not self.should_trigger_audit(task_name):
             return None
 
         todos = self.todo_manager.list_todos()
-        return self._prepare_audit_context(todos)
+        
+        # Filter todos for specific task if provided
+        if task_name:
+            todos = [t for t in todos if f"task-{task_name}" in t.tags]
+            if not todos:
+                print(f"⚠️ No todos found for task: {task_name}")
+                return None
+        
+        return self._prepare_audit_context(todos, task_name)
 
-    def _prepare_audit_context(self, todos: List[Any]) -> str:
+    def _prepare_audit_context(self, todos: List[Any], task_name: str = None) -> str:
         """Prepare context for audit with improved reliability."""
         completed_todos = [todo for todo in todos if todo.status == "completed"]
         pending_todos = [todo for todo in todos if todo.status not in ["completed", "cancelled"]]
@@ -205,8 +269,17 @@ This audit must be thorough to avoid escalation to user.
         if len(pending_todos) > 5:
             pending_list += f"\n... and {len(pending_todos) - 5} more pending todos"
 
+        task_info = ""
+        if task_name:
+            task_info = f"""
+🎯 TASK-SPECIFIC AUDIT: {task_name}
+This audit is focused ONLY on todos for task: {task_name}
+Task documents should be in: docs/{task_name}/
+"""
+
         return f"""WORKER COMPLETION AUDIT - STRUCTURED VALIDATION
 ==================================================
+{task_info}
 TODOS COMPLETED: {len(completed_todos)}/{len(todos)}
 {completed_list}
 
@@ -268,11 +341,19 @@ STEP 5: DESIGN COMPLIANCE
 - No critical missing components for current progress
 
 🎯 REQUIRED RESPONSE FORMAT:
-- If audit passes: Respond EXACTLY with 'AUDIT PASSED'
+You MUST provide a clear reason for your audit decision in both cases:
+
+- If audit passes: Respond EXACTLY with 'AUDIT PASSED' followed by:
+  * REASON FOR PASSING: Explain specifically why all completed todos were properly implemented
+  * Example: "AUDIT PASSED - All 5 completed todos have corresponding implementations: authentication system files exist and function correctly, database schema matches design, API endpoints are implemented as specified."
+
 - If audit fails: Respond EXACTLY with 'AUDIT FAILED' followed by:
+  * REASON FOR FAILING: Explain specifically which completed todos were not properly implemented
   * SPECIFIC ISSUES FOUND: List each concrete problem
   * For each issue, use create_todo tool to create a fix task
-  * Be precise about what needs to be fixed or implemented
+  * Example: "AUDIT FAILED - Todo 'Create login endpoint' marked complete but no login.py file exists, Todo 'Setup database' complete but no database schema found."
+
+CRITICAL: Your reasoning must focus ONLY on whether completed todos were actually implemented, not on future work or pending todos.
 
 {attempt_info}
 
