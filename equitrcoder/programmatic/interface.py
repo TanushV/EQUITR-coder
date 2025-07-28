@@ -256,61 +256,29 @@ class EquitrCoder:
             if self.on_tool_call:
                 agent.on_tool_call_callback = self.on_tool_call
             
-            # Create orchestrator
+            # Create orchestrator with proper model
+            model = config.model or "moonshot/kimi-k2-0711-preview"
             if not self._single_orchestrator:
                 self._single_orchestrator = SingleAgentOrchestrator(
                     agent=agent,
                     session_manager=self.session_manager,
-                    model=config.model or "moonshot/kimi-k2-0711-preview"
+                    model=model,
+                    max_iterations=999999  # Unlimited iterations
                 )
             
             # Set callbacks
             if self.on_message:
                 self._single_orchestrator.set_callbacks(on_message=self.on_message)
             
-            # Simple task description focused on actual work
-            enhanced_task = f"""
-🚨 CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE EXACTLY:
-
-You are a coding assistant that MUST create actual working code files.
-
-## YOUR TASK:
-{task_description}
-
-## EXECUTION STRATEGY:
-1. FIRST: Use list_todos to see what needs to be done (if any todos exist)
-2. WORK ON ACTUAL CODE: Create .py files, write functions, implement features
-3. MARK TODOS COMPLETE: Use update_todo when you finish each task (if todos exist)
-4. CREATE WORKING SOFTWARE: Focus on building the actual application
-5. NO PLANNING DOCUMENTS: Do not create requirements.md, design.md, or todos.md files
-
-## MANDATORY TOOL USE:
-- list_todos: Check current todos (START WITH THIS)
-- update_todo: Mark todos completed (if todos exist)
-- create_file: Create Python files (.py files)
-- edit_file: Modify code files
-- run_command: Test your code
-- read_file: Check file contents
-
-## WHAT TO BUILD:
-Create a working calculator application with:
-- calculator.py (main implementation)
-- test_calculator.py (unit tests)
-- Proper error handling for division by zero
-- Command-line interface
-
-START NOW with list_todos to see your tasks, then CREATE ACTUAL CODE FILES!
-"""
-            
-            # Execute task with verbose output
+            # Execute task - the orchestrator will handle document creation
             result = await self._single_orchestrator.execute_task(
-                task_description=enhanced_task,
-                session_id=config.session_id or f"task_{config.description[:8]}"
+                task_description=task_description,
+                session_id=config.session_id or f"single_task_{task_description[:10]}"
             )
             
             return ExecutionResult(
                 success=result["success"],
-                content=result.get("content", ""),
+                content=result.get("result", {}).get("final_response", "") if isinstance(result.get("result"), dict) else str(result.get("result", "")),
                 cost=result.get("cost", 0.0),
                 iterations=result.get("iterations", 0),
                 session_id=result.get("session_id", ""),
@@ -334,103 +302,69 @@ START NOW with list_todos to see your tasks, then CREATE ACTUAL CODE FILES!
         task_description: str,
         config: Optional[MultiAgentTaskConfiguration]
     ) -> ExecutionResult:
-        """Execute task in multi-agent mode with mandatory 3-document creation and split todos."""
+        """Execute task in multi-agent mode with proper model configuration."""
         if not config:
             config = MultiAgentTaskConfiguration(description=task_description)
         
         try:
-            # MANDATORY: Create the 3 documents first (automatic for programmatic mode)
-            from ..core.document_workflow import DocumentWorkflowManager
+            # Create providers with proper models
+            supervisor_model = config.supervisor_model or "o3"  # Strong model for supervisor
+            worker_model = config.worker_model or "moonshot/kimi-k2-0711-preview"  # Worker model
             
-            doc_manager = DocumentWorkflowManager(model=config.supervisor_model or "moonshot/kimi-k2-0711-preview")
+            supervisor_provider = LiteLLMProvider(model=supervisor_model)
+            worker_provider = LiteLLMProvider(model=worker_model)
             
-            # Create shared requirements and design documents
-            print("🔍 Creating shared requirements document...")
-            requirements_content = await doc_manager._generate_requirements(task_description)
-            requirements_path = Path(self.repo_path) / "docs" / "requirements.md"
-            requirements_path.parent.mkdir(exist_ok=True)
-            requirements_path.write_text(requirements_content)
+            print(f"🧠 Supervisor model: {supervisor_model}")
+            print(f"🤖 Worker model: {worker_model}")
             
-            print("🏗️ Creating shared design document...")
-            design_content = await doc_manager._generate_design(task_description, requirements_content)
-            design_path = Path(self.repo_path) / "docs" / "design.md"
-            design_path.write_text(design_content)
-            
-            # Create split todos for parallel agents
-            print(f"📋 Creating split todos for {config.max_workers} agents...")
-            agent_todo_files = await doc_manager.create_split_todos_for_parallel_agents(
-                user_prompt=task_description,
-                requirements_content=requirements_content,
-                design_content=design_content,
-                num_agents=config.max_workers,
-                project_path=str(self.repo_path)
-            )
-            
-            if not agent_todo_files:
-                return ExecutionResult(
-                    success=False,
-                    content="",
-                    cost=0.0,
-                    iterations=0,
-                    session_id="error",
-                    execution_time=0.0,
-                    error="Failed to create split todos for parallel agents"
-                )
-            
-            # Create providers
-            supervisor_provider = LiteLLMProvider(model=config.supervisor_model or "moonshot/kimi-k2-0711-preview")
-            worker_provider = LiteLLMProvider(model=config.worker_model or "moonshot/kimi-k2-0711-preview")
-            
-            # Create orchestrator
+            # Create orchestrator with proper providers
             if not self._multi_orchestrator:
                 self._multi_orchestrator = MultiAgentOrchestrator(
                     supervisor_provider=supervisor_provider,
                     worker_provider=worker_provider,
                     max_concurrent_workers=config.max_workers,
-                    global_cost_limit=config.max_cost
+                    global_cost_limit=config.max_cost,
+                    repo_path=str(self.repo_path)
                 )
             
-            # Create worker tasks with individual todo assignments
-            worker_tasks = []
-            for i, todo_file in enumerate(agent_todo_files):
-                enhanced_task = f"""
-Original task: {task_description}
-
-You are Agent {i + 1} of {config.max_workers}.
-
-You have access to the following planning documents:
-- Requirements: {requirements_path}
-- Design: {design_path}
-- Your assigned todos: {todo_file}
-
-CRITICAL INSTRUCTIONS:
-1. Read the requirements.md and design.md files for context
-2. Read your assigned todos file: {todo_file}
-3. Complete ALL todos assigned to you
-4. You cannot finish until ALL your todos are marked as completed
-5. Use the update_todo tool to mark todos as completed when done
-6. Work systematically through each todo
-7. Follow the design specifications exactly
-
-You are working in parallel with other agents. Focus only on your assigned todos.
-"""
+            # Create worker configurations
+            worker_configs = []
+            for i in range(config.max_workers):
+                worker_config = WorkerConfig(
+                    worker_id=f"agent_{i + 1}",
+                    scope_paths=["."],
+                    allowed_tools=[
+                        "read_file", "create_file", "edit_file", "list_files",
+                        "run_command", "search_files", "list_todos", "update_todo",
+                        "ask_supervisor"  # Critical for consulting strong model
+                    ],
+                    max_cost=config.max_cost / config.max_workers,
+                    max_iterations=999999  # Unlimited iterations
+                )
+                worker_configs.append(worker_config)
                 
+                # Create and register the worker
+                self._multi_orchestrator.create_worker(worker_config, worker_provider)
+            
+            # Create worker tasks
+            worker_tasks = []
+            for i, worker_config in enumerate(worker_configs):
                 worker_tasks.append({
-                    "task_id": f"agent_{i + 1}_todos",
-                    "worker_id": f"agent_{i + 1}",
-                    "task_description": enhanced_task,
-                    "context": {"agent_id": i + 1, "todo_file": todo_file}
+                    "task_id": f"agent_{i + 1}_task",
+                    "worker_id": worker_config.worker_id,
+                    "task_description": task_description,
+                    "context": {"agent_id": i + 1, "total_agents": config.max_workers}
                 })
             
-            # Execute coordination with split todos
+            # Execute coordination - orchestrator will handle document creation
             result = await self._multi_orchestrator.coordinate_workers(
-                coordination_task=f"Multi-agent execution: {task_description}",
+                coordination_task=task_description,
                 worker_tasks=worker_tasks
             )
             
             return ExecutionResult(
                 success=result["success"],
-                content=result.get("content", ""),
+                content=result.get("supervisor_analysis", "") or str(result.get("worker_results", "")),
                 cost=result.get("total_cost", 0.0),
                 iterations=len(result.get("worker_results", [])),
                 session_id="multi_agent_session",
@@ -521,7 +455,7 @@ You are working in parallel with other agents. Focus only on your assigned todos
 # Convenience factory functions
 def create_single_agent_coder(
     repo_path: str = ".",
-    model: Optional[str] = None,
+    model: Optional[str] = "moonshot/kimi-k2-0711-preview",  # Default worker model
     git_enabled: bool = True
 ) -> EquitrCoder:
     """
@@ -529,7 +463,7 @@ def create_single_agent_coder(
     
     Args:
         repo_path: Path to repository
-        model: Model to use
+        model: Model to use (default: moonshot/kimi-k2-0711-preview)
         git_enabled: Whether to enable git operations
         
     Returns:
@@ -545,8 +479,8 @@ def create_single_agent_coder(
 def create_multi_agent_coder(
     repo_path: str = ".",
     max_workers: int = 3,
-    supervisor_model: Optional[str] = None,
-    worker_model: Optional[str] = None,
+    supervisor_model: Optional[str] = "o3",  # Strong model for supervisor
+    worker_model: Optional[str] = "moonshot/kimi-k2-0711-preview",  # Worker model
     git_enabled: bool = True
 ) -> EquitrCoder:
     """
@@ -555,8 +489,8 @@ def create_multi_agent_coder(
     Args:
         repo_path: Path to repository
         max_workers: Maximum number of concurrent workers
-        supervisor_model: Model for supervisor agent
-        worker_model: Model for worker agents
+        supervisor_model: Model for supervisor agent (default: o3)
+        worker_model: Model for worker agents (default: moonshot/kimi-k2-0711-preview)
         git_enabled: Whether to enable git operations
         
     Returns:

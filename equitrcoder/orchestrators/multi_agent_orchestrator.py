@@ -80,13 +80,20 @@ class MultiAgentOrchestrator:
         # Initialize supervisor if provider available
         self.supervisor = None
         if supervisor_provider:
-            self.supervisor = SupervisorAgent(
-                supervisor_provider,
-                self.session_manager,
-                str(self.repo_path),
-                use_multi_agent=True,
-                worker_provider=worker_provider
-            )
+            try:
+                # Import here to avoid circular imports
+                from ..core.supervisor import SupervisorAgent
+                self.supervisor = SupervisorAgent(
+                    supervisor_provider,
+                    self.session_manager,
+                    str(self.repo_path),
+                    use_multi_agent=True,
+                    worker_provider=worker_provider
+                )
+                print(f"✅ Supervisor initialized with model: {getattr(supervisor_provider, 'model', 'unknown')}")
+            except Exception as supervisor_error:
+                print(f"⚠️ Could not initialize supervisor: {supervisor_error}")
+                self.supervisor = None
 
         # Runtime state
         self.workers: Dict[str, WorkerAgent] = {}
@@ -106,7 +113,7 @@ class MultiAgentOrchestrator:
         config: WorkerConfig,
         provider: Optional[LiteLLMProvider] = None
     ) -> WorkerAgent:
-        """Create and register a new worker agent."""
+        """Create and register a new worker agent with ask_supervisor tool."""
         worker_provider = provider or self.worker_provider
         
         worker = WorkerAgent(
@@ -116,7 +123,7 @@ class MultiAgentOrchestrator:
             project_root=str(self.repo_path),
             provider=worker_provider,
             max_cost=config.max_cost,
-            max_iterations=config.max_iterations
+            max_iterations=config.max_iterations or 999999  # Unlimited iterations
         )
 
         # Set up callbacks
@@ -134,6 +141,13 @@ class MultiAgentOrchestrator:
         comm_tools = create_agent_communication_tools(config.worker_id)
         for tool in comm_tools:
             worker.add_tool(tool)
+            
+        # Add ask_supervisor tool if supervisor is available
+        if self.supervisor_provider:
+            from ..tools.builtin.ask_supervisor import create_ask_supervisor_tool
+            supervisor_tool = create_ask_supervisor_tool(self.supervisor_provider)
+            worker.add_tool(supervisor_tool)
+            print(f"✅ Added ask_supervisor tool to worker {config.worker_id}")
 
         self.workers[config.worker_id] = worker
         return worker
@@ -293,14 +307,49 @@ class MultiAgentOrchestrator:
         task_description: str,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Execute the actual task using the worker."""
+        """Execute the actual task using the worker with unlimited iterations."""
         
         # Get initial messages from worker
         messages = [Message(role=m['role'], content=m['content']) for m in worker.get_messages()]
         
         # Add system prompt if no system message exists
         if not messages or messages[0].role != 'system':
-            system_prompt = f'You are a worker agent named {worker.agent_id}. Use the available tools to complete the task. Be thorough and create working code.'
+            supervisor_guidance = ""
+            if 'ask_supervisor' in worker.get_available_tools():
+                supervisor_guidance = """
+
+🧠 ASK_SUPERVISOR AVAILABLE:
+You have access to the 'ask_supervisor' tool - USE IT FREQUENTLY!
+The supervisor has access to a strong reasoning model (o3) and can provide:
+- Strategic guidance and architectural decisions
+- Complex problem-solving approaches
+- Code review and optimization suggestions
+- Project planning and task prioritization
+
+Use ask_supervisor when you need strategic guidance or encounter complex decisions.
+"""
+            
+            system_prompt = f"""You are worker agent {worker.agent_id} in a multi-agent system.
+
+🚨 CRITICAL RULES:
+1. **MANDATORY TOOL USE**: You MUST make at least one tool call in EVERY response.
+2. **TODO COMPLETION**: When you finish a task, you MUST use update_todo to mark it completed.
+3. **UNLIMITED ITERATIONS**: You have unlimited iterations - keep working until ALL todos are completed.
+4. **ASK FOR HELP**: Use ask_supervisor when you need strategic guidance.
+
+🎯 WORKFLOW:
+1. Start with list_todos to see what needs to be done
+2. Use ask_supervisor for strategic guidance on complex tasks
+3. Work through each todo systematically
+4. Mark todos complete with update_todo when finished
+5. Continue until ALL todos are completed
+
+🔧 AVAILABLE TOOLS: {', '.join(worker.get_available_tools())}
+{supervisor_guidance}
+
+Worker ID: {worker.agent_id}
+Project root: {worker.project_root if hasattr(worker, 'project_root') else '.'}
+"""
             messages.insert(0, Message(role='system', content=system_prompt))
         
         # Get available tools and their schemas
@@ -312,7 +361,7 @@ class MultiAgentOrchestrator:
                 tool_schemas.append(tool.get_json_schema())
         
         iteration = 0
-        max_iterations = worker.max_iterations or 10
+        max_iterations = 999999  # Unlimited iterations
         
         # Use worker's provider for LLM calls
         provider = self.worker_provider
@@ -384,20 +433,58 @@ class MultiAgentOrchestrator:
                     # Continue to next iteration
                     continue
                 else:
-                    # No tool calls, task is complete
-                    break
+                    # No tool calls - check if task is actually complete
+                    response_content = response.content or ""
+                    
+                    # Check if the agent is indicating completion
+                    completion_indicators = [
+                        "all todos completed",
+                        "all tasks finished",
+                        "work completed",
+                        "all done",
+                        "finished successfully"
+                    ]
+                    
+                    if any(indicator in response_content.lower() for indicator in completion_indicators):
+                        # Agent claims completion, verify by checking todos
+                        print(f"🔍 Worker {worker.agent_id} claims completion, verifying...")
+                        try:
+                            from ..tools.builtin.todo import TodoManager
+                            todo_manager = TodoManager()
+                            todos = todo_manager.list_todos()
+                            
+                            # Filter for this worker's todos if assignee is set
+                            worker_todos = [t for t in todos if t.assignee == worker.agent_id] if any(t.assignee == worker.agent_id for t in todos) else todos
+                            pending_todos = [t for t in worker_todos if t.status not in ["completed", "cancelled"]]
+                            
+                            if not pending_todos:
+                                print(f"✅ Worker {worker.agent_id} completed all assigned todos!")
+                                break  # Exit the loop, task is complete
+                            else:
+                                print(f"❌ Worker {worker.agent_id} has {len(pending_todos)} todos still pending")
+                        except Exception:
+                            pass  # Continue with warning if todo check fails
+                    
+                    # Force tool use
+                    warning_message = "ERROR: You must use tools in every response! Use list_todos to check remaining work or update_todo to mark tasks complete."
+                    user_message = Message(role='user', content=warning_message)
+                    messages.append(user_message)
+                    worker.add_message('user', warning_message, {'system_generated': True, 'warning': True})
+                    continue
                     
             except Exception as e:
                 error_msg = f"Error in iteration {iteration}: {str(e)}"
                 worker.add_message('system', error_msg, {'error': True})
-                break
+                print(f"❌ Worker {worker.agent_id} error: {error_msg}")
+                # Continue on errors to allow recovery
+                continue
         
         return {
             "task_description": task_description,
             "final_response": messages[-1].content if messages else '',
             "iterations": iteration,
             "total_tokens": 0,  # TODO: Track tokens properly
-            "worker_status": worker.get_status(),
+            "worker_status": worker.get_status() if hasattr(worker, 'get_status') else "completed",
             "tokens_used": 100  # Mock value for now
         }
 
@@ -439,7 +526,93 @@ class MultiAgentOrchestrator:
         coordination_task: str,
         worker_tasks: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Coordinate multiple workers with supervisor oversight."""
+        """Coordinate multiple workers with supervisor oversight and document creation."""
+        
+        # MANDATORY: Create documents first before worker coordination
+        try:
+            print("📋 Creating shared documents for multi-agent coordination...")
+            from ..core.document_workflow import DocumentWorkflowManager
+            
+            doc_manager = DocumentWorkflowManager(model=getattr(self.supervisor_provider, 'model', 'moonshot/kimi-k2-0711-preview'))
+            
+            # Generate unique task name
+            import uuid
+            task_name = f"multi_task_{uuid.uuid4().hex[:8]}"
+            
+            # Create documents programmatically
+            doc_result = await doc_manager.create_documents_programmatic(
+                user_prompt=coordination_task,
+                project_path=".",
+                task_name=task_name
+            )
+            
+            if doc_result.success:
+                print(f"✅ Shared documents created in docs/{task_name}/")
+                
+                # Create split todos for parallel agents if we have multiple workers
+                if len(worker_tasks) > 1:
+                    print(f"📋 Creating split todos for {len(worker_tasks)} parallel agents...")
+                    requirements_content = open(doc_result.requirements_path).read()
+                    design_content = open(doc_result.design_path).read()
+                    
+                    agent_todo_files = await doc_manager.create_split_todos_for_parallel_agents(
+                        user_prompt=coordination_task,
+                        requirements_content=requirements_content,
+                        design_content=design_content,
+                        num_agents=len(worker_tasks),
+                        project_path="."
+                    )
+                    
+                    # Update worker tasks with document context and specific todo assignments
+                    for i, task in enumerate(worker_tasks):
+                        todo_file = agent_todo_files[i] if i < len(agent_todo_files) else None
+                        task["task_description"] = f"""
+Original coordination task: {coordination_task}
+
+You are Agent {i + 1} of {len(worker_tasks)} in a multi-agent system.
+
+Shared Documents:
+- Requirements: {doc_result.requirements_path}
+- Design: {doc_result.design_path}
+- Your Todo Assignment: {todo_file or 'No specific assignment'}
+
+IMPORTANT INSTRUCTIONS:
+1. Read the requirements and design documents for context
+2. If you have a specific todo assignment, read that file and complete ONLY your assigned todos
+3. Use update_todo to mark todos complete when finished
+4. Use ask_supervisor tool for strategic guidance on complex decisions
+5. Communicate with other agents using agent communication tools
+6. You cannot finish until ALL your assigned todos are completed
+
+Start by using list_todos to see your assigned work!
+"""
+                        task["context"] = {
+                            "agent_id": i + 1,
+                            "total_agents": len(worker_tasks),
+                            "requirements_path": doc_result.requirements_path,
+                            "design_path": doc_result.design_path,
+                            "todo_file": todo_file,
+                            "task_name": task_name
+                        }
+                else:
+                    # Single worker - use standard approach
+                    task = worker_tasks[0]
+                    task["task_description"] = f"""
+Original task: {coordination_task}
+
+Documents have been created:
+- Requirements: {doc_result.requirements_path}
+- Design: {doc_result.design_path}
+- Todos: {doc_result.todos_path}
+
+Read these documents and complete all todos using the update_todo tool.
+Use ask_supervisor for strategic guidance.
+"""
+            
+        except Exception as doc_error:
+            print(f"⚠️ Document creation failed: {doc_error}")
+            task_name = None
+        
         if not self.supervisor:
             # Fallback to simple parallel execution
             results = await self.execute_parallel_tasks(worker_tasks)
@@ -447,7 +620,7 @@ class MultiAgentOrchestrator:
             # ALWAYS check and trigger audit after task completion
             print("🔍 Checking if audit should be triggered...")
             try:
-                await self._check_and_trigger_audit()
+                await self._check_and_trigger_audit(task_name)
             except Exception as audit_error:
                 print(f"⚠️ Audit check failed: {audit_error}")
                 # Continue execution even if audit fails
@@ -455,12 +628,13 @@ class MultiAgentOrchestrator:
             return {
                 "coordination_task": coordination_task,
                 "worker_results": results,
-                "success": all(r.success for r in results)
+                "success": all(r.success for r in results),
+                "task_name": task_name
             }
         
         # Use supervisor for coordination
         try:
-            # Execute worker tasks
+            # Execute worker tasks with enhanced context
             worker_results = await self.execute_parallel_tasks(worker_tasks)
             
             # Get supervisor analysis
@@ -479,13 +653,14 @@ class MultiAgentOrchestrator:
                 "supervisor_analysis": "Tasks completed successfully",
                 "success": all(r.success for r in worker_results),
                 "total_cost": sum(r.cost for r in worker_results),
-                "total_time": sum(r.execution_time for r in worker_results)
+                "total_time": sum(r.execution_time for r in worker_results),
+                "task_name": task_name
             }
             
             # ALWAYS check and trigger audit after successful coordination
             print("🔍 Checking if audit should be triggered...")
             try:
-                await self._check_and_trigger_audit()
+                await self._check_and_trigger_audit(task_name)
             except Exception as audit_error:
                 print(f"⚠️ Audit check failed: {audit_error}")
                 # Continue execution even if audit fails
@@ -497,7 +672,8 @@ class MultiAgentOrchestrator:
                 "coordination_task": coordination_task,
                 "success": False,
                 "error": str(e),
-                "worker_results": []
+                "worker_results": [],
+                "task_name": task_name
             }
 
     async def _check_and_trigger_audit(self, task_name: str = None):

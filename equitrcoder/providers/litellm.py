@@ -170,9 +170,23 @@ class LiteLLMProvider:
                         "unauthorized",
                         "invalid key",
                         "api key",
+                        "invalid_api_key",
                     ]
                 ):
                     print(f"❌ Authentication error, not retrying: {e}")
+                    raise e
+
+                # Don't retry on model not found errors
+                if any(
+                    model_term in error_msg
+                    for model_term in [
+                        "model not found",
+                        "invalid model",
+                        "model does not exist",
+                        "unsupported model",
+                    ]
+                ):
+                    print(f"❌ Model error, not retrying: {e}")
                     raise e
 
                 # Check if this is a retryable error
@@ -183,7 +197,7 @@ class LiteLLMProvider:
                         "quota",
                         "429",
                         "too many requests",
-                        "retry",
+                        "retry-after",
                     ]
                 )
                 is_server_error = any(
@@ -199,11 +213,23 @@ class LiteLLMProvider:
                         "gateway timeout",
                         "connection",
                         "timeout",
+                        "network",
+                    ]
+                )
+                
+                # Also retry on JSON parsing errors which can be transient
+                is_json_error = any(
+                    keyword in error_msg
+                    for keyword in [
+                        "json",
+                        "parsing",
+                        "decode",
+                        "invalid response format",
                     ]
                 )
 
-                # Retry for rate limits and server errors
-                should_retry = is_rate_limit or is_server_error
+                # Retry for rate limits, server errors, and transient JSON errors
+                should_retry = is_rate_limit or is_server_error or is_json_error
 
                 if not should_retry:
                     print(f"❌ Non-retryable error: {str(e)[:100]}...")
@@ -224,7 +250,7 @@ class LiteLLMProvider:
                 jitter = random.uniform(0.1, 0.3) * delay
                 total_delay = delay + jitter
 
-                error_type = "Rate limit" if is_rate_limit else "Server error"
+                error_type = "Rate limit" if is_rate_limit else "Server error" if is_server_error else "JSON error"
                 print(
                     f"⚠️  {error_type} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)[:80]}..."
                 )
@@ -279,14 +305,19 @@ class LiteLLMProvider:
             # Convert messages to OpenAI format
             formatted_messages = []
             for msg in messages:
+                if isinstance(msg, dict):
+                    # Already in dict format
+                    formatted_messages.append(msg)
+                    continue
+                    
                 formatted_msg = {"role": msg.role, "content": msg.content}
 
                 # Add tool-specific fields if present
-                if msg.tool_call_id:
+                if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
                     formatted_msg["tool_call_id"] = msg.tool_call_id
-                if msg.name:
+                if hasattr(msg, 'name') and msg.name:
                     formatted_msg["name"] = msg.name
-                if msg.tool_calls:
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     formatted_msg["tool_calls"] = msg.tool_calls
 
                 formatted_messages.append(formatted_msg)
@@ -301,35 +332,36 @@ class LiteLLMProvider:
                 **kwargs,
             }
 
-            # Enable prompt-level caching for every provider.  Litellm will silently
-            # drop the param if the underlying backend does not support it because
-            # we set `litellm.drop_params = True` in __init__.
-            params["cache_control"] = "default"  # "force" or True also acceptable
-
-            # Add tools if provided
+            # Add tools if provided with proper format validation
             if tools:
-                # Handle both formats: OpenAI format and simple format
-                functions = []
-                for tool in tools:
-                    if "type" in tool and tool["type"] == "function":
-                        # Already in OpenAI format
-                        functions.append(tool)
-                    else:
-                        # Convert simple format to OpenAI format
-                        functions.append(
-                            {
-                                "type": "function",
-                                "function": {
-                                    "name": tool["name"],
-                                    "description": tool["description"],
-                                    "parameters": tool["parameters"],
-                                },
-                            }
-                        )
-                params["tools"] = functions
-                params["tool_choice"] = "auto"
+                # Check if we support function calling for this model
+                supports_tools = litellm.supports_function_calling(self.model)
+                
+                if supports_tools:
+                    # Handle both formats: OpenAI format and simple format
+                    functions = []
+                    for tool in tools:
+                        if "type" in tool and tool["type"] == "function":
+                            # Already in OpenAI format
+                            functions.append(tool)
+                        else:
+                            # Convert simple format to OpenAI format
+                            functions.append(
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool["name"],
+                                        "description": tool["description"],
+                                        "parameters": tool["parameters"],
+                                    },
+                                }
+                            )
+                    params["tools"] = functions
+                    params["tool_choice"] = "auto"
+                else:
+                    print(f"⚠️ Model {self.model} does not support function calling, tools will be ignored")
 
-            # Make async request to LiteLLM with exponential backoff
+            # Make async request to LiteLLM with exponential backoff and retry
             response = await self._exponential_backoff_retry(
                 self._make_completion_request, **params
             )
@@ -345,22 +377,42 @@ class LiteLLMProvider:
             tool_calls = []
             if hasattr(message, "tool_calls") and message.tool_calls:
                 for tc in message.tool_calls:
+                    # Handle different formats of function data
+                    function_data = tc.function
+                    if hasattr(function_data, "model_dump"):
+                        function_data = function_data.model_dump()
+                    elif hasattr(function_data, "dict"):
+                        function_data = function_data.dict()
+                    elif not isinstance(function_data, dict):
+                        # Convert to dict if it's an object
+                        function_data = {
+                            "name": getattr(function_data, "name", str(function_data)),
+                            "arguments": getattr(function_data, "arguments", "{}")
+                        }
+                    
                     tool_calls.append(
                         ToolCall(
                             id=tc.id,
                             type=tc.type,
-                            function=tc.function.model_dump()
-                            if hasattr(tc.function, "model_dump")
-                            else tc.function,
+                            function=function_data,
                         )
                     )
 
             # Extract usage and calculate cost
-            usage = (
-                response.usage.model_dump()
-                if hasattr(response.usage, "model_dump")
-                else response.usage
-            )
+            usage = {}
+            if hasattr(response, 'usage') and response.usage:
+                if hasattr(response.usage, "model_dump"):
+                    usage = response.usage.model_dump()
+                elif hasattr(response.usage, "dict"):
+                    usage = response.usage.dict()
+                else:
+                    # Convert to dict manually
+                    usage = {
+                        "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                        "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                        "total_tokens": getattr(response.usage, "total_tokens", 0)
+                    }
+            
             cost = self._calculate_cost(usage, self.model)
 
             return ChatResponse(
@@ -368,8 +420,9 @@ class LiteLLMProvider:
             )
 
         except Exception as e:
-            # Unified error handling
+            # Unified error handling with retry for tool calling issues
             error_msg = self._format_error(e)
+            print(f"❌ LiteLLM request failed: {error_msg}")
             raise Exception(f"LiteLLM request failed: {error_msg}")
 
     async def embedding(

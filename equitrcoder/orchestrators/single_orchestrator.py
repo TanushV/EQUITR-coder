@@ -106,7 +106,55 @@ class SingleAgentOrchestrator:
         context: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Execute a single task using the agent."""
+        """Execute a single task using the agent with document creation workflow."""
+        
+        # MANDATORY: Create the 3 documents first (automatic for programmatic mode)
+        # This ensures docs are created once per task, not repeatedly
+        try:
+            print("📋 Initializing document workflow...")
+            from ..core.document_workflow import DocumentWorkflowManager
+            
+            doc_manager = DocumentWorkflowManager(model=self.provider.model)
+            
+            # Generate unique task name
+            import uuid
+            task_name = f"task_{uuid.uuid4().hex[:8]}"
+            
+            # Create documents programmatically
+            doc_result = await doc_manager.create_documents_programmatic(
+                user_prompt=task_description,
+                project_path=".",
+                task_name=task_name
+            )
+            
+            if not doc_result.success:
+                print(f"⚠️ Document creation failed: {doc_result.error}")
+                # Continue without documents as fallback
+                enhanced_task = task_description
+            else:
+                print(f"✅ Documents created successfully in docs/{task_name}/")
+                
+                # Enhance task description with document context
+                enhanced_task = f"""
+Original task: {task_description}
+
+Documents have been created for this task:
+- Requirements: {doc_result.requirements_path}
+- Design: {doc_result.design_path}
+- Todos: {doc_result.todos_path}
+
+You should:
+1. Read these documents for context
+2. Complete all todos using update_todo
+3. Follow the requirements and design specifications
+4. Create working code that fulfills the requirements
+
+IMPORTANT: Start by using list_todos to see your assigned tasks.
+"""
+        except Exception as doc_error:
+            print(f"⚠️ Document workflow error: {doc_error}")
+            enhanced_task = task_description
+            task_name = None
         
         # Create or load session
         if session_id:
@@ -118,12 +166,12 @@ class SingleAgentOrchestrator:
         
         self.agent.session = session
         
-        # Add initial task message
-        self.agent.add_message("user", task_description, {"context": context})
+        # Add initial task message with enhanced context
+        self.agent.add_message("user", enhanced_task, {"context": context, "task_name": task_name})
         
         try:
             # Execute task
-            result = await self._execute_task_loop(task_description, context)
+            result = await self._execute_task_loop(enhanced_task, context)
             
             # Update session
             session.cost += self.total_cost  # Use orchestrator's total cost
@@ -136,16 +184,6 @@ class SingleAgentOrchestrator:
             # ALWAYS check and trigger audit after successful task completion
             print("🔍 Checking if audit should be triggered...")
             try:
-                # Extract task name from enhanced task description if available
-                task_name = None
-                if "Documents:" in task_description and "docs/" in task_description:
-                    # Try to extract task name from document paths
-                    import re
-                    match = re.search(r'docs/([^/]+)/', task_description)
-                    if match:
-                        task_name = match.group(1)
-                        print(f"📋 Extracted task name for audit: {task_name}")
-                
                 await self._check_and_trigger_audit(task_name)
             except Exception as audit_error:
                 print(f"⚠️ Audit check failed: {audit_error}")
@@ -156,7 +194,8 @@ class SingleAgentOrchestrator:
                 "result": result,
                 "session_id": session.session_id,
                 "cost": self.total_cost,  # Use orchestrator's total cost
-                "iterations": self.agent.iteration_count
+                "iterations": self.agent.iteration_count,
+                "task_name": task_name
             }
             
         except Exception as e:
@@ -165,7 +204,8 @@ class SingleAgentOrchestrator:
                 "error": str(e),
                 "session_id": session.session_id if session else None,
                 "cost": self.total_cost,  # Use orchestrator's total cost
-                "iterations": self.agent.iteration_count
+                "iterations": self.agent.iteration_count,
+                "task_name": task_name
             }
     
     async def _execute_task_loop(
@@ -180,13 +220,14 @@ class SingleAgentOrchestrator:
         
         # Add system prompt if no system message exists
         if not messages or messages[0].role != 'system':
-            system_prompt = """You are an AI coding assistant that MUST use tools in every response.
+            system_prompt = f"""You are EQUITR Coder, an AI coding assistant powered by {self.provider.model}.
 
 🚨 CRITICAL RULES - VIOLATION WILL RESULT IN ERROR:
 1. **MANDATORY TOOL USE**: You MUST make at least one tool call in EVERY response. Text-only responses are FORBIDDEN.
 2. **TODO COMPLETION**: When you finish a task, you MUST use update_todo to mark it completed.
 3. **SYSTEMATIC APPROACH**: Start with list_todos, work through each todo, mark as completed when done.
 4. **CONTINUOUS PROGRESS**: Always use tools to make progress - create files, edit code, run tests, etc.
+5. **NO LIMITS**: You have unlimited iterations - keep working until ALL todos are completed.
 
 🔧 AVAILABLE TOOLS (USE THESE CONSTANTLY):
 - list_todos: Check current todos and their status
@@ -203,9 +244,17 @@ class SingleAgentOrchestrator:
 3. Use appropriate tools to work on it (create_file, edit_file, run_command, etc.)
 4. When complete, call update_todo to mark it done
 5. Call list_todos again to see remaining work
-6. Repeat until all todos are completed
+6. Repeat until ALL todos are completed
 
-⚠️ REMEMBER: Every response MUST include tool calls. Never respond with just text!"""
+💡 IMPORTANT:
+- Every response MUST include tool calls. Never respond with just text!
+- You cannot finish until ALL todos are marked as completed
+- Be thorough and create working, tested code
+- Follow good programming practices
+
+Current working directory: .
+Model: {self.provider.model}
+"""
             messages.insert(0, Message(role='system', content=system_prompt))
         
         # Get available tools and their schemas
@@ -325,6 +374,36 @@ class SingleAgentOrchestrator:
                     continue
                 else:
                     # No tool calls - this is NOT allowed! Force the agent to use tools
+                    # But first check if we've reached a natural completion point
+                    response_content = response.content or ""
+                    
+                    # Check if the agent is indicating completion
+                    completion_indicators = [
+                        "all todos completed",
+                        "all tasks finished",
+                        "project completed",
+                        "work completed",
+                        "all done",
+                        "finished successfully"
+                    ]
+                    
+                    if any(indicator in response_content.lower() for indicator in completion_indicators):
+                        # Agent claims completion, verify by checking todos
+                        print("🔍 Agent claims completion, verifying...")
+                        try:
+                            from ..tools.builtin.todo import TodoManager
+                            todo_manager = TodoManager()
+                            todos = todo_manager.list_todos()
+                            pending_todos = [t for t in todos if t.status not in ["completed", "cancelled"]]
+                            
+                            if not pending_todos:
+                                print("✅ All todos completed, task finished successfully!")
+                                break  # Exit the loop, task is complete
+                            else:
+                                print(f"❌ {len(pending_todos)} todos still pending, continuing...")
+                        except Exception:
+                            pass  # Continue with warning if todo check fails
+                    
                     warning_message = "ERROR: You must use tools in every response! You cannot just provide text without tool calls. Please use a tool like list_todos, create_file, or update_todo to continue working."
                     user_message = Message(role='user', content=warning_message)
                     messages.append(user_message)
