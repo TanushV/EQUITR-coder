@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 from ..core.config import Config, config_manager
-from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
+from ..modes.single_agent_mode import run_single_agent_mode
+from ..modes.multi_agent_mode import run_multi_agent_sequential
 from ..agents.base_agent import BaseAgent
 from ..tools.discovery import discover_tools
 from ..core.session import SessionManagerV2
@@ -194,21 +195,7 @@ class SimpleTUI:
             print(f"{HEADER_COLOR}\n🤖 Starting task execution with created documents...{RESET}")
             print(f"{HEADER_COLOR}=" * 60 + RESET)
             
-            # Create agent and orchestrator
-            agent = BaseAgent(max_cost=5.0, max_iterations=20)
-            
-            # Add tools
-            tools = discover_tools()
-            for tool in tools:
-                agent.add_tool(tool)
-                
-            orchestrator = SingleAgentOrchestrator(
-                agent=agent,
-                model=self.worker_model or self.supervisor_model,
-                session_manager=self.session_manager
-            )
-            
-            # Set up live callbacks
+            # Set up live callbacks for clean architecture
             def on_message(message_data):
                 role = message_data['role'].upper()
                 content = message_data['content']
@@ -218,7 +205,7 @@ class SimpleTUI:
                     print(f"{HEADER_COLOR}-" * 50 + RESET)
             
             def on_iteration(iteration, status):
-                print(f"{HEADER_COLOR}\n>>> Iteration {iteration} | Cost: ${status['current_cost']:.4f}{RESET}")
+                print(f"{HEADER_COLOR}\n>>> Iteration {iteration} | Cost: ${status.get('cost', 0):.4f}{RESET}")
                 
             def on_tool_call(tool_data):
                 if tool_data.get('success', True):
@@ -240,11 +227,12 @@ class SimpleTUI:
                 else:
                     print(f"{ERROR_COLOR}❌ Tool error: {tool_data.get('error', 'unknown')}{RESET}")
             
-            orchestrator.set_callbacks(
-                on_message=on_message,
-                on_iteration=on_iteration
-            )
-            agent.on_tool_call_callback = on_tool_call
+            # Set up callbacks dictionary
+            callbacks = {
+                'on_message': on_message,
+                'on_iteration': on_iteration,
+                'on_tool_call': on_tool_call
+            }
             
             # Enhanced task description with document context
             enhanced_task = f"""
@@ -259,10 +247,16 @@ Please read these documents first, then execute the task according to the plan.
 Focus on completing the todos one by one, following the design specifications.
 """
             
-            # Execute
-            result = await orchestrator.execute_task(
+            # Execute using clean single agent mode
+            model = self.worker_model or self.supervisor_model or "moonshot/kimi-k2-0711-preview"
+            result = await run_single_agent_mode(
                 task_description=enhanced_task,
-                session_id=self.current_session_id
+                agent_model=model,
+                audit_model=model,
+                max_cost=5.0,
+                max_iterations=20,
+                session_id=self.current_session_id,
+                callbacks=callbacks
             )
             
             print(f"{HEADER_COLOR}=" * 60 + RESET)
