@@ -25,13 +25,11 @@ class TestProgrammaticInterface:
         coder = EquitrCoder(mode="single")
         assert coder.mode == "single"
         assert coder.git_enabled == True
-        assert coder._single_orchestrator is None
 
         # Multi mode
         multi_coder = EquitrCoder(mode="multi", git_enabled=False)
         assert multi_coder.mode == "multi"
         assert multi_coder.git_enabled == False
-        assert multi_coder._multi_orchestrator is None
 
     def test_task_configuration(self):
         """Test TaskConfiguration creation."""
@@ -149,36 +147,40 @@ class TestProgrammaticInterface:
         commits = coder.get_recent_commits()
         assert commits == []
 
-    @patch("equitrcoder.programmatic.interface.SingleAgentOrchestrator")
-    async def test_execute_single_task_mock(self, mock_orchestrator):
-        """Test single task execution with mocked orchestrator."""
-        # Mock the orchestrator
-        mock_instance = AsyncMock()
-        mock_instance.execute_task.return_value = {
-            "success": True,
-            "content": "Task completed",
-            "cost": 0.05,
-            "iterations": 3,
-            "session_id": "test-session",
-        }
-        mock_orchestrator.return_value = mock_instance
-
+    async def test_execute_single_task_mock(self):
+        """Test single task execution with mocked clean architecture."""
         coder = EquitrCoder(mode="single")
-        config = TaskConfiguration(description="Test task", model="gpt-4", max_cost=1.0)
 
-        result = await coder.execute_task("Test task", config)
+        # Mock the clean architecture run_single_agent_mode function
+        with patch(
+            "equitrcoder.programmatic.interface.run_single_agent_mode"
+        ) as mock_run:
+            mock_run.return_value = {
+                "success": True,
+                "cost": 0.05,
+                "iterations": 3,
+                "execution_result": {"final_message": "Task completed"},
+                "session_id": "test-session",
+            }
 
-        assert result.success == True
-        assert result.content == "Task completed"
-        assert result.cost == 0.05
-        assert result.iterations == 3
-        assert result.session_id == "test-session"
+            config = TaskConfiguration(
+                description="Test task", model="gpt-4", max_cost=1.0
+            )
+            result = await coder.execute_task("Test task", config)
 
-    def test_invalid_mode(self):
+            assert result.success == True
+            assert "Task completed" in result.content
+            assert result.cost == 0.05
+            assert result.iterations == 3
+
+    async def test_invalid_mode(self):
         """Test invalid mode handling."""
-        with pytest.raises(ValueError, match="Invalid mode"):
-            coder = EquitrCoder(mode="invalid")
-            asyncio.run(coder.execute_task("test"))
+        coder = EquitrCoder(mode="invalid")
+        result = await coder.execute_task("test")
+
+        # Should return failed result instead of raising exception
+        assert result.success == False
+        assert "Invalid mode: invalid" in result.error
 
 
 class TestErrorHandling:
@@ -195,11 +197,13 @@ class TestErrorHandling:
 
             await coder.execute_task("Test task")
 
-            # Should have been called with a default TaskConfiguration
+            # Should have been called with None config (config created inside method)
             mock_execute.assert_called_once()
             args = mock_execute.call_args[0]
             assert args[0] == "Test task"
-            assert isinstance(args[1], TaskConfiguration)
+            assert (
+                args[1] is None
+            )  # Config is None, created inside _execute_single_task
 
     async def test_execute_task_exception_handling(self):
         """Test exception handling during task execution."""

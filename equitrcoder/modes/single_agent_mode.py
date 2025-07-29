@@ -149,6 +149,7 @@ async def run_single_agent_mode(
     project_path: str = ".",
     max_cost: Optional[float] = None,
     max_iterations: Optional[int] = None,
+    session_id: Optional[str] = None,
     callbacks: Optional[Dict[str, Callable]] = None,
 ) -> Dict[str, Any]:
     """Convenience function to run single agent mode."""

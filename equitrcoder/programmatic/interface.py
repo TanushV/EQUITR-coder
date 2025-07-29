@@ -435,8 +435,9 @@ class EquitrCoder:
 
     async def cleanup(self):
         """Clean up resources."""
-        if self._multi_orchestrator:
-            await self._multi_orchestrator.shutdown()
+        # Clean architecture doesn't maintain persistent orchestrators
+        # Nothing to clean up
+        pass
 
 
 # Convenience factory functions

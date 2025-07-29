@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 
 @dataclass
@@ -83,11 +83,11 @@ class PerformanceMonitor:
 
         # Thread-safe storage
         self._lock = threading.Lock()
-        self._metrics_history = deque(maxlen=max_history)
-        self._cost_alerts = deque(maxlen=1000)
+        self._metrics_history: Deque[PerformanceMetrics] = deque(maxlen=max_history)
+        self._cost_alerts: Deque[CostAlert] = deque(maxlen=1000)
 
         # Aggregated statistics
-        self._operation_stats = defaultdict(
+        self._operation_stats: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {
                 "count": 0,
                 "total_time": 0.0,
@@ -261,7 +261,7 @@ class PerformanceMonitor:
             total_time = sum(m.execution_time for m in recent_metrics)
 
             # Operation breakdown
-            operation_breakdown = defaultdict(
+            operation_breakdown: Dict[str, Dict[str, Any]] = defaultdict(
                 lambda: {
                     "count": 0,
                     "avg_time": 0.0,
