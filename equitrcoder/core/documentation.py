@@ -94,7 +94,7 @@ class DocumentationGenerator:
         """Generate documents iteratively with user feedback and revisions."""
         max_iterations = 3
         current_iteration = 0
-        feedback_history = []  # Track feedback from previous iterations
+        feedback_history: List[str] = []  # Track feedback from previous iterations
 
         while current_iteration < max_iterations:
             print(
