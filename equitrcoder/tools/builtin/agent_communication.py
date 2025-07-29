@@ -1,9 +1,11 @@
 """Agent communication tools for inter-agent messaging."""
 
-from typing import Type, List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Type
+
 from pydantic import BaseModel, Field
+
+from ...core.message_pool import MessageType, message_pool
 from ..base import Tool, ToolResult
-from ...core.message_pool import message_pool, MessageType
 
 
 class SendMessageArgs(BaseModel):

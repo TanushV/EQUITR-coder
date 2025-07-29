@@ -6,10 +6,10 @@ Utility for logging tool calls and their results in programmatic mode.
 
 import json
 import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 from ..providers.openrouter import ToolCall
 from ..tools.base import ToolResult
@@ -33,14 +33,28 @@ def _sanitize_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
     """Sanitize sensitive data from tool arguments and results."""
     if not isinstance(data, dict):
         return data
-    
+
     sanitized = {}
     sensitive_keys = {
-        'api_key', 'apikey', 'api_token', 'token', 'password', 'passwd', 'pwd',
-        'secret', 'auth', 'authorization', 'bearer', 'key', 'private_key',
-        'access_token', 'refresh_token', 'client_secret', 'webhook_secret'
+        "api_key",
+        "apikey",
+        "api_token",
+        "token",
+        "password",
+        "passwd",
+        "pwd",
+        "secret",
+        "auth",
+        "authorization",
+        "bearer",
+        "key",
+        "private_key",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+        "webhook_secret",
     }
-    
+
     for key, value in data.items():
         key_lower = key.lower()
         if any(sensitive_key in key_lower for sensitive_key in sensitive_keys):
@@ -57,7 +71,7 @@ def _sanitize_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
             ]
         else:
             sanitized[key] = value
-    
+
     return sanitized
 
 
@@ -90,7 +104,7 @@ class ToolCallLogger:
         if self.enabled:
             # Ensure parent directory exists (e.g., when running outside repo root)
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             self.logger = logging.getLogger("tool_calls")
             self.logger.setLevel(logging.INFO)
 
@@ -190,9 +204,9 @@ class ToolCallLogger:
             "failed_calls": failed_calls,
             "success_rate": successful_calls / total_calls if total_calls > 0 else 0,
             "total_duration_ms": total_duration,
-            "average_duration_ms": total_duration / total_calls
-            if total_calls > 0
-            else 0,
+            "average_duration_ms": (
+                total_duration / total_calls if total_calls > 0 else 0
+            ),
             "tool_usage": tool_usage,
         }
 

@@ -127,9 +127,11 @@ class GitAutoCommit:
                 "enabled": True,
                 "branch": branch_result.stdout.strip(),
                 "last_commit": commit_result.stdout.strip(),
-                "changes": len(status_result.stdout.strip().split("\n"))
-                if status_result.stdout.strip()
-                else 0,
+                "changes": (
+                    len(status_result.stdout.strip().split("\n"))
+                    if status_result.stdout.strip()
+                    else 0
+                ),
             }
 
         except subprocess.CalledProcessError as e:

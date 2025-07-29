@@ -1,6 +1,8 @@
 from typing import Type
-from pydantic import BaseModel, Field
+
 from ddgs import DDGS
+from pydantic import BaseModel, Field
+
 from ..base import Tool, ToolResult
 
 

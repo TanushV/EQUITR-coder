@@ -2,10 +2,12 @@
 Ask Supervisor Tool - Allows weak agents to consult the strong reasoning model.
 """
 
-from typing import Type, Optional, List
+from typing import List, Optional, Type
+
 from pydantic import BaseModel, Field
-from ..base import Tool, ToolResult
+
 from ...repository.indexer import RepositoryIndexer
+from ..base import Tool, ToolResult
 
 
 class AskSupervisorArgs(BaseModel):
@@ -60,9 +62,9 @@ class AskSupervisor(Tool):
                 return ToolResult(
                     success=False,
                     error=f"Maximum supervisor calls ({self.max_calls}) exceeded. "
-                          "Try to proceed independently or request manual intervention."
+                    "Try to proceed independently or request manual intervention.",
                 )
-            
+
             self.call_count += 1
             args = self.validate_args(kwargs)
 

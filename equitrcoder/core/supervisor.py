@@ -1,16 +1,16 @@
 """Supervisor for multi-agent task decomposition and coordination."""
 
-import json
 import asyncio
-from typing import List, Dict, Any, Optional, Set
+import json
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Set
 
-from .task import Task, TaskList
-from .session import SessionManagerV2
-from .message_pool import message_pool, MessageType
-from ..providers.openrouter import OpenRouterProvider, Message
+from ..providers.openrouter import Message, OpenRouterProvider
 from ..tools.builtin.agent_communication import create_agent_communication_tools
 from ..tools.builtin.git_auto import GitAutoCommit
+from .message_pool import MessageType, message_pool
+from .session import SessionManagerV2
+from .task import Task, TaskList
 
 
 class WorkerAgent:
@@ -118,11 +118,11 @@ IMPORTANT: Reference the project requirements, design, and todo list when comple
 
     def _create_task_prompt(self, task: Task) -> str:
         """Create a focused prompt for the task."""
-        
+
         # Check if ask_supervisor is available
         has_ask_supervisor = "ask_supervisor" in self.tools
         supervisor_guidance = ""
-        
+
         if has_ask_supervisor:
             supervisor_guidance = """
 🧠 ASK_SUPERVISOR TOOL - YOUR KEY TO SUCCESS:
@@ -145,7 +145,7 @@ await call_tool("ask_supervisor",
 
 💡 REMEMBER: The supervisor has broader context and strategic thinking - leverage this intelligence!
 """
-        
+
         prompt = f"""You are a specialized worker agent named '{self.name}' in a multi-agent system.
 
 TASK: {task.description}
@@ -193,11 +193,12 @@ Complete this task now."""
         """Execute task using a restricted orchestrator (same logic as single-agent mode)."""
         import asyncio
         import json
+
         from ..providers.openrouter import Message, ToolCall
-        from ..tools import registry, discovery
         from ..repository.indexer import RepositoryIndexer
-        from .context_manager import ContextManager
+        from ..tools import discovery, registry
         from ..tools.base import ToolResult
+        from .context_manager import ContextManager
 
         try:
             # Initialize tools (same as in orchestrator)
@@ -664,9 +665,11 @@ Break down the request into 3-8 specific tasks. Be detailed and specific."""
                     "assigned_agent": task.assigned_agent,
                     "priority": task.priority,
                     "duration": task.duration_minutes(),
-                    "result": task.result[:100] + "..."
-                    if task.result and len(task.result) > 100
-                    else task.result,
+                    "result": (
+                        task.result[:100] + "..."
+                        if task.result and len(task.result) > 100
+                        else task.result
+                    ),
                     "error": task.error,
                 }
             )
@@ -750,9 +753,11 @@ Break down the request into 3-8 specific tasks. Be detailed and specific."""
                     "sender": msg.sender_agent,
                     "recipient": msg.recipient_agent,
                     "type": msg.message_type.value,
-                    "content": msg.content[:100] + "..."
-                    if len(msg.content) > 100
-                    else msg.content,
+                    "content": (
+                        msg.content[:100] + "..."
+                        if len(msg.content) > 100
+                        else msg.content
+                    ),
                     "timestamp": msg.timestamp.isoformat(),
                 }
                 for msg in recent_messages
@@ -764,7 +769,7 @@ Break down the request into 3-8 specific tasks. Be detailed and specific."""
         """Trigger audit using a specialized audit worker with infinite loop and escalation."""
         try:
             from equitrcoder.tools.builtin.audit import audit_manager
-            
+
             # Infinite audit loop with failure tracking
             while True:
                 print("🔍 Starting multi-agent audit...")
@@ -808,16 +813,18 @@ Respond with EXACTLY:
                 # Execute audit task using analysis worker with expanded tools
                 audit_result_content = ""
                 audit_passed = False
-                
+
                 if "analysis_worker" in self.worker_agents:
                     # Temporarily expand analysis worker tools to include create_todo
                     original_tools = self.worker_agents["analysis_worker"].tools.copy()
                     if "create_todo" not in self.worker_agents["analysis_worker"].tools:
-                        self.worker_agents["analysis_worker"].tools.append("create_todo")
-                    
-                    audit_result = await self.worker_agents["analysis_worker"].execute_task(
-                        audit_task
-                    )
+                        self.worker_agents["analysis_worker"].tools.append(
+                            "create_todo"
+                        )
+
+                    audit_result = await self.worker_agents[
+                        "analysis_worker"
+                    ].execute_task(audit_task)
 
                     # Restore original tools
                     self.worker_agents["analysis_worker"].tools = original_tools
@@ -832,11 +839,15 @@ Respond with EXACTLY:
                             print("❌ Multi-agent audit failed - issues found")
                             audit_passed = False
                         else:
-                            print("⚠️ Multi-agent audit completed with unclear result - treating as failure")
+                            print(
+                                "⚠️ Multi-agent audit completed with unclear result - treating as failure"
+                            )
                             audit_passed = False
                     else:
                         print("❌ Multi-agent audit execution failed")
-                        audit_result_content = audit_result.get("error", "Audit execution failed")
+                        audit_result_content = audit_result.get(
+                            "error", "Audit execution failed"
+                        )
                         audit_passed = False
                 else:
                     print("❌ Analysis worker not available for audit")
@@ -844,8 +855,10 @@ Respond with EXACTLY:
                     audit_passed = False
 
                 # Record audit result and determine next action
-                should_continue = audit_manager.record_audit_result(audit_passed, audit_result_content)
-                
+                should_continue = audit_manager.record_audit_result(
+                    audit_passed, audit_result_content
+                )
+
                 if audit_passed:
                     # Audit passed - exit the loop
                     print("🎉 Project audit completed successfully!")
@@ -856,24 +869,38 @@ Respond with EXACTLY:
                     break
                 else:
                     # Audit failed but should continue - the audit worker should have created todos
-                    print("🔄 Audit failed - new todos should have been created. Continuing audit cycle...")
-                    
+                    print(
+                        "🔄 Audit failed - new todos should have been created. Continuing audit cycle..."
+                    )
+
                     # Small delay before next audit attempt
                     import asyncio
+
                     await asyncio.sleep(2)
-                    
+
                     # Check if new todos were actually created
                     todos_after_audit = audit_manager.todo_manager.list_todos()
-                    incomplete_todos = [t for t in todos_after_audit if t.status not in ["completed", "cancelled"]]
-                    
+                    incomplete_todos = [
+                        t
+                        for t in todos_after_audit
+                        if t.status not in ["completed", "cancelled"]
+                    ]
+
                     if len(incomplete_todos) == 0:
-                        print("⚠️  No new todos were created by audit worker - creating fallback todos")
-                        audit_manager.create_todos_from_audit_failure(audit_result_content)
+                        print(
+                            "⚠️  No new todos were created by audit worker - creating fallback todos"
+                        )
+                        audit_manager.create_todos_from_audit_failure(
+                            audit_result_content
+                        )
 
         except Exception as e:
             print(f"⚠️ Multi-agent audit error: {e}")
-            
+
             # Record the exception as an audit failure
             from equitrcoder.tools.builtin.audit import audit_manager
+
             audit_manager.record_audit_result(False, f"Audit system error: {str(e)}")
-            audit_manager.create_todos_from_audit_failure(f"Audit system error: {str(e)}")
+            audit_manager.create_todos_from_audit_failure(
+                f"Audit system error: {str(e)}"
+            )

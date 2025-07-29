@@ -2,12 +2,12 @@
 FastAPI server for equitrcoder.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
+    import uvicorn
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    import uvicorn
 
     HAS_FASTAPI = True
 except ImportError:
@@ -19,11 +19,11 @@ from pydantic import BaseModel
 
 from ..agents.base_agent import BaseAgent
 from ..agents.worker_agent import WorkerAgent
-from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
 from ..orchestrators.multi_agent_orchestrator import (
     MultiAgentOrchestrator,
     WorkerConfig,
 )
+from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
 from ..tools.discovery import discover_tools
 
 

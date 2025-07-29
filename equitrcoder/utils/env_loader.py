@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 def load_dotenv_file(env_file: Optional[str] = None) -> bool:
@@ -46,9 +46,7 @@ def load_dotenv_file(env_file: Optional[str] = None) -> bool:
             return False
 
     except ImportError:
-        print(
-            "⚠️  python-dotenv not installed. Install with: pip install python-dotenv"
-        )
+        print("⚠️  python-dotenv not installed. Install with: pip install python-dotenv")
         return False
     except Exception as e:
         print(f"❌ Error loading .env file: {e}")

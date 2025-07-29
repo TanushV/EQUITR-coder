@@ -1,10 +1,10 @@
 """Global message pool for inter-agent communication."""
 
 import asyncio
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, asdict
 from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
 
 class MessageType(Enum):
@@ -55,9 +55,9 @@ class MessagePool:
         self.max_messages = max_messages
         self.messages: List[AgentMessage] = []
         self.message_index: Dict[str, AgentMessage] = {}
-        self.agent_subscriptions: Dict[
-            str, Set[str]
-        ] = {}  # agent -> set of message types
+        self.agent_subscriptions: Dict[str, Set[str]] = (
+            {}
+        )  # agent -> set of message types
         self.message_queues: Dict[str, asyncio.Queue] = {}  # agent -> message queue
         self.lock = asyncio.Lock()
         self._message_counter = 0

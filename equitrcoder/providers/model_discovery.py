@@ -1,6 +1,7 @@
-import httpx
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 from urllib.parse import urljoin
+
+import httpx
 
 
 class LiteLLMModelDiscovery:

@@ -1,6 +1,7 @@
 """
 Restricted file system utilities for secure agent operations.
 """
+
 import fnmatch
 from pathlib import Path
 from typing import List, Set
@@ -8,7 +9,7 @@ from typing import List, Set
 
 class RestrictedFileSystem:
     """File system access control for agents with restricted scope."""
-    
+
     def __init__(self, allowed_paths: List[str], project_root: str = "."):
         self.project_root = Path(project_root).resolve()
         self.allowed_paths = [Path(p).resolve() for p in allowed_paths]
@@ -63,7 +64,7 @@ class RestrictedFileSystem:
         """Get relative path from project root if file is allowed."""
         if not self.is_allowed(file_path):
             raise PermissionError(f"Access denied to file: {file_path}")
-        
+
         resolved_path = Path(file_path).resolve()
         try:
             return str(resolved_path.relative_to(self.project_root))
@@ -93,5 +94,5 @@ class RestrictedFileSystem:
         return {
             "allowed_paths": len(self.allowed_paths),
             "allowed_files": len(self.allowed_files),
-            "project_root": str(self.project_root)
-        } 
+            "project_root": str(self.project_root),
+        }

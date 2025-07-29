@@ -1,5 +1,6 @@
-from typing import List, Optional, Dict, Any
-from equitrcoder.config.model_config import get_config_manager, ModelConfig
+from typing import Any, Dict, List, Optional
+
+from equitrcoder.config.model_config import ModelConfig, get_config_manager
 
 
 class ModelSelector:

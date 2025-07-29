@@ -1,7 +1,8 @@
 """Utility functions for LiteLLM model compatibility and function calling support."""
 
+from typing import Any, Dict, List, Optional
+
 import litellm
-from typing import Dict, List, Any, Optional
 
 
 def check_function_calling_support(model: str) -> bool:

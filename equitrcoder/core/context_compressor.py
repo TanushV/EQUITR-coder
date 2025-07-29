@@ -11,8 +11,8 @@ from __future__ import annotations
 import asyncio
 from typing import List
 
-from .context_manager import ContextManager
 from ..providers.openrouter import Message  # shared pydantic model
+from .context_manager import ContextManager
 
 
 class ContextCompressor:

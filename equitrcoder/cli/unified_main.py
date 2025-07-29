@@ -8,141 +8,75 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from ..modes.single_agent_mode import run_single_agent_mode
-from ..modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
-from ..ui.tui import SimpleTUI
-from ..tools.discovery import discover_tools
 from ..core.config import Config, config_manager
+from ..modes.multi_agent_mode import (
+    run_multi_agent_parallel,
+    run_multi_agent_sequential,
+)
+from ..modes.single_agent_mode import run_single_agent_mode
+from ..tools.discovery import discover_tools
+from ..ui.tui import SimpleTUI
 
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the main argument parser."""
     parser = argparse.ArgumentParser(
         prog="equitrcoder",
-        description="Modular AI coding assistant supporting single and multi-agent workflows"
+        description="Modular AI coding assistant supporting single and multi-agent workflows",
     )
-    
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="equitrcoder 1.0.0"
-    )
-    
+
+    parser.add_argument("--version", action="version", version="equitrcoder 1.0.0")
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # Single agent command
-    single_parser = subparsers.add_parser(
-        "single",
-        help="Run single agent mode"
-    )
+    single_parser = subparsers.add_parser("single", help="Run single agent mode")
+    single_parser.add_argument("task", help="Task description for the agent")
     single_parser.add_argument(
-        "task",
-        help="Task description for the agent"
+        "--model", help="Model to use (e.g., gpt-4, claude-3-sonnet)"
     )
-    single_parser.add_argument(
-        "--model",
-        help="Model to use (e.g., gpt-4, claude-3-sonnet)"
-    )
-    single_parser.add_argument(
-        "--max-cost",
-        type=float,
-        help="Maximum cost limit"
-    )
-    single_parser.add_argument(
-        "--max-iterations",
-        type=int,
-        help="Maximum iterations"
-    )
-    single_parser.add_argument(
-        "--session-id",
-        help="Session ID to resume"
-    )
-    
+    single_parser.add_argument("--max-cost", type=float, help="Maximum cost limit")
+    single_parser.add_argument("--max-iterations", type=int, help="Maximum iterations")
+    single_parser.add_argument("--session-id", help="Session ID to resume")
+
     # Multi agent command
-    multi_parser = subparsers.add_parser(
-        "multi",
-        help="Run multi-agent mode"
-    )
+    multi_parser = subparsers.add_parser("multi", help="Run multi-agent mode")
+    multi_parser.add_argument("coordination_task", help="High-level coordination task")
     multi_parser.add_argument(
-        "coordination_task",
-        help="High-level coordination task"
+        "--workers", type=int, default=2, help="Number of workers to create"
     )
+    multi_parser.add_argument("--supervisor-model", help="Model for supervisor agent")
+    multi_parser.add_argument("--worker-model", help="Model for worker agents")
     multi_parser.add_argument(
-        "--workers",
-        type=int,
-        default=2,
-        help="Number of workers to create"
+        "--max-cost", type=float, default=10.0, help="Global cost limit"
     )
-    multi_parser.add_argument(
-        "--supervisor-model",
-        help="Model for supervisor agent"
-    )
-    multi_parser.add_argument(
-        "--worker-model", 
-        help="Model for worker agents"
-    )
-    multi_parser.add_argument(
-        "--max-cost",
-        type=float,
-        default=10.0,
-        help="Global cost limit"
-    )
-    
+
     # TUI command
-    tui_parser = subparsers.add_parser(
-        "tui",
-        help="Launch interactive TUI"
-    )
+    tui_parser = subparsers.add_parser("tui", help="Launch interactive TUI")
     tui_parser.add_argument(
-        "--mode",
-        choices=["single", "multi"],
-        default="single",
-        help="TUI mode"
+        "--mode", choices=["single", "multi"], default="single", help="TUI mode"
     )
-    
+
     # API command
-    api_parser = subparsers.add_parser(
-        "api",
-        help="Start API server"
-    )
-    api_parser.add_argument(
-        "--host",
-        default="localhost",
-        help="Host to bind to"
-    )
-    api_parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Port to bind to"
-    )
-    
+    api_parser = subparsers.add_parser("api", help="Start API server")
+    api_parser.add_argument("--host", default="localhost", help="Host to bind to")
+    api_parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
+
     # Tools command
-    tools_parser = subparsers.add_parser(
-        "tools",
-        help="Manage tools"
+    tools_parser = subparsers.add_parser("tools", help="Manage tools")
+    tools_parser.add_argument(
+        "--list", action="store_true", help="List available tools"
     )
     tools_parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List available tools"
+        "--discover", action="store_true", help="Discover and register tools"
     )
-    tools_parser.add_argument(
-        "--discover",
-        action="store_true",
-        help="Discover and register tools"
-    )
-    
+
     # Models command
-    models_parser = subparsers.add_parser(
-        "models",
-        help="List available AI models"
-    )
+    models_parser = subparsers.add_parser("models", help="List available AI models")
     models_parser.add_argument(
-        "--provider",
-        help="Filter by provider (moonshot, openai, etc.)"
+        "--provider", help="Filter by provider (moonshot, openai, etc.)"
     )
-    
+
     return parser
 
 
@@ -151,31 +85,31 @@ async def run_single_agent(args) -> int:
     try:
         # Set up callbacks for live monitoring
         def on_message(message_data):
-            role = message_data['role'].upper()
-            content = message_data['content']
+            role = message_data["role"].upper()
+            content = message_data["content"]
             print(f"\n[{role}] {content}")
             if role == "ASSISTANT":
                 print("-" * 50)
-        
+
         def on_iteration(iteration, status):
             print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
-        
+
         def on_tool_call(tool_data):
-            if tool_data.get('success', True):
-                tool_name = tool_data.get('tool_name', 'unknown')
+            if tool_data.get("success", True):
+                tool_name = tool_data.get("tool_name", "unknown")
                 print(f"🔧 Using tool: {tool_name}")
             else:
                 print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
-        
+
         callbacks = {
-            'on_message': on_message,
-            'on_iteration': on_iteration,
-            'on_tool_call': on_tool_call
+            "on_message": on_message,
+            "on_iteration": on_iteration,
+            "on_tool_call": on_tool_call,
         }
-        
+
         print(f"🤖 Starting single agent task: {args.task}")
         print("=" * 60)
-        
+
         # Use clean single agent mode
         model = args.model or "moonshot/kimi-k2-0711-preview"
         result = await run_single_agent_mode(
@@ -185,17 +119,17 @@ async def run_single_agent(args) -> int:
             max_cost=args.max_cost,
             max_iterations=args.max_iterations,
             session_id=args.session_id,
-            callbacks=callbacks
+            callbacks=callbacks,
         )
-        
+
         print("=" * 60)
         if result["success"]:
             print(f"✅ Task completed successfully!")
             print(f"💰 Total cost: ${result.get('cost', 0):.4f}")
             print(f"🔄 Iterations: {result.get('iterations', 0)}")
             print(f"📝 Session ID: {result.get('session_id', 'N/A')}")
-            audit_result = result.get('audit_result', {})
-            if audit_result.get('audit_passed'):
+            audit_result = result.get("audit_result", {})
+            if audit_result.get("audit_passed"):
                 print("🔍 ✅ Audit: PASSED")
             else:
                 print("🔍 ❌ Audit: FAILED")
@@ -203,7 +137,7 @@ async def run_single_agent(args) -> int:
         else:
             print(f"❌ Task failed: {result.get('error', 'Unknown error')}")
             return 1
-            
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return 1
@@ -211,38 +145,40 @@ async def run_single_agent(args) -> int:
 
 async def run_multi_agent(args) -> int:
     """Run multi-agent mode using clean architecture."""
-    try:        
+    try:
         # Set up callbacks for monitoring
         def on_message(message_data):
-            role = message_data['role'].upper()
-            content = message_data['content']
+            role = message_data["role"].upper()
+            content = message_data["content"]
             print(f"\n[{role}] {content}")
             if role == "ASSISTANT":
                 print("-" * 50)
-        
+
         def on_iteration(iteration, status):
             print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
-        
+
         def on_tool_call(tool_data):
-            if tool_data.get('success', True):
-                tool_name = tool_data.get('tool_name', 'unknown')
+            if tool_data.get("success", True):
+                tool_name = tool_data.get("tool_name", "unknown")
                 print(f"🔧 Using tool: {tool_name}")
             else:
                 print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
-        
+
         callbacks = {
-            'on_message': on_message,
-            'on_iteration': on_iteration,
-            'on_tool_call': on_tool_call
+            "on_message": on_message,
+            "on_iteration": on_iteration,
+            "on_tool_call": on_tool_call,
         }
-        
-        print(f"🤖 Starting multi-agent task with {args.workers} agents: {args.coordination_task}")
+
+        print(
+            f"🤖 Starting multi-agent task with {args.workers} agents: {args.coordination_task}"
+        )
         print("=" * 60)
-        
+
         # Use clean multi-agent sequential mode
         supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"
         worker_model = args.worker_model or "moonshot/kimi-k2-0711-preview"
-        
+
         result = await run_multi_agent_sequential(
             task_description=args.coordination_task,
             num_agents=args.workers,
@@ -251,9 +187,9 @@ async def run_multi_agent(args) -> int:
             supervisor_model=supervisor_model,
             audit_model=supervisor_model,
             max_cost_per_agent=args.max_cost / args.workers,
-            callbacks=callbacks
+            callbacks=callbacks,
         )
-        
+
         print("=" * 60)
         if result["success"]:
             print(f"✅ Multi-agent task completed successfully!")
@@ -264,7 +200,7 @@ async def run_multi_agent(args) -> int:
         else:
             print(f"❌ Multi-agent task failed: {result.get('error', 'Unknown error')}")
             return 1
-            
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return 1
@@ -274,19 +210,20 @@ def run_tui(args) -> int:
     """Launch TUI mode."""
     try:
         print(f"🖥️  Launching Interactive TUI...")
-        
+
         # Load configuration and start SimpleTUI
         config = config_manager.load_config()
         tui = SimpleTUI(config)
-        
+
         # Run the TUI in async context
         async def run_tui_async():
             return await tui.run()
-        
+
         import asyncio
+
         asyncio.run(run_tui_async())
         return 0
-        
+
     except Exception as e:
         print(f"❌ TUI Error: {e}")
         return 1
@@ -298,10 +235,13 @@ def run_api(args) -> int:
         print(f"🌐 Starting API server on {args.host}:{args.port}...")
         # Import API here to avoid dependency issues
         from ..api import start_server
+
         start_server(host=args.host, port=args.port)
         return 0
     except ImportError:
-        print("❌ API dependencies not available. Install with: pip install equitrcoder[api]")
+        print(
+            "❌ API dependencies not available. Install with: pip install equitrcoder[api]"
+        )
         return 1
     except Exception as e:
         print(f"❌ API Error: {e}")
@@ -317,16 +257,16 @@ def run_tools(args) -> int:
             for tool in tools:
                 print(f"  - {tool.get_name()}: {tool.get_description()}")
             return 0
-        
+
         if args.discover:
             print("🔍 Discovering tools...")
             tools = discover_tools()
             print(f"Found {len(tools)} tools")
             return 0
-        
+
         print("Use --list or --discover")
         return 1
-        
+
     except Exception as e:
         print(f"❌ Tools Error: {e}")
         return 1
@@ -336,33 +276,29 @@ def run_models(args) -> int:
     """List available AI models."""
     try:
         print("🤖 Available AI Models:")
-        
+
         # Common models organized by provider
         models = {
             "moonshot": [
                 "moonshot/kimi-k2-0711-preview",
-                "moonshot/kimi-k1-32k", 
-                "moonshot/kimi-k1-128k"
+                "moonshot/kimi-k1-32k",
+                "moonshot/kimi-k1-128k",
             ],
             "openai": [
                 "openai/gpt-4",
                 "openai/gpt-4-turbo",
                 "openai/gpt-3.5-turbo",
                 "o3",  # Special model
-                "o1"
+                "o1",
             ],
             "anthropic": [
                 "anthropic/claude-3-sonnet",
                 "anthropic/claude-3-haiku",
-                "anthropic/claude-3-opus"
+                "anthropic/claude-3-opus",
             ],
-            "other": [
-                "gemini/gemini-pro",
-                "cohere/command-r",
-                "mistral/mistral-7b"
-            ]
+            "other": ["gemini/gemini-pro", "cohere/command-r", "mistral/mistral-7b"],
         }
-        
+
         # Filter by provider if specified
         if args.provider:
             provider = args.provider.lower()
@@ -380,13 +316,13 @@ def run_models(args) -> int:
                 print(f"\n{provider.upper()} Models:")
                 for model in model_list:
                     print(f"  - {model}")
-        
+
         print(f"\n💡 Usage: equitrcoder single 'your task' --model <model_name>")
         print(f"💡 Recommended: moonshot/kimi-k2-0711-preview (cost-effective)")
         print(f"💡 For complex tasks: o3 (more expensive but powerful)")
-        
+
         return 0
-        
+
     except Exception as e:
         print(f"❌ Models Error: {e}")
         return 1
@@ -396,26 +332,28 @@ def main() -> int:
     """Main CLI entry point."""
     parser = create_parser()
     args = parser.parse_args()
-    
+
     if not args.command:
         args.command = "tui"
         args.mode = "single"  # Default to single mode for TUI
-    
+
     # Validate model requirements for CLI modes only
     if args.command == "single":
-        if not hasattr(args, 'model') or not args.model:
+        if not hasattr(args, "model") or not args.model:
             print("❌ Error: --model is required for single agent mode")
-            print("Example: equitrcoder single 'task' --model moonshot/kimi-k2-0711-preview")
+            print(
+                "Example: equitrcoder single 'task' --model moonshot/kimi-k2-0711-preview"
+            )
             return 1
     elif args.command == "multi":
-        if not hasattr(args, 'supervisor_model') or not args.supervisor_model:
+        if not hasattr(args, "supervisor_model") or not args.supervisor_model:
             print("❌ Error: --supervisor-model is required for multi-agent mode")
             return 1
-        if not hasattr(args, 'worker_model') or not args.worker_model:
+        if not hasattr(args, "worker_model") or not args.worker_model:
             print("❌ Error: --worker-model is required for multi-agent mode")
             return 1
     # TUI handles model selection internally - no validation needed
-    
+
     try:
         if args.command == "single":
             return asyncio.run(run_single_agent(args))
@@ -432,7 +370,7 @@ def main() -> int:
         else:
             print(f"Unknown command: {args.command}")
             return 1
-    
+
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
         return 0
@@ -442,4 +380,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

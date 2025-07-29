@@ -1,10 +1,11 @@
 import importlib
 import inspect
+import logging
 import pkgutil
 from pathlib import Path
 from typing import List, Type
+
 from .base import Tool, registry
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ discovery = ToolDiscovery()
 def discover_tools() -> List[Tool]:
     """
     Convenience function to discover and return all available tools.
-    
+
     Returns:
         List of discovered Tool instances
     """
@@ -130,7 +131,7 @@ def discover_tools() -> List[Tool]:
     discovery.discover_builtin_tools()
     discovery.discover_custom_tools()
     discovery.discover_mcp_tools()
-    
+
     # Return tools from registry
     return list(registry._tools.values())
 
@@ -141,7 +142,7 @@ def discover_builtin_tools():
 
 
 def discover_custom_tools():
-    """Discover custom tools.""" 
+    """Discover custom tools."""
     discovery.discover_custom_tools()
 
 
