@@ -8,10 +8,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from ..agents.base_agent import BaseAgent
-from ..agents.worker_agent import WorkerAgent
-from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
-from ..orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator, WorkerConfig
+from ..modes.single_agent_mode import run_single_agent_mode
+from ..modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
+from ..ui.tui import SimpleTUI
 from ..tools.discovery import discover_tools
 from ..core.config import Config, config_manager
 
@@ -134,32 +133,22 @@ def create_parser() -> argparse.ArgumentParser:
         help="Discover and register tools"
     )
     
+    # Models command
+    models_parser = subparsers.add_parser(
+        "models",
+        help="List available AI models"
+    )
+    models_parser.add_argument(
+        "--provider",
+        help="Filter by provider (moonshot, openai, etc.)"
+    )
+    
     return parser
 
 
 async def run_single_agent(args) -> int:
-    """Run single agent mode."""
+    """Run single agent mode using clean architecture."""
     try:
-        # Create base agent with basic tools
-        agent = BaseAgent(
-            max_cost=args.max_cost,
-            max_iterations=args.max_iterations
-        )
-        
-        # Discover and add tools
-        tools = discover_tools()
-        for tool in tools:
-            agent.add_tool(tool)
-        
-        # Create orchestrator - no default model fallback
-        orchestrator = SingleAgentOrchestrator(
-            agent=agent,
-            model=args.model,  # Required, no fallback
-            session_manager=None,
-            max_cost=args.max_cost,
-            max_iterations=args.max_iterations
-        )
-        
         # Set up callbacks for live monitoring
         def on_message(message_data):
             role = message_data['role'].upper()
@@ -168,6 +157,9 @@ async def run_single_agent(args) -> int:
             if role == "ASSISTANT":
                 print("-" * 50)
         
+        def on_iteration(iteration, status):
+            print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
+        
         def on_tool_call(tool_data):
             if tool_data.get('success', True):
                 tool_name = tool_data.get('tool_name', 'unknown')
@@ -175,66 +167,41 @@ async def run_single_agent(args) -> int:
             else:
                 print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
         
-        orchestrator.set_callbacks(
-            on_message=on_message
-        )
-        
-        # Set tool callback on agent
-        agent.on_tool_call_callback = on_tool_call
+        callbacks = {
+            'on_message': on_message,
+            'on_iteration': on_iteration,
+            'on_tool_call': on_tool_call
+        }
         
         print(f"🤖 Starting single agent task: {args.task}")
         print("=" * 60)
         
-        # MANDATORY: Create the 3 documents first (automatic for CLI mode)
-        from ..core.document_workflow import DocumentWorkflowManager
-        
-        doc_manager = DocumentWorkflowManager(model=args.model)
-        
-        print("🔍 Creating mandatory planning documents...")
-        doc_result = await doc_manager.create_documents_programmatic(
-            user_prompt=args.task,
-            project_path="."
-        )
-        
-        if not doc_result.success:
-            print(f"❌ Failed to create planning documents: {doc_result.error}")
-            return 1
-        
-        print(f"✅ Documents created:")
-        print(f"📄 Requirements: {doc_result.requirements_path}")
-        print(f"🏗️ Design: {doc_result.design_path}")
-        print(f"📋 Todos: {doc_result.todos_path}")
-        print("=" * 60)
-        
-        # Enhanced task description with document context
-        enhanced_task = f"""
-Original task: {args.task}
-
-You have access to the following planning documents that were created:
-- Requirements: {doc_result.requirements_path}
-- Design: {doc_result.design_path}  
-- Todos: {doc_result.todos_path}
-
-Please read these documents first, then execute the task according to the plan.
-Focus on completing the todos one by one, following the design specifications.
-You cannot finish until ALL todos are marked as completed.
-"""
-        
-        # Execute task
-        result = await orchestrator.execute_task(
-            task_description=enhanced_task,
-            session_id=args.session_id
+        # Use clean single agent mode
+        model = args.model or "moonshot/kimi-k2-0711-preview"
+        result = await run_single_agent_mode(
+            task_description=args.task,
+            agent_model=model,
+            audit_model=model,
+            max_cost=args.max_cost,
+            max_iterations=args.max_iterations,
+            session_id=args.session_id,
+            callbacks=callbacks
         )
         
         print("=" * 60)
         if result["success"]:
             print(f"✅ Task completed successfully!")
-            print(f"💰 Total cost: ${result['cost']:.4f}")
-            print(f"🔄 Iterations: {result['iterations']}")
-            print(f"📝 Session ID: {result['session_id']}")
+            print(f"💰 Total cost: ${result.get('cost', 0):.4f}")
+            print(f"🔄 Iterations: {result.get('iterations', 0)}")
+            print(f"📝 Session ID: {result.get('session_id', 'N/A')}")
+            audit_result = result.get('audit_result', {})
+            if audit_result.get('audit_passed'):
+                print("🔍 ✅ Audit: PASSED")
+            else:
+                print("🔍 ❌ Audit: FAILED")
             return 0
         else:
-            print(f"❌ Task failed: {result['error']}")
+            print(f"❌ Task failed: {result.get('error', 'Unknown error')}")
             return 1
             
     except Exception as e:
@@ -243,199 +210,59 @@ You cannot finish until ALL todos are marked as completed.
 
 
 async def run_multi_agent(args) -> int:
-    """Run multi-agent mode."""
-    try:
-        from ..providers.litellm import LiteLLMProvider
-        from ..orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator, WorkerConfig
-        from ..agents.base_agent import BaseAgent
-        from ..tools.discovery import discover_tools
-        
-        # Create providers for supervisor and worker
-        supervisor_provider = LiteLLMProvider(model=args.supervisor_model)
-        worker_provider = LiteLLMProvider(model=args.worker_model)
-        
-        # Create orchestrator
-        orchestrator = MultiAgentOrchestrator(
-            supervisor_provider=supervisor_provider,
-            worker_provider=worker_provider,
-            max_concurrent_workers=args.workers,
-            global_cost_limit=args.max_cost
-        )
-        
-        # Create worker agents
-        worker_configs = []
-        for i in range(args.workers):
-            # Create base agent for each worker
-            agent = BaseAgent(
-                agent_id=f"worker_{i+1}",
-                max_cost=args.max_cost / args.workers,
-                max_iterations=10
-            )
-            
-            # Discover and add tools
-            tools = discover_tools()
-            for tool in tools:
-                agent.add_tool(tool)
-            
-            config = WorkerConfig(
-                worker_id=f"worker_{i+1}",
-                scope_paths=["."],  # Allow access to current directory
-                allowed_tools=["create_file", "edit_file", "read_file", "list_files", "run_command", "git_commit", "git_status", "send_agent_message", "receive_agent_messages", "get_message_history", "get_active_agents"],
-                max_cost=args.max_cost / args.workers,
-                max_iterations=10
-            )
-            worker_configs.append(config)
-            
-            # Create worker with the base agent
-            worker = orchestrator.create_worker(config, worker_provider)
-            
-            # Transfer tools from base agent to worker
-            for tool_name, tool in agent.tool_registry.items():
-                worker.add_tool(tool)
-        
-        # Set up callbacks for live monitoring
-        def on_task_start(task_id, worker_id, description):
-            print(f"🚀 {worker_id} starting task {task_id}: {description}")
-        
-        def on_task_complete(task_result):
-            status = "✅" if task_result.success else "❌"
-            print(f"{status} {task_result.worker_id} completed {task_result.task_id} "
-                  f"(💰${task_result.cost:.4f}, ⏱️{task_result.execution_time:.2f}s)")
-            if not task_result.success:
-                print(f"   Error: {task_result.error}")
-        
-        def on_worker_message(message_data):
+    """Run multi-agent mode using clean architecture."""
+    try:        
+        # Set up callbacks for monitoring
+        def on_message(message_data):
             role = message_data['role'].upper()
-            content = message_data['content'][:100] + "..." if len(message_data['content']) > 100 else message_data['content']
-            worker_id = message_data.get('agent_id', 'unknown')
-            print(f"💬 {worker_id} [{role}]: {content}")
+            content = message_data['content']
+            print(f"\n[{role}] {content}")
+            if role == "ASSISTANT":
+                print("-" * 50)
         
-        orchestrator.set_callbacks(
-            on_task_start=on_task_start,
-            on_task_complete=on_task_complete,
-            on_worker_message=on_worker_message
-        )
+        def on_iteration(iteration, status):
+            print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
         
-        print(f"🤖 Starting multi-agent coordination: {args.coordination_task}")
-        print(f"👥 Workers: {args.workers}")
-        print(f"🧠 Supervisor Model: {args.supervisor_model}")
-        print(f"⚡ Worker Model: {args.worker_model}")
+        def on_tool_call(tool_data):
+            if tool_data.get('success', True):
+                tool_name = tool_data.get('tool_name', 'unknown')
+                print(f"🔧 Using tool: {tool_name}")
+            else:
+                print(f"❌ Tool error: {tool_data.get('error', 'unknown')}")
+        
+        callbacks = {
+            'on_message': on_message,
+            'on_iteration': on_iteration,
+            'on_tool_call': on_tool_call
+        }
+        
+        print(f"🤖 Starting multi-agent task with {args.workers} agents: {args.coordination_task}")
         print("=" * 60)
         
-        # MANDATORY: Create the 3 documents first with split todos for parallel agents
-        from ..core.document_workflow import DocumentWorkflowManager
+        # Use clean multi-agent sequential mode
+        supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"
+        worker_model = args.worker_model or "moonshot/kimi-k2-0711-preview"
         
-        doc_manager = DocumentWorkflowManager(model=args.supervisor_model)
-        
-        print("🔍 Creating shared requirements document...")
-        requirements_content = await doc_manager._generate_requirements(args.coordination_task)
-        requirements_path = Path(".") / "docs" / "requirements.md"
-        requirements_path.parent.mkdir(exist_ok=True)
-        requirements_path.write_text(requirements_content)
-        
-        print("🏗️ Creating shared design document...")
-        design_content = await doc_manager._generate_design(args.coordination_task, requirements_content)
-        design_path = Path(".") / "docs" / "design.md"
-        design_path.write_text(design_content)
-        
-        print(f"📋 Creating split todos for {args.workers} agents...")
-        agent_todo_files = await doc_manager.create_split_todos_for_parallel_agents(
-            user_prompt=args.coordination_task,
-            requirements_content=requirements_content,
-            design_content=design_content,
+        result = await run_multi_agent_sequential(
+            task_description=args.coordination_task,
             num_agents=args.workers,
-            project_path="."
-        )
-        
-        if not agent_todo_files:
-            print("❌ Failed to create split todos for parallel agents")
-            return 1
-        
-        print(f"✅ Documents created:")
-        print(f"📄 Shared Requirements: {requirements_path}")
-        print(f"🏗️ Shared Design: {design_path}")
-        for i, todo_file in enumerate(agent_todo_files):
-            print(f"📋 Agent {i+1} Todos: {todo_file}")
-        print("=" * 60)
-        
-        # Create enhanced coordination task with document context and communication instructions
-        enhanced_task = f"""
-Original coordination task: {args.coordination_task}
-
-You are coordinating {args.workers} parallel agents with the following setup:
-- Shared Requirements: {requirements_path}
-- Shared Design: {design_path}
-- Split todos: Each agent has their own todos file
-
-COMMUNICATION INSTRUCTIONS:
-- Agents can communicate using send_agent_message and receive_agent_messages tools
-- Agents should coordinate to avoid conflicts and share progress
-- Use get_active_agents to see which agents are available
-- Use get_message_history to review past communications
-
-COORDINATION STRATEGY:
-1. Each agent reads the shared requirements and design documents
-2. Each agent works on their assigned todos from their individual todos file
-3. Agents communicate progress and coordinate dependencies
-4. Agents cannot finish until ALL their assigned todos are completed
-5. Final coordination ensures all work integrates properly
-
-Agent assignments:
-{chr(10).join([f'- Agent {i+1}: {todo_file}' for i, todo_file in enumerate(agent_todo_files)])}
-"""
-        
-        # Create worker tasks with document context
-        worker_tasks = []
-        for i, config in enumerate(worker_configs):
-            task_description = f"""
-Agent {i+1} Task: {args.coordination_task}
-
-DOCUMENT CONTEXT:
-- Requirements: {requirements_path}
-- Design: {design_path}
-- Your Todos: {agent_todo_files[i]}
-
-INSTRUCTIONS:
-1. Read the requirements and design documents for context
-2. Work through ALL todos in your assigned todos file
-3. Use communication tools to coordinate with other agents
-4. You cannot complete until ALL your todos are done
-5. Communicate progress and coordinate dependencies
-
-Your specific todos file: {agent_todo_files[i]}
-"""
-            worker_tasks.append({
-                "task_id": f"agent_{i+1}",
-                "worker_id": config.worker_id,
-                "task_description": task_description,
-                "context": {
-                    "agent_number": i+1,
-                    "total_agents": len(worker_configs),
-                    "todos_file": agent_todo_files[i],
-                    "requirements_file": str(requirements_path),
-                    "design_file": str(design_path)
-                }
-            })
-        
-        # Execute coordination with enhanced task
-        result = await orchestrator.coordinate_workers(
-            coordination_task=enhanced_task,
-            worker_tasks=worker_tasks
+            agent_model=worker_model,
+            orchestrator_model=worker_model,
+            supervisor_model=supervisor_model,
+            audit_model=supervisor_model,
+            max_cost_per_agent=args.max_cost / args.workers,
+            callbacks=callbacks
         )
         
         print("=" * 60)
         if result["success"]:
-            print(f"✅ Coordination completed successfully!")
-            print(f"💰 Total cost: ${result['total_cost']:.4f}")
-            print(f"⏱️  Total time: {result['total_time']:.2f}s")
-            
-            # Show worker results summary
-            successful_workers = sum(1 for r in result['worker_results'] if r.success)
-            print(f"👥 Workers: {successful_workers}/{len(result['worker_results'])} successful")
-            
+            print(f"✅ Multi-agent task completed successfully!")
+            print(f"💰 Total cost: ${result.get('total_cost', 0):.4f}")
+            print(f"🔄 Total iterations: {result.get('total_iterations', 0)}")
+            print(f"👥 Agents used: {result.get('num_agents', 0)}")
             return 0
         else:
-            print(f"❌ Coordination failed: {result['error']}")
+            print(f"❌ Multi-agent task failed: {result.get('error', 'Unknown error')}")
             return 1
             
     except Exception as e:
@@ -446,12 +273,22 @@ Your specific todos file: {agent_todo_files[i]}
 def run_tui(args) -> int:
     """Launch TUI mode."""
     try:
-        print(f"🖥️  Launching TUI in {args.mode} mode...")
-        # Import TUI here - no dependency issues with simple ASCII TUI
-        from ..ui.tui import launch_tui
-        return launch_tui(mode=args.mode)
+        print(f"🖥️  Launching Interactive TUI...")
+        
+        # Load configuration and start SimpleTUI
+        config = config_manager.load_config()
+        tui = SimpleTUI(config)
+        
+        # Run the TUI in async context
+        async def run_tui_async():
+            return await tui.run()
+        
+        import asyncio
+        asyncio.run(run_tui_async())
+        return 0
+        
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ TUI Error: {e}")
         return 1
 
 
@@ -495,6 +332,66 @@ def run_tools(args) -> int:
         return 1
 
 
+def run_models(args) -> int:
+    """List available AI models."""
+    try:
+        print("🤖 Available AI Models:")
+        
+        # Common models organized by provider
+        models = {
+            "moonshot": [
+                "moonshot/kimi-k2-0711-preview",
+                "moonshot/kimi-k1-32k", 
+                "moonshot/kimi-k1-128k"
+            ],
+            "openai": [
+                "openai/gpt-4",
+                "openai/gpt-4-turbo",
+                "openai/gpt-3.5-turbo",
+                "o3",  # Special model
+                "o1"
+            ],
+            "anthropic": [
+                "anthropic/claude-3-sonnet",
+                "anthropic/claude-3-haiku",
+                "anthropic/claude-3-opus"
+            ],
+            "other": [
+                "gemini/gemini-pro",
+                "cohere/command-r",
+                "mistral/mistral-7b"
+            ]
+        }
+        
+        # Filter by provider if specified
+        if args.provider:
+            provider = args.provider.lower()
+            if provider in models:
+                print(f"\n{provider.upper()} Models:")
+                for model in models[provider]:
+                    print(f"  - {model}")
+            else:
+                print(f"❌ Unknown provider: {provider}")
+                print(f"Available providers: {', '.join(models.keys())}")
+                return 1
+        else:
+            # Show all models
+            for provider, model_list in models.items():
+                print(f"\n{provider.upper()} Models:")
+                for model in model_list:
+                    print(f"  - {model}")
+        
+        print(f"\n💡 Usage: equitrcoder single 'your task' --model <model_name>")
+        print(f"💡 Recommended: moonshot/kimi-k2-0711-preview (cost-effective)")
+        print(f"💡 For complex tasks: o3 (more expensive but powerful)")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"❌ Models Error: {e}")
+        return 1
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = create_parser()
@@ -530,6 +427,8 @@ def main() -> int:
             return run_api(args)
         elif args.command == "tools":
             return run_tools(args)
+        elif args.command == "models":
+            return run_models(args)
         else:
             print(f"Unknown command: {args.command}")
             return 1
