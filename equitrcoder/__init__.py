@@ -27,18 +27,10 @@ __version__ = "1.0.0"
 # Core agent classes
 from .agents import BaseAgent, WorkerAgent
 
-# Orchestrator classes
-from .orchestrators import (
-    SingleAgentOrchestrator,
-    MultiAgentOrchestrator,
-    WorkerConfig,
-    TaskResult,
-    ResearchOrchestrator,
-    ExperimentConfig,
-    ExperimentResult,
-    MachineSpecs,
-    create_research_orchestrator,
-)
+# Clean Architecture Components
+from .core import CleanOrchestrator, CleanAgent
+from .modes.single_agent_mode import run_single_agent_mode
+from .modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
 
 # Utility classes
 from .utils import RestrictedFileSystem
@@ -72,16 +64,12 @@ __all__ = [
     # Agents
     "BaseAgent",
     "WorkerAgent",
-    # Orchestrators
-    "SingleAgentOrchestrator",
-    "MultiAgentOrchestrator",
-    "WorkerConfig",
-    "TaskResult",
-    "ResearchOrchestrator",
-    "ExperimentConfig",
-    "ExperimentResult",
-    "MachineSpecs",
-    "create_research_orchestrator",
+    # Clean Architecture
+    "CleanOrchestrator",
+    "CleanAgent", 
+    "run_single_agent_mode",
+    "run_multi_agent_sequential",
+    "run_multi_agent_parallel",
     # Utilities
     "RestrictedFileSystem",
     # Core
@@ -168,48 +156,56 @@ def create_worker_agent(
     )
 
 
-def create_single_orchestrator(
-    agent: BaseAgent = None, max_cost: float = None, max_iterations: int = None
-) -> SingleAgentOrchestrator:
+async def run_task_single_agent(
+    task_description: str,
+    agent_model: str = "moonshot/kimi-k2-0711-preview",
+    max_cost: float = None,
+    max_iterations: int = None
+):
     """
-    Convenience function to create a single agent orchestrator.
+    Convenience function to run a single agent task using clean architecture.
 
     Args:
-        agent: BaseAgent to orchestrate (creates default if None)
+        task_description: Description of the task to execute
+        agent_model: Model to use for the agent
         max_cost: Maximum cost limit
         max_iterations: Maximum iterations
 
     Returns:
-        Configured SingleAgentOrchestrator instance
+        Task execution result
     """
-    if agent is None:
-        agent = create_single_agent(max_cost=max_cost, max_iterations=max_iterations)
-
-    return SingleAgentOrchestrator(
-        agent=agent, max_cost=max_cost, max_iterations=max_iterations
+    return await run_single_agent_mode(
+        task_description=task_description,
+        agent_model=agent_model,
+        audit_model=agent_model,
+        max_cost=max_cost,
+        max_iterations=max_iterations
     )
 
 
-def create_multi_orchestrator(
-    max_concurrent_workers: int = 3,
-    global_cost_limit: float = 10.0,
-    max_total_iterations: int = 100,
-) -> MultiAgentOrchestrator:
+async def run_task_multi_agent(
+    task_description: str,
+    num_agents: int = 2,
+    agent_model: str = "moonshot/kimi-k2-0711-preview",
+    max_cost_per_agent: float = None
+):
     """
-    Convenience function to create a multi-agent orchestrator.
+    Convenience function to run a multi-agent task using clean architecture.
 
     Args:
-        max_concurrent_workers: Maximum number of concurrent workers
-        global_cost_limit: Global cost limit across all workers
-        max_total_iterations: Maximum total iterations across all workers
+        task_description: Description of the task to execute
+        num_agents: Number of agents to use
+        agent_model: Model to use for agents
+        max_cost_per_agent: Maximum cost limit per agent
 
     Returns:
-        Configured MultiAgentOrchestrator instance
+        Task execution result
     """
-    return MultiAgentOrchestrator(
-        max_concurrent_workers=max_concurrent_workers,
-        global_cost_limit=global_cost_limit,
-        max_total_iterations=max_total_iterations,
+    return await run_multi_agent_sequential(
+        task_description=task_description,
+        num_agents=num_agents,
+        agent_model=agent_model,
+        max_cost_per_agent=max_cost_per_agent
     )
 
 
@@ -217,8 +213,8 @@ def create_multi_orchestrator(
 __all__.extend(
     [
         "create_single_agent",
-        "create_worker_agent",
-        "create_single_orchestrator",
-        "create_multi_orchestrator",
+        "create_worker_agent", 
+        "run_task_single_agent",
+        "run_task_multi_agent",
     ]
 )

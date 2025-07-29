@@ -15,8 +15,8 @@ import litellm
 
 from ..agents.base_agent import BaseAgent
 from ..agents.worker_agent import WorkerAgent
-from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
-from ..orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator, WorkerConfig, TaskResult
+from ..modes.single_agent_mode import run_single_agent_mode
+from ..modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
 from ..core.session import SessionManagerV2, SessionData
 from ..core.config import Config, config_manager
 from ..tools.discovery import discover_tools
@@ -132,9 +132,8 @@ class EquitrCoder:
         if auto_discover_tools:
             discover_tools()
         
-        # Initialize orchestrators
-        self._single_orchestrator: Optional[SingleAgentOrchestrator] = None
-        self._multi_orchestrator: Optional[MultiAgentOrchestrator] = None
+        # Clean architecture doesn't need to maintain orchestrator instances
+        # Each task execution creates fresh orchestrator + agent instances
         
         # Callbacks
         self.on_task_start: Optional[Callable] = None
@@ -241,44 +240,34 @@ class EquitrCoder:
         task_description: str,
         config: Optional[TaskConfiguration]
     ) -> ExecutionResult:
-        """Execute task in single-agent mode with mandatory 3-document creation."""
+        """Execute task in single-agent mode using clean architecture."""
         if not config:
             config = TaskConfiguration(description=task_description)
         
         try:
-            # Create agent with NO iteration limit and proper tool configuration
-            agent = BaseAgent(
-                max_cost=config.max_cost,
-                max_iterations=999999  # Effectively unlimited
-            )
-            
-            # Set callbacks
-            if self.on_tool_call:
-                agent.on_tool_call_callback = self.on_tool_call
-            
-            # Create orchestrator with proper model
-            model = config.model or "moonshot/kimi-k2-0711-preview"
-            if not self._single_orchestrator:
-                self._single_orchestrator = SingleAgentOrchestrator(
-                    agent=agent,
-                    session_manager=self.session_manager,
-                    model=model,
-                    max_iterations=999999  # Unlimited iterations
-                )
-            
-            # Set callbacks
+            # Set up callbacks for monitoring
+            callbacks = {}
             if self.on_message:
-                self._single_orchestrator.set_callbacks(on_message=self.on_message)
+                callbacks['on_message'] = self.on_message
+            if self.on_tool_call:
+                callbacks['on_tool_call'] = self.on_tool_call
             
-            # Execute task - the orchestrator will handle document creation
-            result = await self._single_orchestrator.execute_task(
+            # Execute using clean single agent mode
+            model = config.model or "moonshot/kimi-k2-0711-preview"
+            result = await run_single_agent_mode(
                 task_description=task_description,
-                session_id=config.session_id or f"single_task_{task_description[:10]}"
+                agent_model=model,
+                audit_model=model,  # Use same model for audit
+                project_path=self.repo_path,
+                max_cost=config.max_cost,
+                max_iterations=config.max_iterations,
+                session_id=config.session_id,
+                callbacks=callbacks
             )
             
             return ExecutionResult(
                 success=result["success"],
-                content=result.get("result", {}).get("final_response", "") if isinstance(result.get("result"), dict) else str(result.get("result", "")),
+                content=result.get("execution_result", {}).get("final_message", "") or str(result.get("result", "")),
                 cost=result.get("cost", 0.0),
                 iterations=result.get("iterations", 0),
                 session_id=result.get("session_id", ""),
@@ -302,71 +291,44 @@ class EquitrCoder:
         task_description: str,
         config: Optional[MultiAgentTaskConfiguration]
     ) -> ExecutionResult:
-        """Execute task in multi-agent mode with proper model configuration."""
+        """Execute task in multi-agent mode using clean architecture."""
         if not config:
             config = MultiAgentTaskConfiguration(description=task_description)
         
         try:
-            # Create providers with proper models
-            supervisor_model = config.supervisor_model or "o3"  # Strong model for supervisor
-            worker_model = config.worker_model or "moonshot/kimi-k2-0711-preview"  # Worker model
-            
-            supervisor_provider = LiteLLMProvider(model=supervisor_model)
-            worker_provider = LiteLLMProvider(model=worker_model)
+            # Setup models
+            supervisor_model = config.supervisor_model or "moonshot/kimi-k2-0711-preview"  # Default to kimi
+            worker_model = config.worker_model or "moonshot/kimi-k2-0711-preview"
             
             print(f"🧠 Supervisor model: {supervisor_model}")
             print(f"🤖 Worker model: {worker_model}")
             
-            # Create orchestrator with proper providers
-            if not self._multi_orchestrator:
-                self._multi_orchestrator = MultiAgentOrchestrator(
-                    supervisor_provider=supervisor_provider,
-                    worker_provider=worker_provider,
-                    max_concurrent_workers=config.max_workers,
-                    global_cost_limit=config.max_cost,
-                    repo_path=str(self.repo_path)
-                )
+            # Set up callbacks for monitoring
+            callbacks = {}
+            if self.on_message:
+                callbacks['on_message'] = self.on_message
+            if self.on_tool_call:
+                callbacks['on_tool_call'] = self.on_tool_call
             
-            # Create worker configurations
-            worker_configs = []
-            for i in range(config.max_workers):
-                worker_config = WorkerConfig(
-                    worker_id=f"agent_{i + 1}",
-                    scope_paths=["."],
-                    allowed_tools=[
-                        "read_file", "create_file", "edit_file", "list_files",
-                        "run_command", "search_files", "list_todos", "update_todo",
-                        "ask_supervisor"  # Critical for consulting strong model
-                    ],
-                    max_cost=config.max_cost / config.max_workers,
-                    max_iterations=999999  # Unlimited iterations
-                )
-                worker_configs.append(worker_config)
-                
-                # Create and register the worker
-                self._multi_orchestrator.create_worker(worker_config, worker_provider)
-            
-            # Create worker tasks
-            worker_tasks = []
-            for i, worker_config in enumerate(worker_configs):
-                worker_tasks.append({
-                    "task_id": f"agent_{i + 1}_task",
-                    "worker_id": worker_config.worker_id,
-                    "task_description": task_description,
-                    "context": {"agent_id": i + 1, "total_agents": config.max_workers}
-                })
-            
-            # Execute coordination - orchestrator will handle document creation
-            result = await self._multi_orchestrator.coordinate_workers(
-                coordination_task=task_description,
-                worker_tasks=worker_tasks
+            # Execute using clean multi-agent mode (sequential by default)
+            result = await run_multi_agent_sequential(
+                task_description=task_description,
+                num_agents=config.max_workers,
+                agent_model=worker_model,
+                orchestrator_model=worker_model,
+                supervisor_model=supervisor_model,
+                audit_model=supervisor_model,
+                project_path=self.repo_path,
+                max_cost_per_agent=config.max_cost / config.max_workers,
+                max_iterations_per_agent=None,  # Unlimited
+                callbacks=callbacks
             )
             
             return ExecutionResult(
                 success=result["success"],
-                content=result.get("supervisor_analysis", "") or str(result.get("worker_results", "")),
+                content=str(result.get("agent_results", [])),
                 cost=result.get("total_cost", 0.0),
-                iterations=len(result.get("worker_results", [])),
+                iterations=result.get("total_iterations", 0),
                 session_id="multi_agent_session",
                 execution_time=0.0,  # Will be set by caller
                 error=result.get("error")
@@ -408,23 +370,26 @@ class EquitrCoder:
     async def execute_parallel_tasks(
         self,
         tasks: List[Dict[str, Any]]
-    ) -> List[TaskResult]:
+    ) -> List[Dict[str, Any]]:
         """
-        Execute multiple tasks in parallel using multi-agent mode.
+        Execute multiple tasks in parallel using clean architecture.
         
         Args:
-            tasks: List of task dictionaries with keys like task_id, worker_id, task_description
+            tasks: List of task dictionaries with keys like task_description
             
         Returns:
-            List of TaskResult objects
+            List of execution results
         """
-        if self.mode != "multi":
-            raise ValueError("Parallel tasks require multi-agent mode")
-        
-        if not self._multi_orchestrator:
-            raise ValueError("Multi-agent orchestrator not initialized")
-        
-        return await self._multi_orchestrator.execute_parallel_tasks(tasks)
+        results = []
+        for task in tasks:
+            # Use clean multi-agent parallel mode
+            result = await run_multi_agent_parallel(
+                task_description=task.get("task_description", ""),
+                num_agents=task.get("num_agents", 2),
+                agent_model="moonshot/kimi-k2-0711-preview"
+            )
+            results.append(result)
+        return results
     
     def get_session_history(self, session_id: str) -> Optional[SessionData]:
         """Get session history by ID."""
