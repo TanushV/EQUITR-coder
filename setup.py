@@ -59,13 +59,12 @@ setup(
             "rich>=13.0.0",
         ]
     },
-    # entry_points={
-    #     "console_scripts": [
-    #         "equitrcoder=equitrcoder.cli.unified_main:main",
-    #         "equitr-single=equitrcoder.cli.unified_main:main",  # Alias for single mode
-    #         "equitr-multi=equitrcoder.cli.unified_main:main",   # Alias for multi mode
-    #     ]
-    # },
+    entry_points={
+        "console_scripts": [
+            "equitrcoder=equitrcoder.cli.unified_main:main",
+            "equitr=equitrcoder.cli.unified_main:main",  # Short alias
+        ]
+    },
     python_requires=">=3.8",
     classifiers=[
         "Development Status :: 4 - Beta",
