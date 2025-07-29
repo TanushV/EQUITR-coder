@@ -4,13 +4,17 @@ import tempfile
 import venv
 from pathlib import Path
 from typing import Type
+
 from pydantic import BaseModel, Field
+
 from ..base import Tool, ToolResult
 
 
 class RunCommandArgs(BaseModel):
     command: str = Field(..., description="Bash command to execute")
-    timeout: int = Field(default=120, description="Command timeout in seconds (default: 2 minutes)")
+    timeout: int = Field(
+        default=120, description="Command timeout in seconds (default: 2 minutes)"
+    )
     use_venv: bool = Field(
         default=False, description="Run command in virtual environment"
     )
@@ -43,7 +47,7 @@ class RunCommand(Tool):
                 "while true; do",
                 "shutdown",
                 "reboot",
-                "halt"
+                "halt",
             ]
 
             for dangerous in dangerous_commands:
@@ -66,10 +70,12 @@ class RunCommand(Tool):
         try:
             # Use bash explicitly
             process = await asyncio.create_subprocess_exec(
-                "/bin/bash", "-c", command,
+                "/bin/bash",
+                "-c",
+                command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=os.getcwd()
+                cwd=os.getcwd(),
             )
 
             try:
@@ -80,12 +86,11 @@ class RunCommand(Tool):
                 process.kill()
                 await process.wait()
                 return ToolResult(
-                    success=False,
-                    error=f"Command timed out after {timeout} seconds"
+                    success=False, error=f"Command timed out after {timeout} seconds"
                 )
 
-            stdout_str = stdout.decode('utf-8', errors='replace')
-            stderr_str = stderr.decode('utf-8', errors='replace')
+            stdout_str = stdout.decode("utf-8", errors="replace")
+            stderr_str = stderr.decode("utf-8", errors="replace")
 
             return ToolResult(
                 success=process.returncode == 0,
@@ -94,9 +99,9 @@ class RunCommand(Tool):
                     "stderr": stderr_str,
                     "return_code": process.returncode,
                     "command": command,
-                    "timeout": timeout
+                    "timeout": timeout,
                 },
-                error=stderr_str if process.returncode != 0 else None
+                error=stderr_str if process.returncode != 0 else None,
             )
 
         except Exception as e:
@@ -121,10 +126,12 @@ class RunCommand(Tool):
             try:
                 # Use bash for venv commands too
                 process = await asyncio.create_subprocess_exec(
-                    "/bin/bash", "-c", full_command,
+                    "/bin/bash",
+                    "-c",
+                    full_command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
 
                 try:
@@ -136,11 +143,11 @@ class RunCommand(Tool):
                     await process.wait()
                     return ToolResult(
                         success=False,
-                        error=f"Command timed out after {timeout} seconds"
+                        error=f"Command timed out after {timeout} seconds",
                     )
 
-                stdout_str = stdout.decode('utf-8', errors='replace')
-                stderr_str = stderr.decode('utf-8', errors='replace')
+                stdout_str = stdout.decode("utf-8", errors="replace")
+                stderr_str = stderr.decode("utf-8", errors="replace")
 
                 return ToolResult(
                     success=process.returncode == 0,
@@ -150,9 +157,9 @@ class RunCommand(Tool):
                         "return_code": process.returncode,
                         "command": command,
                         "timeout": timeout,
-                        "sandboxed": True
+                        "sandboxed": True,
                     },
-                    error=stderr_str if process.returncode != 0 else None
+                    error=stderr_str if process.returncode != 0 else None,
                 )
 
             except Exception as e:

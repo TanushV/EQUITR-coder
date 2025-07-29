@@ -28,35 +28,33 @@ __version__ = "1.0.0"
 from .agents import BaseAgent, WorkerAgent
 
 # Clean Architecture Components
-from .core import CleanOrchestrator, CleanAgent
-from .modes.single_agent_mode import run_single_agent_mode
-from .modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
-
-# Utility classes
-from .utils import RestrictedFileSystem
-
-# Core functionality
-from .core.session import SessionManagerV2, SessionData
+from .core import CleanAgent, CleanOrchestrator
 from .core.config import Config, config_manager
 
-# Tools
-from .tools.base import Tool, ToolResult
-from .tools.discovery import discover_tools
+# Core functionality
+from .core.session import SessionData, SessionManagerV2
+from .modes.multi_agent_mode import run_multi_agent_parallel, run_multi_agent_sequential
+from .modes.single_agent_mode import run_single_agent_mode
 
 # Programmatic Interface
 from .programmatic import (
     EquitrCoder,
     EquitrCoderAPI,
-    TaskConfiguration,
-    MultiAgentTaskConfiguration,
-    WorkerConfiguration,
     ExecutionResult,
+    MultiAgentTaskConfiguration,
+    TaskConfiguration,
+    WorkerConfiguration,
+    create_multi_agent_coder,
     create_single_agent_coder,
-    create_multi_agent_coder
 )
 
+# Tools
+from .tools.base import Tool, ToolResult
+from .tools.discovery import discover_tools
+
 # Git Management
-from .utils import GitManager, create_git_manager
+# Utility classes
+from .utils import GitManager, RestrictedFileSystem, create_git_manager
 
 __all__ = [
     # Version
@@ -66,7 +64,7 @@ __all__ = [
     "WorkerAgent",
     # Clean Architecture
     "CleanOrchestrator",
-    "CleanAgent", 
+    "CleanAgent",
     "run_single_agent_mode",
     "run_multi_agent_sequential",
     "run_multi_agent_parallel",
@@ -85,7 +83,7 @@ __all__ = [
     "EquitrCoder",
     "EquitrCoderAPI",
     "TaskConfiguration",
-    "MultiAgentTaskConfiguration", 
+    "MultiAgentTaskConfiguration",
     "WorkerConfiguration",
     "ExecutionResult",
     "create_single_agent_coder",
@@ -160,7 +158,7 @@ async def run_task_single_agent(
     task_description: str,
     agent_model: str = "moonshot/kimi-k2-0711-preview",
     max_cost: float = None,
-    max_iterations: int = None
+    max_iterations: int = None,
 ):
     """
     Convenience function to run a single agent task using clean architecture.
@@ -179,7 +177,7 @@ async def run_task_single_agent(
         agent_model=agent_model,
         audit_model=agent_model,
         max_cost=max_cost,
-        max_iterations=max_iterations
+        max_iterations=max_iterations,
     )
 
 
@@ -187,7 +185,7 @@ async def run_task_multi_agent(
     task_description: str,
     num_agents: int = 2,
     agent_model: str = "moonshot/kimi-k2-0711-preview",
-    max_cost_per_agent: float = None
+    max_cost_per_agent: float = None,
 ):
     """
     Convenience function to run a multi-agent task using clean architecture.
@@ -205,7 +203,7 @@ async def run_task_multi_agent(
         task_description=task_description,
         num_agents=num_agents,
         agent_model=agent_model,
-        max_cost_per_agent=max_cost_per_agent
+        max_cost_per_agent=max_cost_per_agent,
     )
 
 
@@ -213,7 +211,7 @@ async def run_task_multi_agent(
 __all__.extend(
     [
         "create_single_agent",
-        "create_worker_agent", 
+        "create_worker_agent",
         "run_task_single_agent",
         "run_task_multi_agent",
     ]

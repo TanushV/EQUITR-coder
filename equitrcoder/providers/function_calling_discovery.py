@@ -2,9 +2,10 @@
 Live model discovery with function calling support validation.
 """
 
-import litellm
-from typing import List, Dict, Any, Optional
 import logging
+from typing import Any, Dict, List, Optional
+
+import litellm
 
 logger = logging.getLogger(__name__)
 
@@ -200,9 +201,9 @@ class FunctionCallingModelDiscovery:
                 "supports_function_calling": supports_fc,
                 "supports_parallel_function_calling": supports_pfc,
                 "valid": supports_fc,
-                "error": None
-                if supports_fc
-                else "Model does not support function calling",
+                "error": (
+                    None if supports_fc else "Model does not support function calling"
+                ),
             }
 
         except Exception as e:

@@ -1,7 +1,9 @@
 import os
 from pathlib import Path
 from typing import Dict, List
+
 import pathspec
+
 from .analyzer import RepositoryAnalyzer
 
 

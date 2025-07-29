@@ -1,16 +1,18 @@
-import os
-from typing import List, Dict, Any, Optional, Union
 import asyncio
-import litellm
 import json
-import time
-import random
 import logging
+import os
+import random
+import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import litellm
+
+from ..core.config import Config
 
 # Import shared models from openrouter for consistency
-from .openrouter import Message, ToolCall, ChatResponse
-from ..core.config import Config
+from .openrouter import ChatResponse, Message, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +218,7 @@ class LiteLLMProvider:
                         "network",
                     ]
                 )
-                
+
                 # Also retry on JSON parsing errors which can be transient
                 is_json_error = any(
                     keyword in error_msg
@@ -250,7 +252,11 @@ class LiteLLMProvider:
                 jitter = random.uniform(0.1, 0.3) * delay
                 total_delay = delay + jitter
 
-                error_type = "Rate limit" if is_rate_limit else "Server error" if is_server_error else "JSON error"
+                error_type = (
+                    "Rate limit"
+                    if is_rate_limit
+                    else "Server error" if is_server_error else "JSON error"
+                )
                 print(
                     f"⚠️  {error_type} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)[:80]}..."
                 )
@@ -309,15 +315,15 @@ class LiteLLMProvider:
                     # Already in dict format
                     formatted_messages.append(msg)
                     continue
-                    
+
                 formatted_msg = {"role": msg.role, "content": msg.content}
 
                 # Add tool-specific fields if present
-                if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
+                if hasattr(msg, "tool_call_id") and msg.tool_call_id:
                     formatted_msg["tool_call_id"] = msg.tool_call_id
-                if hasattr(msg, 'name') and msg.name:
+                if hasattr(msg, "name") and msg.name:
                     formatted_msg["name"] = msg.name
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
                     formatted_msg["tool_calls"] = msg.tool_calls
 
                 formatted_messages.append(formatted_msg)
@@ -336,7 +342,7 @@ class LiteLLMProvider:
             if tools:
                 # Check if we support function calling for this model
                 supports_tools = litellm.supports_function_calling(self.model)
-                
+
                 if supports_tools:
                     # Handle both formats: OpenAI format and simple format
                     functions = []
@@ -359,7 +365,9 @@ class LiteLLMProvider:
                     params["tools"] = functions
                     params["tool_choice"] = "auto"
                 else:
-                    print(f"⚠️ Model {self.model} does not support function calling, tools will be ignored")
+                    print(
+                        f"⚠️ Model {self.model} does not support function calling, tools will be ignored"
+                    )
 
             # Make async request to LiteLLM with exponential backoff and retry
             response = await self._exponential_backoff_retry(
@@ -387,9 +395,9 @@ class LiteLLMProvider:
                         # Convert to dict if it's an object
                         function_data = {
                             "name": getattr(function_data, "name", str(function_data)),
-                            "arguments": getattr(function_data, "arguments", "{}")
+                            "arguments": getattr(function_data, "arguments", "{}"),
                         }
-                    
+
                     tool_calls.append(
                         ToolCall(
                             id=tc.id,
@@ -400,7 +408,7 @@ class LiteLLMProvider:
 
             # Extract usage and calculate cost
             usage = {}
-            if hasattr(response, 'usage') and response.usage:
+            if hasattr(response, "usage") and response.usage:
                 if hasattr(response.usage, "model_dump"):
                     usage = response.usage.model_dump()
                 elif hasattr(response.usage, "dict"):
@@ -409,10 +417,12 @@ class LiteLLMProvider:
                     # Convert to dict manually
                     usage = {
                         "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                        "completion_tokens": getattr(response.usage, "completion_tokens", 0),
-                        "total_tokens": getattr(response.usage, "total_tokens", 0)
+                        "completion_tokens": getattr(
+                            response.usage, "completion_tokens", 0
+                        ),
+                        "total_tokens": getattr(response.usage, "total_tokens", 0),
                     }
-            
+
             cost = self._calculate_cost(usage, self.model)
 
             return ChatResponse(

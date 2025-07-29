@@ -1,7 +1,9 @@
-import git
 import os
 from typing import Type
+
+import git
 from pydantic import BaseModel, Field
+
 from ..base import Tool, ToolResult
 
 

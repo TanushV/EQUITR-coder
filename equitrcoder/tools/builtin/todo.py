@@ -1,8 +1,10 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Type, List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Type
+
 from pydantic import BaseModel, Field
+
 from ..base import Tool, ToolResult
 
 
@@ -237,9 +239,9 @@ class CreateTodo(Tool):
                         "status": todo.status,
                         "priority": todo.priority,
                         "created_at": todo.created_at.isoformat(),
-                        "due_date": todo.due_date.isoformat()
-                        if todo.due_date
-                        else None,
+                        "due_date": (
+                            todo.due_date.isoformat() if todo.due_date else None
+                        ),
                         "tags": todo.tags,
                         "assignee": todo.assignee,
                     }
@@ -288,9 +290,9 @@ class UpdateTodo(Tool):
                         "status": todo.status,
                         "priority": todo.priority,
                         "updated_at": todo.updated_at.isoformat(),
-                        "due_date": todo.due_date.isoformat()
-                        if todo.due_date
-                        else None,
+                        "due_date": (
+                            todo.due_date.isoformat() if todo.due_date else None
+                        ),
                         "tags": todo.tags,
                         "assignee": todo.assignee,
                     }
@@ -355,9 +357,9 @@ class ListTodos(Tool):
                         "priority": todo.priority,
                         "created_at": todo.created_at.isoformat(),
                         "updated_at": todo.updated_at.isoformat(),
-                        "due_date": todo.due_date.isoformat()
-                        if todo.due_date
-                        else None,
+                        "due_date": (
+                            todo.due_date.isoformat() if todo.due_date else None
+                        ),
                         "tags": todo.tags,
                         "assignee": todo.assignee,
                     }

@@ -4,9 +4,9 @@ Audit system for EQUITR-coder - automatically runs when all todos are completed.
 
 import json
 import os
-from typing import Dict, List, Optional, Any
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from .todo import TodoManager
 
@@ -39,7 +39,7 @@ class AutoAuditManager:
         try:
             data = {
                 "failure_count": self.audit_failure_count,
-                "last_updated": datetime.now().isoformat()
+                "last_updated": datetime.now().isoformat(),
             }
             with open(self.audit_history_file, "w") as f:
                 json.dump(data, f, indent=2)
@@ -49,64 +49,82 @@ class AutoAuditManager:
     def should_trigger_audit(self, task_name: str = None) -> bool:
         """
         Check if audit should be triggered - only when ALL todos for a task are completed.
-        
+
         Args:
             task_name: Specific task to check (e.g., "task_20241227_143022")
                       If None, checks all todos in the system
         """
         todos = self.todo_manager.list_todos()
-        
+
         if task_name:
             # Filter todos for specific task
             task_todos = [t for t in todos if f"task-{task_name}" in t.tags]
             if not task_todos:
                 print(f"⚠️ No todos found for task: {task_name}")
                 return False
-            
+
             # Check if ALL todos for this task are completed
-            pending_todos = [t for t in task_todos if t.status not in ["completed", "cancelled"]]
+            pending_todos = [
+                t for t in task_todos if t.status not in ["completed", "cancelled"]
+            ]
             completed_todos = [t for t in task_todos if t.status == "completed"]
-            
-            print(f"📊 Task '{task_name}' status: {len(completed_todos)}/{len(task_todos)} todos completed")
-            
+
+            print(
+                f"📊 Task '{task_name}' status: {len(completed_todos)}/{len(task_todos)} todos completed"
+            )
+
             if pending_todos:
-                print(f"⏳ Audit not triggered - {len(pending_todos)} todos still pending for task '{task_name}':")
+                print(
+                    f"⏳ Audit not triggered - {len(pending_todos)} todos still pending for task '{task_name}':"
+                )
                 for todo in pending_todos[:3]:  # Show first 3 pending
                     print(f"  - {todo.title}")
                 if len(pending_todos) > 3:
                     print(f"  ... and {len(pending_todos) - 3} more")
                 return False
             else:
-                print(f"✅ All todos completed for task '{task_name}' - audit triggered!")
+                print(
+                    f"✅ All todos completed for task '{task_name}' - audit triggered!"
+                )
                 return True
         else:
             # Check all todos in system (legacy behavior)
-            pending_todos = [t for t in todos if t.status not in ["completed", "cancelled"]]
+            pending_todos = [
+                t for t in todos if t.status not in ["completed", "cancelled"]
+            ]
             completed_todos = [t for t in todos if t.status == "completed"]
-            
-            print(f"📊 System status: {len(completed_todos)}/{len(todos)} todos completed")
-            
+
+            print(
+                f"📊 System status: {len(completed_todos)}/{len(todos)} todos completed"
+            )
+
             if pending_todos:
-                print(f"⏳ Audit not triggered - {len(pending_todos)} todos still pending")
+                print(
+                    f"⏳ Audit not triggered - {len(pending_todos)} todos still pending"
+                )
                 return False
             else:
                 print(f"✅ All todos completed - audit triggered!")
                 return True
 
-    def record_audit_result(self, passed: bool, audit_result: str = "", reason: str = "") -> bool:
+    def record_audit_result(
+        self, passed: bool, audit_result: str = "", reason: str = ""
+    ) -> bool:
         """
         Record audit result and handle failure logic.
         Returns True if audit cycle should continue, False if escalated to user.
-        
+
         Args:
             passed: Whether the audit passed or failed
             audit_result: Full audit result content
             reason: Specific reason for pass/fail decision (required)
         """
         if not reason:
-            print("⚠️ Warning: No reason provided for audit result - this may affect audit quality")
+            print(
+                "⚠️ Warning: No reason provided for audit result - this may affect audit quality"
+            )
             reason = "No specific reason provided"
-        
+
         if passed:
             print(f"✅ Audit passed! Reason: {reason}")
             print("🔄 Resetting failure count.")
@@ -115,15 +133,19 @@ class AutoAuditManager:
             return False  # Audit cycle complete
         else:
             self.audit_failure_count += 1
-            print(f"❌ Audit failed (attempt {self.audit_failure_count}/{self.max_failures_before_escalation})")
+            print(
+                f"❌ Audit failed (attempt {self.audit_failure_count}/{self.max_failures_before_escalation})"
+            )
             print(f"📝 Failure reason: {reason}")
-            
+
             if self.audit_failure_count >= self.max_failures_before_escalation:
                 print("🚨 Maximum audit failures reached - escalating to user!")
                 self._escalate_to_user(audit_result, reason)
                 return False  # Stop audit cycle, escalate to user
             else:
-                print("🔄 Creating new todos from audit findings and continuing cycle...")
+                print(
+                    "🔄 Creating new todos from audit findings and continuing cycle..."
+                )
                 self._save_audit_history()
                 return True  # Continue audit cycle
 
@@ -150,11 +172,11 @@ This todo has been marked as high priority and assigned for immediate attention.
             """.strip(),
             priority="high",
             tags=["urgent", "manual-review", "audit-failure"],
-            assignee="user"
+            assignee="user",
         )
-        
+
         print(f"📋 Created escalation todo: {escalation_todo.id}")
-        
+
         # Reset failure count after escalation
         self.audit_failure_count = 0
         self._save_audit_history()
@@ -162,52 +184,70 @@ This todo has been marked as high priority and assigned for immediate attention.
     def parse_audit_findings(self, audit_result: str) -> List[Dict[str, Any]]:
         """Parse audit result to extract specific issues for todo creation."""
         findings = []
-        
+
         # Look for common audit failure patterns
-        lines = audit_result.split('\n')
+        lines = audit_result.split("\n")
         current_issue = None
-        
+
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
+
             # Detect issue indicators
-            if any(indicator in line.lower() for indicator in [
-                'missing', 'error', 'failed', 'incomplete', 'todo:', 'fix:', 'issue:'
-            ]):
+            if any(
+                indicator in line.lower()
+                for indicator in [
+                    "missing",
+                    "error",
+                    "failed",
+                    "incomplete",
+                    "todo:",
+                    "fix:",
+                    "issue:",
+                ]
+            ):
                 if current_issue:
                     findings.append(current_issue)
-                
+
                 current_issue = {
-                    'title': line[:100],  # Truncate long titles
-                    'description': line,
-                    'priority': 'high' if any(urgent in line.lower() for urgent in ['critical', 'error', 'failed']) else 'medium'
+                    "title": line[:100],  # Truncate long titles
+                    "description": line,
+                    "priority": (
+                        "high"
+                        if any(
+                            urgent in line.lower()
+                            for urgent in ["critical", "error", "failed"]
+                        )
+                        else "medium"
+                    ),
                 }
             elif current_issue and line:
                 # Add additional context to current issue
-                current_issue['description'] += f"\n{line}"
-        
+                current_issue["description"] += f"\n{line}"
+
         # Add the last issue if exists
         if current_issue:
             findings.append(current_issue)
-        
+
         # If no specific issues found, create a general issue
         if not findings:
-            findings.append({
-                'title': 'General audit failure - requires investigation',
-                'description': f"Audit failed but no specific issues were identified.\n\nFull audit result:\n{audit_result}",
-                'priority': 'medium'
-            })
-        
+            findings.append(
+                {
+                    "title": "General audit failure - requires investigation",
+                    "description": f"Audit failed but no specific issues were identified.\n\nFull audit result:\n{audit_result}",
+                    "priority": "medium",
+                }
+            )
+
         return findings
 
     def create_todos_from_audit_failure(self, audit_result: str, reason: str = ""):
         """Create specific todos based on audit failure findings."""
         findings = self.parse_audit_findings(audit_result)
-        
+
         print(f"📋 Creating {len(findings)} todos from audit findings...")
-        
+
         for i, finding in enumerate(findings):
             todo = self.todo_manager.create_todo(
                 title=f"Fix: {finding['title']}",
@@ -221,9 +261,9 @@ Failure Reason: {reason if reason else 'No specific reason provided'}
 This issue was identified during automated audit failure #{self.audit_failure_count}.
 Please resolve this issue to allow the audit to pass.
                 """.strip(),
-                priority=finding['priority'],
-                tags=['audit-fix', f'audit-failure-{self.audit_failure_count}'],
-                assignee=None
+                priority=finding["priority"],
+                tags=["audit-fix", f"audit-failure-{self.audit_failure_count}"],
+                assignee=None,
             )
             print(f"  ✓ Created todo: {todo.id} - {todo.title}")
 
@@ -233,21 +273,23 @@ Please resolve this issue to allow the audit to pass.
             return None
 
         todos = self.todo_manager.list_todos()
-        
+
         # Filter todos for specific task if provided
         if task_name:
             todos = [t for t in todos if f"task-{task_name}" in t.tags]
             if not todos:
                 print(f"⚠️ No todos found for task: {task_name}")
                 return None
-        
+
         return self._prepare_audit_context(todos, task_name)
 
     def _prepare_audit_context(self, todos: List[Any], task_name: str = None) -> str:
         """Prepare context for audit with improved reliability."""
         completed_todos = [todo for todo in todos if todo.status == "completed"]
-        pending_todos = [todo for todo in todos if todo.status not in ["completed", "cancelled"]]
-        
+        pending_todos = [
+            todo for todo in todos if todo.status not in ["completed", "cancelled"]
+        ]
+
         failure_history = ""
         if self.audit_failure_count > 0:
             failure_history = f"""
@@ -260,12 +302,22 @@ This audit must be thorough to avoid escalation to user.
             attempt_info += "\nPrevious audits failed - be extra thorough!"
 
         # Show only recent completed todos to avoid overwhelming context
-        recent_completed = completed_todos[-10:] if len(completed_todos) > 10 else completed_todos
-        completed_list = "\n".join([f"✅ {todo.title}" for todo in recent_completed]) if recent_completed else "No todos completed yet"
-        
+        recent_completed = (
+            completed_todos[-10:] if len(completed_todos) > 10 else completed_todos
+        )
+        completed_list = (
+            "\n".join([f"✅ {todo.title}" for todo in recent_completed])
+            if recent_completed
+            else "No todos completed yet"
+        )
+
         # Show only first few pending todos
         first_pending = pending_todos[:5] if len(pending_todos) > 5 else pending_todos
-        pending_list = "\n".join([f"⏳ {todo.title}" for todo in first_pending]) if first_pending else "No pending todos"
+        pending_list = (
+            "\n".join([f"⏳ {todo.title}" for todo in first_pending])
+            if first_pending
+            else "No pending todos"
+        )
         if len(pending_todos) > 5:
             pending_list += f"\n... and {len(pending_todos) - 5} more pending todos"
 

@@ -5,7 +5,7 @@ Conversational Planning Module - Strong AI for requirements gathering
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from ..providers.litellm import LiteLLMProvider
 from ..providers.openrouter import Message
