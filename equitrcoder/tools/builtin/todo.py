@@ -205,6 +205,13 @@ class TodoManager:
 todo_manager = TodoManager()
 
 
+def set_global_todo_file(todo_file: str):
+    """Set the global todo manager to use a specific file."""
+    global todo_manager
+    todo_manager = TodoManager(todo_file=todo_file)
+    print(f"📋 Set global todo manager to use file: {todo_file}")
+
+
 class CreateTodo(Tool):
     def get_name(self) -> str:
         return "create_todo"
