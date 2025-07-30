@@ -1,6 +1,4 @@
-"""
-Multi-Agent Modes - Combines CleanOrchestrator + Multiple CleanAgents
-"""
+# equitrcoder/modes/multi_agent_mode.py
 
 import asyncio
 from typing import Any, Callable, Dict, List, Optional
@@ -10,6 +8,9 @@ from ..core.clean_orchestrator import CleanOrchestrator
 from ..tools.builtin.todo import TodoManager, set_global_todo_file
 from ..tools.discovery import discover_tools
 
+# --- NEW IMPORTS ---
+from ..core.global_message_pool import global_message_pool
+from ..tools.builtin.communication import create_communication_tools_for_agent
 
 class MultiAgentMode:
     """
@@ -19,10 +20,9 @@ class MultiAgentMode:
     def __init__(
         self,
         num_agents: int,
-        agent_model: str = "moonshot/kimi-k2-0711-preview",
-        orchestrator_model: str = "moonshot/kimi-k2-0711-preview",
-        supervisor_model: str = "o3",
-        audit_model: str = "o3",
+        agent_model: str,
+        orchestrator_model: str,
+        audit_model: str,
         max_cost_per_agent: Optional[float] = None,
         max_iterations_per_agent: Optional[int] = None,
         run_parallel: bool = False,
@@ -30,7 +30,6 @@ class MultiAgentMode:
         self.num_agents = num_agents
         self.agent_model = agent_model
         self.orchestrator_model = orchestrator_model
-        self.supervisor_model = supervisor_model
         self.audit_model = audit_model
         self.max_cost_per_agent = max_cost_per_agent
         self.max_iterations_per_agent = max_iterations_per_agent
@@ -41,7 +40,6 @@ class MultiAgentMode:
         )
         print(f"   Agent Model: {agent_model}")
         print(f"   Orchestrator Model: {orchestrator_model}")
-        print(f"   Supervisor Model: {supervisor_model}")
         print(f"   Audit Model: {audit_model}")
 
     async def run(
@@ -54,7 +52,7 @@ class MultiAgentMode:
         Run multi-agent mode:
         1. Orchestrator creates docs with agent-specific todos
         2. Multiple agents run (parallel or sequential)
-        3. Each agent has built-in audit
+        3. Each agent has built-in audit and communication tools
         """
         try:
             # Step 1: Orchestrator creates docs for multiple agents
@@ -81,71 +79,65 @@ class MultiAgentMode:
             # Step 2: Setup multiple agents
             print(f"🤖 Step 2: Setting up {self.num_agents} agents...")
 
-            # Discover tools (same for all agents, but add supervisor tools)
             base_tools = discover_tools()
-
-            # Add supervisor tool if available
-            if self.supervisor_model != self.agent_model:
-                # TODO: Add ask_supervisor tool to each agent
-                pass
-
             agents = []
             agent_tasks = []
 
-            for agent_id in range(1, self.num_agents + 1):
-                # Get context for this specific agent
-                context = orchestrator.get_context_for_agent(docs_result, agent_id)
+            for agent_id_num in range(1, self.num_agents + 1):
+                agent_id = f"agent_{agent_id_num}"
+                
+                # --- MODIFICATION START ---
+                # Register agent with the message pool
+                await global_message_pool.register_agent(agent_id)
+                
+                # Create communication tools for this specific agent
+                communication_tools = create_communication_tools_for_agent(agent_id)
+                
+                # Combine base tools and communication tools
+                all_tools = base_tools + communication_tools
+                # --- MODIFICATION END ---
+                
+                context = orchestrator.get_context_for_agent(docs_result, agent_id_num)
+                agent_todo_file = f".EQUITR_todos_agent_{agent_id_num}.json"
 
-                # Setup agent-specific todo file
-                agent_todo_file = f".EQUITR_todos_agent_{agent_id}.json"
-
-                # Create agent
                 agent = CleanAgent(
-                    agent_id=f"agent_{agent_id}",
+                    agent_id=agent_id,
                     model=self.agent_model,
-                    tools=base_tools,
+                    tools=all_tools, # Use combined tools
                     context=context,
                     max_cost=self.max_cost_per_agent,
                     max_iterations=self.max_iterations_per_agent,
                     audit_model=self.audit_model,
                 )
 
-                # Set callbacks if provided
                 if callbacks:
-                    agent.set_callbacks(
-                        on_message=callbacks.get("on_message"),
-                        on_iteration=callbacks.get("on_iteration"),
-                        on_completion=callbacks.get("on_completion"),
-                        on_audit=callbacks.get("on_audit"),
-                    )
+                    agent.set_callbacks(**callbacks)
 
                 agents.append(agent)
 
-                # Create agent task description
-                agent_task = f"""You are Agent {agent_id} of {self.num_agents} in a multi-agent system.
+                agent_task_desc = f"""You are {agent_id} in a {self.num_agents}-agent team.
 
 Original task: {task_description}
 
-Shared Documentation:
+Your team has created shared documentation:
 - Requirements: {docs_result['requirements_path']}
 - Design: {docs_result['design_path']}
-- Your specific todos: {context.get('agent_todo_file', 'See main todos')}
+- Your specific todos are in: {context.get('agent_todo_file', 'See main todos')}
 
-INSTRUCTIONS:
-1. Read the shared requirements and design documents
-2. Use list_todos to see YOUR assigned tasks
-3. Complete all YOUR todos systematically
-4. Use communication tools to coordinate with other agents if needed
-5. Mark todos complete with update_todo when finished
-6. You are working {'in parallel' if self.run_parallel else 'sequentially'} with other agents
+Your mission:
+1. Read the shared documentation for context.
+2. Use the `receive_messages` tool to check for instructions from other agents.
+3. Use the `list_todos` tool to see YOUR assigned tasks.
+4. Complete your tasks.
+5. Use `send_message` to coordinate with other agents (e.g., when you finish a key part they depend on).
+6. Use `update_todo` to mark your tasks as completed.
 
-Start by using list_todos to see your assigned work!"""
+Start by listing your todos and checking for messages.
+"""
+                agent_tasks.append((agent, agent_task_desc, agent_todo_file))
+                print(f"✅ {agent_id} setup complete with communication tools.")
 
-                agent_tasks.append((agent, agent_task, agent_todo_file))
-
-                print(f"✅ Agent {agent_id} setup complete")
-
-            # Step 3: Run agents (parallel or sequential)
+            # Step 3: Run agents
             if self.run_parallel:
                 print("🚀 Step 3: Running agents in PARALLEL...")
                 agent_results = await self._run_agents_parallel(agent_tasks)
@@ -153,12 +145,9 @@ Start by using list_todos to see your assigned work!"""
                 print("🚀 Step 3: Running agents SEQUENTIALLY...")
                 agent_results = await self._run_agents_sequential(agent_tasks)
 
-            # Calculate overall success
-            overall_success = all(result["success"] for result in agent_results)
+            overall_success = all(result.get("success", False) for result in agent_results)
             total_cost = sum(result.get("cost", 0) for result in agent_results)
-            total_iterations = sum(
-                result.get("iterations", 0) for result in agent_results
-            )
+            total_iterations = sum(result.get("iterations", 0) for result in agent_results)
 
             print(f"🎯 All agents completed: Success={overall_success}")
 
@@ -176,132 +165,42 @@ Start by using list_todos to see your assigned work!"""
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "mode": f"multi_agent_{'parallel' if self.run_parallel else 'sequential'}",
-            }
+            return {"success": False, "error": str(e)}
 
-    async def _run_agents_parallel(
-        self, agent_tasks: List[tuple]
-    ) -> List[Dict[str, Any]]:
-        """Run all agents in parallel."""
-
+    async def _run_agents_parallel(self, agent_tasks: List[tuple]) -> List[Dict[str, Any]]:
         async def run_single_agent(agent, task, todo_file):
-            # Set the correct todo file for this agent
             set_global_todo_file(todo_file)
             return await agent.run(task)
 
-        # Create tasks for parallel execution
-        tasks = [
-            run_single_agent(agent, task, todo_file)
-            for agent, task, todo_file in agent_tasks
-        ]
-
-        # Run all agents in parallel
+        tasks = [run_single_agent(agent, task, todo_file) for agent, task, todo_file in agent_tasks]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Handle any exceptions
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                processed_results.append(
-                    {"success": False, "error": str(result), "agent_id": f"agent_{i+1}"}
-                )
+                processed_results.append({"success": False, "error": str(result), "agent_id": f"agent_{i+1}"})
             else:
                 processed_results.append(result)
-
         return processed_results
 
-    async def _run_agents_sequential(
-        self, agent_tasks: List[tuple]
-    ) -> List[Dict[str, Any]]:
-        """Run agents one after another."""
+    async def _run_agents_sequential(self, agent_tasks: List[tuple]) -> List[Dict[str, Any]]:
         results = []
-
         for agent, task, todo_file in agent_tasks:
             print(f"🤖 Running {agent.agent_id}...")
-
-            # Set the correct todo file for this agent
             set_global_todo_file(todo_file)
-
-            # Run agent
             result = await agent.run(task)
             results.append(result)
-
             print(f"✅ {agent.agent_id} completed: Success={result['success']}")
-
-            # If an agent fails in sequential mode, continue but note the failure
             if not result["success"]:
-                print(
-                    f"⚠️ {agent.agent_id} failed, but continuing with remaining agents"
-                )
-
+                print(f"⚠️ {agent.agent_id} failed, but continuing with remaining agents.")
         return results
 
 
-# Convenience functions for different modes
+async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:
+    mode = MultiAgentMode(run_parallel=False, **kwargs)
+    return await mode.run(task_description=kwargs.get("task_description", ""))
 
 
-async def run_multi_agent_sequential(
-    task_description: str,
-    num_agents: int = 2,
-    agent_model: str = "moonshot/kimi-k2-0711-preview",
-    orchestrator_model: str = "moonshot/kimi-k2-0711-preview",
-    supervisor_model: str = "o3",
-    audit_model: str = "o3",
-    project_path: str = ".",
-    max_cost_per_agent: Optional[float] = None,
-    max_iterations_per_agent: Optional[int] = None,
-    callbacks: Optional[Dict[str, Callable]] = None,
-) -> Dict[str, Any]:
-    """Run multi-agent mode with sequential execution."""
-
-    mode = MultiAgentMode(
-        num_agents=num_agents,
-        agent_model=agent_model,
-        orchestrator_model=orchestrator_model,
-        supervisor_model=supervisor_model,
-        audit_model=audit_model,
-        max_cost_per_agent=max_cost_per_agent,
-        max_iterations_per_agent=max_iterations_per_agent,
-        run_parallel=False,
-    )
-
-    return await mode.run(
-        task_description=task_description,
-        project_path=project_path,
-        callbacks=callbacks,
-    )
-
-
-async def run_multi_agent_parallel(
-    task_description: str,
-    num_agents: int = 3,
-    agent_model: str = "moonshot/kimi-k2-0711-preview",
-    orchestrator_model: str = "moonshot/kimi-k2-0711-preview",
-    supervisor_model: str = "o3",
-    audit_model: str = "o3",
-    project_path: str = ".",
-    max_cost_per_agent: Optional[float] = None,
-    max_iterations_per_agent: Optional[int] = None,
-    callbacks: Optional[Dict[str, Callable]] = None,
-) -> Dict[str, Any]:
-    """Run multi-agent mode with parallel execution."""
-
-    mode = MultiAgentMode(
-        num_agents=num_agents,
-        agent_model=agent_model,
-        orchestrator_model=orchestrator_model,
-        supervisor_model=supervisor_model,
-        audit_model=audit_model,
-        max_cost_per_agent=max_cost_per_agent,
-        max_iterations_per_agent=max_iterations_per_agent,
-        run_parallel=True,
-    )
-
-    return await mode.run(
-        task_description=task_description,
-        project_path=project_path,
-        callbacks=callbacks,
-    )
+async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
+    mode = MultiAgentMode(run_parallel=True, **kwargs)
+    return await mode.run(task_description=kwargs.get("task_description", ""))
