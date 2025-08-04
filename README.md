@@ -34,6 +34,23 @@ EQUITR Coder is a sophisticated AI coding assistant that combines **weak special
 - Git integration with automatic commits
 - Session management and history
 
+### 🤖 **Automatic Git Checkpoints**
+To ensure a traceable and recoverable workflow, EQUITR Coder automatically creates a git commit after each logical task group is successfully completed. This creates a detailed history of the AI's work, allowing you to:
+
+- **Track Progress**: See a step-by-step evolution of your codebase in your git log.
+- **Review Changes**: Easily inspect the specific changes made for each task.
+- **Recover from Errors**: If a later task fails, you can easily revert to the last successful checkpoint.
+
+Commit messages are generated automatically based on the task group's specialization and description, for example:
+
+```
+feat(backend): Complete task group 'api_implementation'
+
+Implement the core authentication endpoints.
+```
+
+This feature is enabled by default and can be controlled via the `auto_commit` flag in the TaskConfiguration.
+
 ## 🚀 Quick Start
 
 ### Installation
@@ -66,9 +83,64 @@ export EQUITR_MAX_COST="5.0"
 export EQUITR_MODEL="gpt-4"
 ```
 
-## 🚀 Mandatory 3-Document Workflow
+## 🚀 The Task Group System
 
-EQUITR Coder implements a **mandatory 3-document creation workflow** that ensures proper planning before any code execution:
+EQUITR Coder implements a **state-of-the-art dependency-aware task management system** that revolutionizes how complex projects are planned and executed:
+
+### 🏗️ Dependency-Aware Architecture
+
+Projects are automatically decomposed into **Task Groups** with intelligent dependency management:
+
+- **Task Groups**: Logical units of work (e.g., `backend_api`, `frontend_ui`, `database_setup`)
+- **Specializations**: Each group has a specialization (`backend`, `frontend`, `database`, `testing`, `documentation`)
+- **Dependencies**: Groups specify which other groups must complete before they can start
+- **Session-Local Tracking**: All todos are stored in `.EQUITR_todos_<task_name>.json` files
+
+### 📋 Structured JSON Planning
+
+The CleanOrchestrator generates a sophisticated JSON plan instead of simple markdown todos:
+
+```json
+{
+  "task_name": "web_server_project",
+  "created_at": "2025-01-27T14:30:22",
+  "task_groups": [
+    {
+      "group_id": "database_setup",
+      "specialization": "database",
+      "description": "Set up database schema and connections",
+      "dependencies": [],
+      "status": "pending",
+      "todos": [
+        {"id": "todo_abc123", "title": "Design user table schema", "status": "pending"},
+        {"id": "todo_def456", "title": "Create database connection pool", "status": "pending"}
+      ]
+    },
+    {
+      "group_id": "backend_api",
+      "specialization": "backend", 
+      "description": "Implement REST API endpoints",
+      "dependencies": ["database_setup"],
+      "status": "pending",
+      "todos": [
+        {"id": "todo_ghi789", "title": "Create user authentication endpoint", "status": "pending"},
+        {"id": "todo_jkl012", "title": "Implement CRUD operations", "status": "pending"}
+      ]
+    },
+    {
+      "group_id": "frontend_ui",
+      "specialization": "frontend",
+      "description": "Build user interface components", 
+      "dependencies": ["backend_api"],
+      "status": "pending",
+      "todos": [
+        {"id": "todo_mno345", "title": "Create login form component", "status": "pending"},
+        {"id": "todo_pqr678", "title": "Build dashboard layout", "status": "pending"}
+      ]
+    }
+  ]
+}
+```
 
 ### 📋 Task-Isolated Document Structure
 Each task creates its own isolated folder to prevent todo compounding:
@@ -77,38 +149,63 @@ docs/
 ├── task_20250127_143022/          # Unique timestamp folder
 │   ├── requirements.md            # What to build
 │   ├── design.md                  # How to build it  
-│   └── todos.md                   # 8-15 grouped tasks
+│   └── .EQUITR_todos_task_20250127_143022.json  # Structured plan
 └── task_20250127_144155/          # Next task folder
     ├── requirements.md
     ├── design.md
-    └── todos.md
+    └── .EQUITR_todos_task_20250127_144155.json
 ```
 
-### 🔄 Workflow by Mode
+### 🔄 Execution Modes
 
-#### Programmatic Mode (Automatic)
+#### Single-Agent Mode (Sequential Dependencies)
 ```python
-from equitrcoder import EquitrCoder, TaskConfiguration
+from equitrcoder.modes.single_agent_mode import run_single_agent_mode
 
-coder = EquitrCoder(mode='single')
-result = await coder.execute_task('Build a web server', TaskConfiguration(
-    model='moonshot/kimi-k2-0711-preview'
-))
-# → Creates docs/task_YYYYMMDD_HHMMSS/ with all 3 documents automatically
+result = await run_single_agent_mode(
+    task_description="Build a web server",
+    agent_model="moonshot/kimi-k2-0711-preview",
+    orchestrator_model="moonshot/kimi-k2-0711-preview",
+    audit_model="o3"
+)
+# → Agent executes task groups one by one based on dependencies
+# → database_setup → backend_api → frontend_ui → testing
 ```
 
-#### TUI Mode (Interactive)
-```bash
-equitrcoder tui
-# → Interactive back-and-forth discussion to create each document
-# → AI asks clarifying questions until documents are complete
-# → User can exit discussion with 'done' or AI exits with structured calls
+#### Multi-Agent Mode (Parallel Phases)
+```python
+from equitrcoder.modes.multi_agent_mode import run_multi_agent_parallel
+
+result = await run_multi_agent_parallel(
+    task_description="Build a web server",
+    num_agents=3,
+    agent_model="moonshot/kimi-k2-0711-preview",
+    orchestrator_model="moonshot/kimi-k2-0711-preview",
+    audit_model="o3"
+)
+# → Phase 1: [database_setup] (1 agent)
+# → Phase 2: [backend_api] (1 agent) 
+# → Phase 3: [frontend_ui, testing, documentation] (3 agents in parallel)
 ```
 
-#### CLI Mode (Automatic)
-```bash
-equitrcoder single "Build a web server" --model moonshot/kimi-k2-0711-preview
-# → Creates docs/task_YYYYMMDD_HHMMSS/ with all 3 documents automatically
+### 🛠️ New Task Group Tools
+
+Agents now have access to powerful dependency-aware tools:
+
+```python
+# List all task groups and their dependencies
+await agent.call_tool("list_task_groups")
+# Returns: [{"group_id": "backend_api", "specialization": "backend", 
+#           "dependencies": ["database_setup"], "status": "pending", ...}]
+
+# Get specific todos for a group
+await agent.call_tool("list_todos_in_group", group_id="backend_api")
+# Returns: [{"id": "todo_abc123", "title": "Create auth endpoint", "status": "pending"}]
+
+# Mark individual todos as complete
+await agent.call_tool("update_todo_status", todo_id="todo_abc123", status="completed")
+# → When all todos in a group are completed, the group automatically completes
+# → This unlocks dependent groups for execution
 ```
 
 ### 🤝 Parallel Agent Communication

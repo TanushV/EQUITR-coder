@@ -1,34 +1,51 @@
 """
-equitrcoder - Modular AI coding assistant supporting single and multi-agent workflows.
+equitrcoder - Advanced AI coding assistant with Task Group System and Automatic Git Checkpoints.
 
-This package provides a clean, modular architecture where:
-- BaseAgent provides common functionality for all agents
-- WorkerAgent adds restricted file system access for security
-- SingleAgentOrchestrator wraps BaseAgent for simple tasks
-- MultiAgentOrchestrator coordinates multiple WorkerAgents for complex tasks
+This package provides a revolutionary dependency-aware task management system where:
+- CleanOrchestrator creates structured JSON plans with task groups and dependencies
+- Task groups have specializations (backend, frontend, database, testing, documentation)
+- Single-agent mode executes groups sequentially based on dependencies
+- Multi-agent mode executes groups in parallel phases
+- Automatic git commits after each successful task group/phase completion
+- Professional git history with conventional commit messages
+
+Key Features:
+- 🏗️ Dependency-Aware Architecture: Intelligent task group planning and execution
+- 🤖 Automatic Git Checkpoints: Professional commit history with descriptive messages
+- 📋 Structured JSON Planning: Sophisticated project decomposition
+- 🔄 Phase-Based Execution: Parallel agents working on independent task groups
+- 🎯 Session-Local Tracking: Isolated todo management per task
 
 Quick Start:
-    # Single agent
-    from equitrcoder import BaseAgent, SingleAgentOrchestrator
-    agent = BaseAgent()
-    orchestrator = SingleAgentOrchestrator(agent)
-    result = await orchestrator.execute_task("Fix the bug in main.py")
-
-    # Multi agent
-    from equitrcoder import MultiAgentOrchestrator, WorkerConfig
-    orchestrator = MultiAgentOrchestrator()
-    config = WorkerConfig("worker1", ["src/"], ["read_file", "edit_file"])
-    worker = orchestrator.create_worker(config)
-    result = await orchestrator.execute_task("task1", "worker1", "Refactor module")
+    # Single agent with task groups and auto-commits
+    from equitrcoder.modes.single_agent_mode import run_single_agent_mode
+    result = await run_single_agent_mode(
+        "Build a web server with authentication",
+        auto_commit=True  # Automatic git commits
+    )
+    
+    # Multi-agent with parallel phases and auto-commits
+    from equitrcoder.modes.multi_agent_mode import run_multi_agent_parallel
+    result = await run_multi_agent_parallel(
+        "Build a complete web application",
+        num_agents=3,
+        auto_commit=True  # Automatic git commits after each phase
+    )
+    
+    # Professional programmatic interface
+    from equitrcoder import EquitrCoder, TaskConfiguration
+    coder = EquitrCoder(git_enabled=True)
+    config = TaskConfiguration(auto_commit=True)
+    result = await coder.execute_task("Build an API", config)
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 # Core agent classes
-from .agents import BaseAgent, WorkerAgent
+from .agents import BaseAgent
 
 # Clean Architecture Components
-from .core import CleanAgent, CleanOrchestrator
+from .core import CleanOrchestrator
 from .core.config import Config, config_manager
 
 # Core functionality
@@ -61,10 +78,8 @@ __all__ = [
     "__version__",
     # Agents
     "BaseAgent",
-    "WorkerAgent",
     # Clean Architecture
     "CleanOrchestrator",
-    "CleanAgent",
     "run_single_agent_mode",
     "run_multi_agent_sequential",
     "run_multi_agent_parallel",
@@ -120,38 +135,6 @@ def create_single_agent(
             agent.add_tool(tool)
 
     return agent
-
-
-def create_worker_agent(
-    worker_id: str,
-    scope_paths: list,
-    allowed_tools: list,
-    max_cost: float = None,
-    max_iterations: int = None,
-    project_root: str = ".",
-) -> WorkerAgent:
-    """
-    Convenience function to create a worker agent with restricted access.
-
-    Args:
-        worker_id: Unique identifier for the worker
-        scope_paths: List of paths the worker can access
-        allowed_tools: List of tools the worker can use
-        max_cost: Maximum cost limit for the worker
-        max_iterations: Maximum iterations for the worker
-        project_root: Root directory for the project
-
-    Returns:
-        Configured WorkerAgent instance
-    """
-    return WorkerAgent(
-        worker_id=worker_id,
-        scope_paths=scope_paths,
-        allowed_tools=allowed_tools,
-        project_root=project_root,
-        max_cost=max_cost,
-        max_iterations=max_iterations,
-    )
 
 
 async def run_task_single_agent(
@@ -211,7 +194,6 @@ async def run_task_multi_agent(
 __all__.extend(
     [
         "create_single_agent",
-        "create_worker_agent",
         "run_task_single_agent",
         "run_task_multi_agent",
     ]

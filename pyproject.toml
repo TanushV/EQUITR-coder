@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "equitrcoder"
-version = "1.0.3"
+version = "2.0.0"
 description = "Modular AI coding assistant supporting single and multi-agent workflows"
 authors = [{name = "EQUITR", email = "coder@equitr.com"}]
 requires-python = ">=3.10"

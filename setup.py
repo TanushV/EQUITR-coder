@@ -18,7 +18,7 @@ if requirements_path.exists():
 
 setup(
     name="equitrcoder",
-    version="1.0.3",
+    version="2.0.0",
     description="Modular AI coding assistant supporting single and multi-agent workflows",
     long_description=long_description,
     long_description_content_type="text/markdown",

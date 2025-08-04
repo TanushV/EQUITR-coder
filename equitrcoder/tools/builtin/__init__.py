@@ -1,7 +1,7 @@
 # Built-in tools for EQUITR Coder
 
-from .agent_communication import *
-from .ask_supervisor import *
+from .communication import *
+from .audit import *
 from .fs import *
 from .git import *
 from .git_auto import *
