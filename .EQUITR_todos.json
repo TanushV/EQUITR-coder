@@ -1,0 +1,774 @@
+{
+  "task_name": "default_task",
+  "created_at": "2025-08-05T02:35:09.704036",
+  "task_groups": [
+    {
+      "group_id": "repo_setup",
+      "specialization": "project_manager",
+      "description": "Create repository, environment, and baseline project scaffolding.",
+      "dependencies": [],
+      "status": "failed",
+      "todos": [
+        {
+          "id": "todo_ff011706",
+          "title": "Initialize Git repository with .gitignore (Python, assets, venv)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c2e6c3f0",
+          "title": "Create virtual-env and add pygame, pytest, flake8 to requirements.txt",
+          "status": "pending"
+        },
+        {
+          "id": "todo_7ff3aff3",
+          "title": "Generate initial directory tree (src/, assets/, levels/, tests/, .github/)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_286118fc",
+          "title": "Commit provided requirements.md and design.md to main branch",
+          "status": "pending"
+        },
+        {
+          "id": "todo_d61af0d7",
+          "title": "Set up basic pipenv/venv activation instructions in README stub",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "core_skeleton",
+      "specialization": "game_dev",
+      "description": "Implement core engine skeleton including settings, asset loader, and main loop stub.",
+      "dependencies": [
+        "repo_setup"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_efdf7fb9",
+          "title": "Create settings.py with constants and config.json override logic",
+          "status": "pending"
+        },
+        {
+          "id": "todo_7a1bc3af",
+          "title": "Implement assets.py for cached image/sound loading",
+          "status": "pending"
+        },
+        {
+          "id": "todo_513b72de",
+          "title": "Build main.py with Pygame init, window, and empty game loop",
+          "status": "pending"
+        },
+        {
+          "id": "todo_9b0b4a9b",
+          "title": "Stub GameStateManager with Title and Quit scenes",
+          "status": "pending"
+        },
+        {
+          "id": "todo_01873079",
+          "title": "Add placeholder PNGs and WAVs to assets/ directory",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "level_loader_camera",
+      "specialization": "game_dev",
+      "description": "Deliver level parsing, terrain rendering, and side-scrolling camera system.",
+      "dependencies": [
+        "core_skeleton"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_d0c6438a",
+          "title": "Design sample level01.json with tiles, coins, enemies, flag data",
+          "status": "pending"
+        },
+        {
+          "id": "todo_1b570b91",
+          "title": "Implement level.py to load JSON/CSV and instantiate terrain sprites",
+          "status": "pending"
+        },
+        {
+          "id": "todo_a03e09c6",
+          "title": "Create camera.py that follows player after midpoint and clamps to bounds",
+          "status": "pending"
+        },
+        {
+          "id": "todo_5ed42ff4",
+          "title": "Integrate tile sprite class and rendering into main loop",
+          "status": "pending"
+        },
+        {
+          "id": "todo_fa99ed10",
+          "title": "Add tileset placeholder images under assets/images/",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "player_mechanics",
+      "specialization": "gameplay_programmer",
+      "description": "Code player entity with movement, jumping, gravity, and collision resolution.",
+      "dependencies": [
+        "level_loader_camera"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_5637d33d",
+          "title": "Implement entities/player.py inheriting from pygame.sprite.Sprite",
+          "status": "pending"
+        },
+        {
+          "id": "todo_568aac62",
+          "title": "Add horizontal movement (←/→ or A/D) with acceleration/deceleration",
+          "status": "pending"
+        },
+        {
+          "id": "todo_751a5dfc",
+          "title": "Apply gravity constant and space-bar jump with upward velocity",
+          "status": "pending"
+        },
+        {
+          "id": "todo_6523b977",
+          "title": "Integrate collision with terrain tiles (floor, walls, ceilings)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_61555c0e",
+          "title": "Emit jump sound stub via assets loader",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "coin_collection",
+      "specialization": "gameplay_programmer",
+      "description": "Introduce coin entity, pickup logic, scoring, and HUD scoreboard.",
+      "dependencies": [
+        "player_mechanics"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_d1ebe105",
+          "title": "Create entities/coin.py that removes itself on collision with player",
+          "status": "pending"
+        },
+        {
+          "id": "todo_066c83c8",
+          "title": "Increment score counter and play coin.wav on pickup",
+          "status": "pending"
+        },
+        {
+          "id": "todo_03b86444",
+          "title": "Develop hud.py rendering score and lives in top-left corner",
+          "status": "pending"
+        },
+        {
+          "id": "todo_9ab74422",
+          "title": "Add coin sprites into level loader spawn routine",
+          "status": "pending"
+        },
+        {
+          "id": "todo_a787ceb6",
+          "title": "Display running score update each frame",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "enemy_ai",
+      "specialization": "ai_programmer",
+      "description": "Build simple patrolling enemy with stomp/side collision outcomes and scoring.",
+      "dependencies": [
+        "player_mechanics",
+        "level_loader_camera"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_b15d7af1",
+          "title": "Implement entities/enemy.py with back-and-forth patrol and edge detection",
+          "status": "pending"
+        },
+        {
+          "id": "todo_fd164ac8",
+          "title": "Handle player-enemy collision: top stomp → enemy death +100 pts",
+          "status": "pending"
+        },
+        {
+          "id": "todo_21382615",
+          "title": "Handle side/bottom hit → life decrement or level reset",
+          "status": "pending"
+        },
+        {
+          "id": "todo_416aaa95",
+          "title": "Animate enemy death and remove sprite after delay",
+          "status": "pending"
+        },
+        {
+          "id": "todo_f7a5b494",
+          "title": "Update HUD lives counter and trigger GameOver scene when lives == 0",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "ui_scenes",
+      "specialization": "frontend_dev",
+      "description": "Create HUD, pause, game over, and level complete scenes with routing logic.",
+      "dependencies": [
+        "coin_collection",
+        "enemy_ai"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_992e8330",
+          "title": "Extend GameStateManager with Playing, Paused, GameOver, LevelComplete states",
+          "status": "pending"
+        },
+        {
+          "id": "todo_57a8971a",
+          "title": "Render Pause overlay toggled by P key",
+          "status": "pending"
+        },
+        {
+          "id": "todo_7683f471",
+          "title": "Design GameOver screen with restart option",
+          "status": "pending"
+        },
+        {
+          "id": "todo_9e3c1825",
+          "title": "Design LevelComplete screen triggered by flag collision",
+          "status": "pending"
+        },
+        {
+          "id": "todo_e0c31e1a",
+          "title": "Wire HUD to display FPS (optional) and respond to state changes",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "audio_service",
+      "specialization": "audio_engineer",
+      "description": "Finalize audio system with sound effects and mute toggle.",
+      "dependencies": [
+        "ui_scenes"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_58df6438",
+          "title": "Implement audio.py wrapper for pygame.mixer with caching",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c4640999",
+          "title": "Load jump.wav, coin.wav, stomp.wav, game_over.wav into asset pipeline",
+          "status": "pending"
+        },
+        {
+          "id": "todo_339b54d1",
+          "title": "Add mute/unmute key and persist setting via config.json",
+          "status": "pending"
+        },
+        {
+          "id": "todo_90bbe6f4",
+          "title": "Trigger appropriate sounds from player, coin, enemy, and scene events",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "testing_ci",
+      "specialization": "qa_engineer",
+      "description": "Provide pytest unit tests, flake8 linting, and GitHub Actions workflow.",
+      "dependencies": [
+        "player_mechanics",
+        "coin_collection",
+        "enemy_ai",
+        "ui_scenes"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_a7009084",
+          "title": "Write test_player.py for movement, jump, gravity assertions",
+          "status": "pending"
+        },
+        {
+          "id": "todo_4f524b27",
+          "title": "Write test_collision.py for tile and enemy collision resolution",
+          "status": "pending"
+        },
+        {
+          "id": "todo_97af917a",
+          "title": "Write test_coin.py for score increment and sprite removal",
+          "status": "pending"
+        },
+        {
+          "id": "todo_82256640",
+          "title": "Write test_level_loader.py to validate JSON parsing and tile generation",
+          "status": "pending"
+        },
+        {
+          "id": "todo_4cc6cc3a",
+          "title": "Configure .flake8 and ensure zero warnings locally",
+          "status": "pending"
+        },
+        {
+          "id": "todo_f61f8bc8",
+          "title": "Create .github/workflows/python-app.yml running flake8 and pytest on push",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "documentation_release",
+      "specialization": "tech_writer",
+      "description": "Deliver complete README, usage instructions, and final packaging for release.",
+      "dependencies": [
+        "audio_service",
+        "testing_ci"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_e8e75e6e",
+          "title": "Expand README with install steps, controls, and 5-minute quick-start guide",
+          "status": "pending"
+        },
+        {
+          "id": "todo_ebd79dcf",
+          "title": "Add screenshots/GIF of gameplay in README assets section",
+          "status": "pending"
+        },
+        {
+          "id": "todo_261558c3",
+          "title": "Document asset credits and license information",
+          "status": "pending"
+        },
+        {
+          "id": "todo_259e2150",
+          "title": "Ensure requirements.txt is up-to-date and pinned",
+          "status": "pending"
+        },
+        {
+          "id": "todo_6c295995",
+          "title": "Tag repository v1.0.0 and draft release notes summarizing features",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "project_bootstrap",
+      "specialization": "devops",
+      "description": "Set up repository, tooling, and baseline project skeleton.",
+      "dependencies": [],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_05826f29",
+          "title": "Initialize Git repo with .gitignore and MIT LICENSE",
+          "status": "pending"
+        },
+        {
+          "id": "todo_0e0f007f",
+          "title": "Create Python package structure (/game, /tests, /assets, /levels)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_1ba0734f",
+          "title": "Generate requirements.txt with pinned versions (pygame, pytest, flake8, coverage, invoke)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_8b60aa64",
+          "title": "Add pyproject.toml or setup.cfg with flake8/coverage config",
+          "status": "pending"
+        },
+        {
+          "id": "todo_b120c92a",
+          "title": "Commit placeholder __init__.py and settings.py constants",
+          "status": "pending"
+        },
+        {
+          "id": "todo_86ee1bc8",
+          "title": "Create .github/workflows/ci.yml scaffold running lint & tests (allow to fail until later)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "core_loop_state_machine",
+      "specialization": "game_dev",
+      "description": "Implement Pygame main loop and finite state machine for title, play, pause, win, lose screens.",
+      "dependencies": [
+        "project_bootstrap"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_abbca961",
+          "title": "Create game/main.py window, clock, quit handling, fixed Δt loop",
+          "status": "pending"
+        },
+        {
+          "id": "todo_9caa673b",
+          "title": "Design GameState enum and abstract Scene interface (update, draw, handle_event)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_15cf4ae8",
+          "title": "Implement TitleScene with 'Press Enter to start' prompt",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c391792d",
+          "title": "Implement PlayingScene placeholder updating entities list",
+          "status": "pending"
+        },
+        {
+          "id": "todo_9708cd5e",
+          "title": "Implement PauseScene and overlay triggered by 'P'",
+          "status": "pending"
+        },
+        {
+          "id": "todo_ddb808d8",
+          "title": "Implement GameOverScene and WinScene with restart on Enter",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "physics_collision",
+      "specialization": "game_dev",
+      "description": "Create physics integrator and axis-aligned collision resolution utilities.",
+      "dependencies": [
+        "core_loop_state_machine"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_4c385b00",
+          "title": "Write physics.py for gravity, velocity, jump impulse, max speed clamping",
+          "status": "pending"
+        },
+        {
+          "id": "todo_1b7955ab",
+          "title": "Create collision.py with AABB detection & axis-separation response",
+          "status": "pending"
+        },
+        {
+          "id": "todo_16c2175d",
+          "title": "Expose CollisionEvent dataclasses for coin, enemy, tile interactions",
+          "status": "pending"
+        },
+        {
+          "id": "todo_e2ad719f",
+          "title": "Integrate physics and collision into PlayingScene update pipeline",
+          "status": "pending"
+        },
+        {
+          "id": "todo_d84b115e",
+          "title": "Add settings constants for GRAVITY, TILE_SIZE, PLAYER_SPEED",
+          "status": "pending"
+        },
+        {
+          "id": "todo_34fc7ccd",
+          "title": "Verify stable 1/60 s step with accumulators",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "player_entity",
+      "specialization": "game_dev",
+      "description": "Develop controllable Player sprite with movement, jump, and animations.",
+      "dependencies": [
+        "physics_collision"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_4e9d8d17",
+          "title": "Implement player.py class extending pygame.sprite.Sprite",
+          "status": "pending"
+        },
+        {
+          "id": "todo_2e7f8fc0",
+          "title": "Map keyboard input (A/D or ←/→) to horizontal velocity",
+          "status": "pending"
+        },
+        {
+          "id": "todo_4f9bb10f",
+          "title": "Add jump buffering & coyote-time for better feel",
+          "status": "pending"
+        },
+        {
+          "id": "todo_fd805a81",
+          "title": "Load placeholder player.png or fallback rectangle",
+          "status": "pending"
+        },
+        {
+          "id": "todo_720ca533",
+          "title": "Emit events on landing, jumping, or taking damage",
+          "status": "pending"
+        },
+        {
+          "id": "todo_0d634c25",
+          "title": "Plug Player instance into PlayingScene entity list",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "enemy_coin_entities",
+      "specialization": "game_dev",
+      "description": "Create Enemy patrol AI and Coin collectables with scoring logic.",
+      "dependencies": [
+        "physics_collision",
+        "player_entity"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_53cb778c",
+          "title": "Implement enemy.py with left/right patrol between given x1, x2",
+          "status": "pending"
+        },
+        {
+          "id": "todo_8a4a1cc5",
+          "title": "Detect stomp vs side collision; award +5 score on stomp",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c275ff72",
+          "title": "Implement coin.py that destroys itself and adds +1 score on collision",
+          "status": "pending"
+        },
+        {
+          "id": "todo_d2b74a77",
+          "title": "Play corresponding sound via AudioManager hooks",
+          "status": "pending"
+        },
+        {
+          "id": "todo_1ffde9e4",
+          "title": "Maintain Score counter in PlayingScene or dedicated ScoreManager",
+          "status": "pending"
+        },
+        {
+          "id": "todo_26a6ea9e",
+          "title": "Provide placeholder assets enemy.png and coin.png",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "level_loader",
+      "specialization": "game_dev",
+      "description": "Build JSON/CSV level parser that constructs tilemap, entities, and collision grid.",
+      "dependencies": [
+        "enemy_coin_entities"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_1b529ad6",
+          "title": "Define level1.json schema (tiles, player_start, enemies[], coins[], goal_pos)",
+          "status": "pending"
+        },
+        {
+          "id": "todo_b0a70591",
+          "title": "Write level.py loader returning TileMap and entity instances",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c0df1563",
+          "title": "Add CSV adapter converting CSV → internal dict then reuse parser",
+          "status": "pending"
+        },
+        {
+          "id": "todo_0701ef4b",
+          "title": "Generate sample level1.json and level1.csv in /levels",
+          "status": "pending"
+        },
+        {
+          "id": "todo_95df3249",
+          "title": "Hook LevelLoader into TitleScene start → PlayingScene creation",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c261e92b",
+          "title": "Validate loader returns correct counts via simple assert",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "camera_hud_audio",
+      "specialization": "game_dev",
+      "description": "Implement side-scrolling camera, HUD overlays, and audio manager.",
+      "dependencies": [
+        "level_loader"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_a6ee5a56",
+          "title": "Create camera.py that follows player and clamps to level bounds",
+          "status": "pending"
+        },
+        {
+          "id": "todo_49e8fa7e",
+          "title": "Integrate camera transform into draw pipeline for parallax background",
+          "status": "pending"
+        },
+        {
+          "id": "todo_3e087441",
+          "title": "Implement hud.py rendering score, lives, FPS at top-left",
+          "status": "pending"
+        },
+        {
+          "id": "todo_7b1c35ca",
+          "title": "Develop audio.py for loading and playing SFX with pause/resume",
+          "status": "pending"
+        },
+        {
+          "id": "todo_ad9dae0e",
+          "title": "Add placeholder sounds jump.ogg, coin.ogg, stomp.ogg",
+          "status": "pending"
+        },
+        {
+          "id": "todo_da12a575",
+          "title": "Ensure average FPS ≥50 on reference hardware using Pygame clock stats",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "unit_tests",
+      "specialization": "qa_engineer",
+      "description": "Write pytest suite achieving ≥80% coverage for core mechanics.",
+      "dependencies": [
+        "camera_hud_audio"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_8601bf7d",
+          "title": "Create tests/test_physics.py for gravity and jump arc assertions",
+          "status": "pending"
+        },
+        {
+          "id": "todo_2cc43f07",
+          "title": "Create tests/test_collision.py covering tile and enemy collisions",
+          "status": "pending"
+        },
+        {
+          "id": "todo_461d3e87",
+          "title": "Create tests/test_scoring.py for coin collection and enemy stomp logic",
+          "status": "pending"
+        },
+        {
+          "id": "todo_94cc58e8",
+          "title": "Create tests/test_level_loader.py verifying entity counts from JSON/CSV",
+          "status": "pending"
+        },
+        {
+          "id": "todo_cfc5b1c5",
+          "title": "Configure coverage run and enforce threshold in CI",
+          "status": "pending"
+        },
+        {
+          "id": "todo_0ccb15e1",
+          "title": "Add conftest.py fixtures for dummy Pygame display / headless mode",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "build_ci",
+      "specialization": "devops",
+      "description": "Finalize build scripts, Makefile tasks, and continuous integration workflow.",
+      "dependencies": [
+        "unit_tests"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_f9704094",
+          "title": "Complete Makefile and tasks.py with run, test, lint, coverage, clean targets",
+          "status": "pending"
+        },
+        {
+          "id": "todo_c6de4527",
+          "title": "Extend GitHub Actions to install deps, run flake8, pytest, coverage upload",
+          "status": "pending"
+        },
+        {
+          "id": "todo_e1239ed6",
+          "title": "Add status badge to README placeholder",
+          "status": "pending"
+        },
+        {
+          "id": "todo_a5675831",
+          "title": "Set up pre-commit hook for flake8 and isort",
+          "status": "pending"
+        },
+        {
+          "id": "todo_95140588",
+          "title": "Ensure pipeline passes on Windows, macOS, and Ubuntu runners",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "documentation",
+      "specialization": "tech_writer",
+      "description": "Produce comprehensive README and usage guides with assets credits.",
+      "dependencies": [
+        "build_ci"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_895a5ed5",
+          "title": "Draft README.md with project overview, controls, install/run/test instructions",
+          "status": "pending"
+        },
+        {
+          "id": "todo_112f10eb",
+          "title": "Embed gameplay GIF or screenshot in README",
+          "status": "pending"
+        },
+        {
+          "id": "todo_ec25c36f",
+          "title": "Document level file format in README or separate docs/LEVEL_FORMAT.md",
+          "status": "pending"
+        },
+        {
+          "id": "todo_2aab7519",
+          "title": "List asset sources and licenses under Assets section",
+          "status": "pending"
+        },
+        {
+          "id": "todo_bdc22afe",
+          "title": "Add contribution guidelines and code style notes",
+          "status": "pending"
+        },
+        {
+          "id": "todo_b464425d",
+          "title": "Review README for clarity, completeness, and markdown lint",
+          "status": "pending"
+        }
+      ]
+    }
+  ]
+}

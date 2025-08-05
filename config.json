@@ -1,0 +1,10 @@
+{
+  "DEBUG_MODE": false,
+  "SHOW_FPS": true,
+  "SHOW_COLLISION_BOXES": false,
+  "SOUND_ENABLED": true,
+  "MUSIC_VOLUME": 0.7,
+  "SFX_VOLUME": 0.8,
+  "FPS": 60,
+  "PLAYER_LIVES": 3
+}

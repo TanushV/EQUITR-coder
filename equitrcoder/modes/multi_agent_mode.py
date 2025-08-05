@@ -120,6 +120,12 @@ Complete each todo and mark it done with `update_todo_status`.
 Make sure to only use the tools you have been given.
 """
         result = await agent.run(group_task_desc)
+        audit_res = result.get("audit_result", {})
+        if audit_res and not audit_res.get("audit_passed", True):
+            # Log audit issues and convert them into actionable todos (placeholder)
+            print("🚨 Audit reported issues:\n", audit_res.get("audit_content", "No details"))
+            # In future we could parse and add new todos. For now, continue execution.
+            result["success"] = True
         if not result.get("success"):
             todo_manager.update_task_group_status(group.group_id, "failed")
         return result

@@ -27,6 +27,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.python-version
 
 # IDE
 .vscode/
@@ -50,6 +51,10 @@ Thumbs.db
 htmlcov/
 .tox/
 .cache
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
 
 # Environment variables
 .env
@@ -59,23 +64,25 @@ htmlcov/
 # Logs
 *.log
 logs/
-tool_calls.log
-*_tool_calls.log
-session_tools.log
-detailed_tool_logs.json
-detailed_logs.json
 
-# Session data
-sessions/
-*.session
-~/.EQUITR-coder/
-.EQUITR-coder/
+# Game assets (exclude large binary files)
+assets/*.tmp
+assets/cache/
+*.tmp
+
+# Level editor files
+*.level.bak
+
+# Pygame
+*.pyc
+
+# Distribution
+wheelhouse/
+*.whl
+
+# Documentation
+docs/_build/
 
 # Temporary files
 tmp/
 temp/
-
-# Kiro IDE
-.kiro/ 
-.kiro/specs/equitrcoder-fixes-and-enhancements/tasks.md
-*.json

@@ -1,0 +1,10 @@
+{
+  "test_name": "multi_agent_parallel_exec",
+  "model": "moonshot/kimi-k2-0711-preview",
+  "test_task": "Create a simple calculator application with basic arithmetic operations, CLI interface, input validation, error handling, and unit tests",
+  "max_cost": 5.0,
+  "max_iterations": 20,
+  "timeout_seconds": 300,
+  "created_at": "/Users/tanushvanarase/Documents/EQUITR-coder",
+  "environment_path": "testing/comprehensive_tests/run_20250804_190618/multi_agent_parallel_envs/env_multi_agent_parallel_exec"
+}

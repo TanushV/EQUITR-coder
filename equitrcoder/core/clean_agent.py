@@ -311,84 +311,84 @@ Model: {self.model}{context_info}"""
         }
 
     async def _run_audit(self) -> Dict[str, Any]:
-        """Run audit using audit tools and audit model."""
+        """Interactive audit loop.
+        The auditor can either:
+        • Emit a read-only tool call (read_file, list_files, grep_search). We execute it and feed back the result.
+        • Emit a RESULTS tool-call (virtual tool) or a plain message starting with AUDIT PASSED/FAILED.
+        Audit ends only when a results message is produced.
+        If FAILED the auditor must supply a JSON list ``additional_tasks`` that we can turn into new todos.
+        """
         try:
             if self.on_audit_callback:
-                self.on_audit_callback(
-                    {"status": "starting", "model": self.audit_model}
-                )
+                self.on_audit_callback({"status": "starting", "model": self.audit_model})
 
             print(f"🔍 Running automatic audit with {self.audit_model}...")
-
-            # Check if we have audit-capable tools
-            audit_tools = ["read_file", "list_files", "grep_search"]
-            available_audit_tools = [tool for tool in audit_tools if tool in self.tools]
-
-            if not available_audit_tools:
-                return {
-                    "success": False,
-                    "reason": "No audit tools available",
-                    "audit_passed": False,
-                }
-
-            # Create audit prompt
-            audit_prompt = """You are conducting an audit of completed work.
-
-AUDIT PROCESS:
-1. Use list_files to examine project structure
-2. Use read_file to review implementations
-3. Check if completed todos were actually implemented
-4. Verify code quality and completeness
-
-RESPONSE FORMAT:
-- If work is complete and correct: "AUDIT PASSED - [reason]"
-- If issues found: "AUDIT FAILED - [specific issues]"
-
-Be thorough but fair in your assessment."""
-
-            # Run audit with audit model
-            audit_messages = [
-                Message(role="system", content=audit_prompt),
-                Message(role="user", content="Please audit the completed work."),
+            read_only_tools = [
+                self.tools[name] for name in ("read_file", "list_files", "grep_search") if name in self.tools
             ]
+            if not read_only_tools:
+                return {"success": False, "reason": "No audit tools available", "audit_passed": False}
 
-            audit_schemas = [
-                self.tools[tool].get_json_schema() for tool in available_audit_tools
-            ]
+            tool_schemas = [t.get_json_schema() for t in read_only_tools]
 
-            audit_response = await self.audit_provider.chat(
-                messages=audit_messages, tools=audit_schemas
+            system_prompt = (
+                "You are an independent code auditor. Explore the repository in depth using the provided read-only tools.\n\n"
+                "AUDIT LOOP INSTRUCTIONS:\n"
+                "• At each turn either CALL a read-only tool or, when satisfied, RETURN results using the virtual tool 'audit_results'.\n"
+                "• The 'audit_results' call must include JSON with: {\"passed\": bool, \"reasons\": str, \"additional_tasks\": list}.\n"
+                "• Fail only if one or more todos have not been completed.\n"
+                "• Keep investigating until confident."
             )
 
-            # Process audit response
-            audit_content = audit_response.content or ""
-            audit_passed = "AUDIT PASSED" in audit_content.upper()
-
-            if self.on_audit_callback:
-                self.on_audit_callback(
-                    {
-                        "status": "completed",
-                        "passed": audit_passed,
-                        "content": audit_content,
+            messages = [Message(role="system", content=system_prompt)]
+            max_iter = 20
+            for _ in range(max_iter):
+                resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [
+                    {"name": "audit_results", "description": "Final audit verdict"}
+                ])
+                if resp.tool:
+                    tool_name = resp.tool.name
+                    if tool_name == "audit_results":
+                        payload = resp.tool.arguments or {}
+                        audit_passed = payload.get("passed", False)
+                        reasons = payload.get("reasons", "")
+                        extra_tasks = payload.get("additional_tasks", [])
+                        content = json.dumps(payload)
+                        if self.on_audit_callback:
+                            self.on_audit_callback({
+                                "status": "completed", "passed": audit_passed, "content": content
+                            })
+                        return {
+                            "success": True,
+                            "audit_passed": audit_passed,
+                            "audit_content": content,
+                            "extra_tasks": extra_tasks,
+                            "audit_model": self.audit_model,
+                        }
+                    # execute read tool
+                    if tool_name in self.tools:
+                        result = await self.tools[tool_name].run(**resp.tool.arguments)
+                        messages.append(Message(role="tool", name=tool_name, content=result.json()))
+                        continue
+                # non-tool message
+                if resp.content and resp.content.strip().upper().startswith("AUDIT"):
+                    messages.append(Message(role="assistant", content=resp.content))
+                    audit_passed = resp.content.upper().startswith("AUDIT PASSED")
+                    if self.on_audit_callback:
+                        self.on_audit_callback({"status": "completed", "passed": audit_passed, "content": resp.content})
+                    return {
+                        "success": True,
+                        "audit_passed": audit_passed,
+                        "audit_content": resp.content,
+                        "audit_model": self.audit_model,
                     }
-                )
-
-            print(f"{'✅ AUDIT PASSED' if audit_passed else '❌ AUDIT FAILED'}")
-
-            return {
-                "success": True,
-                "audit_passed": audit_passed,
-                "audit_content": audit_content,
-                "audit_model": self.audit_model,
-            }
-
+                messages.append(Message(role="assistant", content=resp.content or ""))
+            # exceeded iterations
+            return {"success": False, "audit_passed": False, "reason": "Audit loop max iterations"}
         except Exception as e:
-            error_result = {"success": False, "error": str(e), "audit_passed": False}
-
             if self.on_audit_callback:
                 self.on_audit_callback({"status": "error", "error": str(e)})
-
-            return error_result
+            return {"success": False, "audit_passed": False, "error": str(e)}
 
     def set_callbacks(
         self,
