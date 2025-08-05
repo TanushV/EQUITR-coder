@@ -4,11 +4,9 @@ Isolated test environment management for comprehensive mode testing.
 
 import os
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import json
-import subprocess
 
 from .config import TestEnvironmentConfig, ComprehensiveTestConfig
 from .results import ErrorCategory, FailureAnalysis

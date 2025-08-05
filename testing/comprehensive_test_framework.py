@@ -5,12 +5,10 @@ This module implements a comprehensive testing framework that validates differen
 agent configurations and workflows in isolated environments.
 """
 
-import asyncio
 import json
 import time
-import shutil
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
@@ -255,7 +253,7 @@ class ComprehensiveTestController:
         self.test_run_dir = self.base_test_dir / f"run_{self.test_run_id}"
         self.test_run_dir.mkdir(exist_ok=True)
         
-        print(f"🧪 Initialized comprehensive test framework")
+        print("🧪 Initialized comprehensive test framework")
         print(f"📁 Test run directory: {self.test_run_dir}")
     
     async def run_all_tests(self) -> ComprehensiveTestResults:
@@ -322,7 +320,7 @@ class ComprehensiveTestController:
             with open(results_path, 'w') as f:
                 json.dump(comprehensive_results.to_dict(), f, indent=2)
             
-            print(f"\n📊 Comprehensive testing completed!")
+            print("\n📊 Comprehensive testing completed!")
             print(f"📁 Results saved to: {self.test_run_dir}")
             print(f"⏱️  Total execution time: {total_execution_time:.2f} seconds")
             print(f"💰 Total cost: ${total_cost:.4f}")
@@ -358,8 +356,8 @@ class ComprehensiveTestController:
     
     async def run_multi_agent_sequential_tests(self) -> MultiAgentTestResults:
         """Run multi-agent sequential test scenarios."""
-        from .test_environment_manager import TestEnvironmentManager
-        from .test_multi_agent_suite import MultiAgentTestSuite
+        from .comprehensive_mode_testing.environment_manager import IsolatedTestEnvironmentManager as TestEnvironmentManager
+        from .comprehensive_mode_testing.multi_agent_suite import MultiAgentTestSuite
         
         # Create environment manager
         env_manager = TestEnvironmentManager(str(self.test_run_dir / "multi_agent_sequential_envs"))
@@ -380,8 +378,8 @@ class ComprehensiveTestController:
     
     async def run_multi_agent_parallel_tests(self) -> MultiAgentTestResults:
         """Run multi-agent parallel test scenarios."""
-        from .test_environment_manager import TestEnvironmentManager
-        from .test_multi_agent_suite import MultiAgentTestSuite
+        from .comprehensive_mode_testing.environment_manager import IsolatedTestEnvironmentManager as TestEnvironmentManager
+        from .comprehensive_mode_testing.multi_agent_suite import MultiAgentTestSuite
         
         # Create environment manager
         env_manager = TestEnvironmentManager(str(self.test_run_dir / "multi_agent_parallel_envs"))

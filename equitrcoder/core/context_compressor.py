@@ -8,7 +8,6 @@ important information.
 
 from __future__ import annotations
 
-import asyncio
 from typing import List
 
 from ..providers.openrouter import Message  # shared pydantic model

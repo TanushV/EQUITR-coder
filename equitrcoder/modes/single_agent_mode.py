@@ -37,7 +37,8 @@ class SingleAgentMode:
                 agent_id="single_agent", model=self.agent_model, tools=tools, context=docs_result,
                 max_cost=self.max_cost, max_iterations=self.max_iterations, audit_model=self.audit_model,
             )
-            if callbacks: agent.set_callbacks(**callbacks)
+            if callbacks:
+                agent.set_callbacks(**callbacks)
             
             print("🚀 Step 3: Agent starting sequential execution of task groups...")
             set_global_todo_file(docs_result['todos_path'])

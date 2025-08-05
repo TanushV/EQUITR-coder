@@ -1,15 +1,14 @@
 # equitrcoder/programmatic/interface.py
 
-import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Optional, Union
 from pathlib import Path
 from datetime import datetime
 from ..core.config import config_manager
 from ..modes.single_agent_mode import run_single_agent_mode
-from ..modes.multi_agent_mode import run_multi_agent_sequential, run_multi_agent_parallel
+from ..modes.multi_agent_mode import run_multi_agent_parallel
 from ..utils.git_manager import GitManager
-from ..core.session import SessionData, SessionManagerV2
+from ..core.session import SessionManagerV2
 
 @dataclass
 class TaskConfiguration:

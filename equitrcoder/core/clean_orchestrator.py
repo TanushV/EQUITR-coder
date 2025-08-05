@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from ..providers.litellm import LiteLLMProvider, Message
 from ..tools.builtin.todo import set_global_todo_file, todo_manager
+from .profile_manager import ProfileManager
 
 class CleanOrchestrator:
     """Orchestrates the creation of the three mandatory project documents."""
@@ -15,12 +16,14 @@ class CleanOrchestrator:
         auto_load_environment()
         self.model = model
         self.provider = LiteLLMProvider(model=model)
+        self.profile_manager = ProfileManager()
     
     async def create_docs(
         self,
         task_description: str,
         project_path: str = ".",
         task_name: Optional[str] = None,
+        team: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Creates requirements, design, and a structured todo plan."""
         try:
@@ -48,7 +51,7 @@ class CleanOrchestrator:
             # 3. Create the structured todo plan (JSON)
             print("📝 Creating structured todo plan with dependencies...")
             task_todo_file = f".EQUITR_todos_{task_name}.json"
-            await self._setup_todo_system(task_description, requirements_content, design_content, task_name, project_path / task_todo_file)
+            await self._setup_todo_system(task_description, requirements_content, design_content, task_name, project_path / task_todo_file, team)
             
             print("✅ Documentation and plan created successfully!")
             return {
@@ -96,18 +99,36 @@ Be technical and specific. Use markdown format."""
         response = await self.provider.chat(messages=messages)
         return response.content
     
-    async def _setup_todo_system(self, task_description: str, requirements: str, design: str, task_name: str, todo_file_path: Path):
+    async def _setup_todo_system(self, task_description: str, requirements: str, design: str, task_name: str, todo_file_path: Path, team: Optional[List[str]] = None):
         """Generates and saves the structured todo plan."""
-        system_prompt = """You are a senior project manager. Based on the provided requirements and design, decompose the project into a structured JSON plan.
+        
+        team_prompt_injection = ""
+        if team:
+            team_details = []
+            for profile_name in team:
+                try:
+                    profile = self.profile_manager.get_profile(profile_name)
+                    team_details.append(f"- Profile: {profile_name}\n  Name: {profile['name']}\n  Description: {profile['description']}")
+                except ValueError:
+                    # Silently ignore if a profile is not found, or handle as an error
+                    print(f"Warning: Profile '{profile_name}' not found and will be ignored.")
 
+            if team_details:
+                team_prompt_injection = (
+                    "You must delegate tasks to the following team of specialists. Assign each Task Group to the most appropriate specialist by setting the `specialization` field to their profile name (e.g., `backend_dev`).\n\n"
+                    "Available Team:\n" + "\n".join(team_details) + "\n\n"
+                )
+
+        system_prompt = f"""You are a senior project manager and team lead. Based on the provided requirements and design, decompose the project into a structured JSON execution plan.
+{team_prompt_injection}
 The plan must consist of an array of "Task Groups".
 
 Each Task Group must have:
 1. `group_id`: A unique, descriptive ID (e.g., `backend_api`, `frontend_ui`).
-2. `specialization`: The type of work (e.g., `backend`, `frontend`, `database`, `testing`, `documentation`).
+2. `specialization`: The profile name of the specialist assigned to this group (e.g., `backend_dev`, `frontend_dev`). If no specific team is provided, use a general role (e.g., `backend`, `frontend`).
 3. `description`: A one-sentence summary of the group's objective.
 4. `dependencies`: A list of `group_id`s that must be completed before this group can start. The first group(s) should have an empty list.
-5. `todos`: An array of 2-8 specific, actionable sub-tasks (as `{"title": "..."}` objects) for this group.
+5. `todos`: An array of 2-8 specific, actionable sub-tasks (as `{{ "title": "..." }}` objects) for this group.
 
 Analyze the project to identify logical dependencies. For example, the `frontend_ui` group must depend on the `backend_api` group.
 

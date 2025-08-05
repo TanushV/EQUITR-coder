@@ -44,7 +44,7 @@ async def async_example():
         # Get tool call statistics
         stats = api.get_tool_call_stats()
         if stats:
-            print(f"\n📊 Tool Call Statistics:")
+            print("\n📊 Tool Call Statistics:")
             print(f"  Total calls: {stats.get('total_calls', 0)}")
             print(f"  Successful calls: {stats.get('successful_calls', 0)}")
             print(f"  Failed calls: {stats.get('failed_calls', 0)}")
@@ -54,7 +54,7 @@ async def async_example():
             # Show tool usage breakdown
             tool_usage = stats.get("tool_usage", {})
             if tool_usage:
-                print(f"\n🔧 Tool Usage Breakdown:")
+                print("\n🔧 Tool Usage Breakdown:")
                 for tool_name, usage in tool_usage.items():
                     print(
                         f"  {tool_name}: {usage['count']} calls, "
@@ -64,7 +64,7 @@ async def async_example():
         # Get recent tool call logs
         logs = api.get_tool_call_logs(limit=5)
         if logs:
-            print(f"\n📝 Recent Tool Calls:")
+            print("\n📝 Recent Tool Calls:")
             for log in logs[-3:]:  # Show last 3
                 print(
                     f"  {log['timestamp'][:19]} - {log['tool_name']}: "
@@ -74,7 +74,7 @@ async def async_example():
 
         # Export logs for analysis
         api.export_tool_logs("detailed_tool_logs.json", format="json")
-        print(f"\n💾 Exported detailed logs to detailed_tool_logs.json")
+        print("\n💾 Exported detailed logs to detailed_tool_logs.json")
 
 
 def sync_example():
@@ -100,7 +100,7 @@ def sync_example():
         # Show statistics
         stats = api.get_tool_call_stats()
         if stats:
-            print(f"\n📊 Tool Call Statistics:")
+            print("\n📊 Tool Call Statistics:")
             print(f"  Total calls: {stats.get('total_calls', 0)}")
             print(f"  Success rate: {stats.get('success_rate', 0):.1%}")
 

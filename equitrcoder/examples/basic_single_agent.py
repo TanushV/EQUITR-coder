@@ -41,7 +41,7 @@ async def basic_task_execution():
 
     # Check results
     if result["success"]:
-        print(f"✅ Task completed successfully!")
+        print("✅ Task completed successfully!")
         print(f"💰 Cost: ${result['cost']:.4f}")
         print(f"🔄 Iterations used: {result['iterations']}")
         print(f"📝 Session ID: {result['session_id']}")
@@ -127,7 +127,7 @@ async def session_management_example():
     # Check session information
     session = session_manager.load_session("project-analysis")
     if session:
-        print(f"\n📊 Session Statistics:")
+        print("\n📊 Session Statistics:")
         print(f"   Total cost: ${session.cost:.4f}")
         print(f"   Total iterations: {session.iteration_count}")
         print(f"   Messages in history: {len(session.messages)}")

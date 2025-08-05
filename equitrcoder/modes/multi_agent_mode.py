@@ -8,7 +8,8 @@ from ..tools.discovery import discover_tools
 from ..core.global_message_pool import global_message_pool
 from ..tools.builtin.communication import create_communication_tools_for_agent
 from ..tools.builtin.todo import set_global_todo_file, todo_manager
-from ..utils.git_manager import GitManager # <-- NEW IMPORT
+from ..utils.git_manager import GitManager
+from ..core.profile_manager import ProfileManager
 
 class MultiAgentMode:
     """Manages multi-agent execution with dependency-aware phasing and auto-commits."""
@@ -22,13 +23,18 @@ class MultiAgentMode:
         self.max_iterations_per_agent = max_iterations_per_agent
         self.run_parallel = run_parallel
         self.auto_commit = auto_commit # <-- NEW PROPERTY
+        self.profile_manager = ProfileManager()
         print(f"🎭 Multi-Agent Mode ({'Parallel Phased' if run_parallel else 'Sequential Group'}): Auto-commit is {'ON' if self.auto_commit else 'OFF'}")
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
     
-    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None) -> Dict[str, Any]:
+    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None) -> Dict[str, Any]:
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
-            docs_result = await orchestrator.create_docs(task_description=task_description, project_path=project_path)
+            docs_result = await orchestrator.create_docs(
+                task_description=task_description, 
+                project_path=project_path,
+                team=team
+            )
             if not docs_result["success"]:
                 return {"success": False, "error": f"Documentation failed: {docs_result['error']}", "stage": "planning"}
             
@@ -69,29 +75,61 @@ class MultiAgentMode:
             return {"success": False, "error": str(e)}
     
     async def _execute_task_group(self, group, docs_result, callbacks):
-        # This helper method remains unchanged
         agent_id = f"{group.specialization}_agent_{group.group_id}"
         await global_message_pool.register_agent(agent_id)
+
+        # --- Profile-based Agent Configuration ---
+        try:
+            profile = self.profile_manager.get_profile(group.specialization)
+            system_prompt = profile.get('system_prompt', "You are a helpful assistant.")
+            allowed_tool_names = profile.get('allowed_tools', [])
+        except ValueError:
+            print(f"Warning: Profile '{group.specialization}' not found. Using default agent configuration.")
+            system_prompt = "You are a helpful assistant."
+            allowed_tool_names = [t.name for t in discover_tools()] # Default to all tools
+
+        # Filter tools based on the profile
+        all_available_tools = discover_tools()
+        agent_tools = [tool for tool in all_available_tools if tool.name in allowed_tool_names]
+        
+        # Add communication tools, as they are essential for coordination
         communication_tools = create_communication_tools_for_agent(agent_id)
-        all_tools = discover_tools() + communication_tools
-        agent = CleanAgent(agent_id=agent_id, model=self.agent_model, tools=all_tools, context=docs_result, max_cost=self.max_cost_per_agent, max_iterations=self.max_iterations_per_agent, audit_model=self.audit_model)
-        if callbacks: agent.set_callbacks(**callbacks)
-        group_task_desc = f"""You are a specialist agent with the role: {group.specialization}.
-Your current objective is to complete all todos in the '{group.description}' task group.
+        agent_tools.extend(communication_tools)
+        
+        # --- Instantiate Agent with Profile ---
+        agent = CleanAgent(
+            agent_id=agent_id,
+            model=self.agent_model,
+            tools=agent_tools,
+            context=docs_result,
+            max_cost=self.max_cost_per_agent,
+            max_iterations=self.max_iterations_per_agent,
+            audit_model=self.audit_model
+        )
+        if callbacks:
+            agent.set_callbacks(**callbacks)
+        
+        # The task description now supplements the base system prompt from the profile
+        group_task_desc = f"""{system_prompt}
+
+Your current mission is to complete your part of a larger project.
+Your specific objective is to complete all todos in the '{group.description}' task group.
 Use `list_todos_in_group` with group_id='{group.group_id}' to see your tasks.
 Coordinate with other agents using `send_message` if you need information or need to signal completion of a dependency.
 Complete each todo and mark it done with `update_todo_status`.
+Make sure to only use the tools you have been given.
 """
         result = await agent.run(group_task_desc)
-        if not result.get("success"): todo_manager.update_task_group_status(group.group_id, 'failed')
+        if not result.get("success"):
+            todo_manager.update_task_group_status(group.group_id, "failed")
         return result
 
 async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:
     config = {'run_parallel': False, 'auto_commit': True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""))
+    return await mode.run(task_description=kwargs.get("task_description", ""), team=kwargs.get("team"))
 
 async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
     config = {'run_parallel': True, 'auto_commit': True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""))
+    return await mode.run(task_description=kwargs.get("task_description", ""), team=kwargs.get("team"))

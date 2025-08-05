@@ -9,10 +9,7 @@ with security restrictions and parallel execution.
 
 import asyncio
 import os
-from typing import Any, Dict, List
 
-from equitrcoder.agents.worker_agent import WorkerAgent
-from equitrcoder.core.session import SessionManagerV2
 
 # Import the main equitrcoder components
 from equitrcoder.orchestrators.multi_agent_orchestrator import (
@@ -52,8 +49,8 @@ async def basic_multi_agent_example():
     )
 
     # Register workers
-    frontend_worker = orchestrator.create_worker(frontend_config)
-    backend_worker = orchestrator.create_worker(backend_config)
+    orchestrator.create_worker(frontend_config)
+    orchestrator.create_worker(backend_config)
 
     print(f"Created workers: {[w.worker_id for w in orchestrator.workers.values()]}")
 
@@ -88,7 +85,7 @@ async def basic_multi_agent_example():
 
     # Get orchestrator statistics
     stats = orchestrator.get_statistics()
-    print(f"\n📊 Orchestrator Statistics:")
+    print("\n📊 Orchestrator Statistics:")
     print(f"   Total cost: ${stats['total_cost']:.4f}")
     print(f"   Active workers: {stats['active_workers']}")
     print(f"   Completed tasks: {stats['completed_tasks']}")
@@ -152,11 +149,11 @@ async def security_isolation_example():
     secure_stats = secure_worker.get_scope_stats()
     general_stats = general_worker.get_scope_stats()
 
-    print(f"\n📋 Secure Worker Scope:")
+    print("\n📋 Secure Worker Scope:")
     print(f"   Allowed paths: {secure_stats['scope_paths']}")
     print(f"   Allowed tools: {secure_stats['allowed_tools']}")
 
-    print(f"\n📋 General Worker Scope:")
+    print("\n📋 General Worker Scope:")
     print(f"   Allowed paths: {general_stats['scope_paths']}")
     print(f"   Allowed tools: {general_stats['allowed_tools']}")
 
@@ -201,9 +198,9 @@ async def complex_workflow_example():
     )
 
     # Create workers
-    analyzer = orchestrator.create_worker(analyzer_config)
-    documenter = orchestrator.create_worker(documenter_config)
-    tester = orchestrator.create_worker(tester_config)
+    orchestrator.create_worker(analyzer_config)
+    orchestrator.create_worker(documenter_config)
+    orchestrator.create_worker(tester_config)
 
     # Phase 1: Analysis (sequential)
     print("Phase 1: Analysis...")
@@ -252,7 +249,7 @@ async def complex_workflow_example():
 
     # Final statistics
     final_stats = orchestrator.get_statistics()
-    print(f"\n📊 Final Workflow Statistics:")
+    print("\n📊 Final Workflow Statistics:")
     print(f"   Total tasks: {final_stats['completed_tasks']}")
     print(f"   Total cost: ${final_stats['total_cost']:.4f}")
     print(
@@ -285,7 +282,7 @@ async def supervisor_consultation_example():
         max_iterations=15,
     )
 
-    worker = orchestrator.create_worker(worker_config)
+    orchestrator.create_worker(worker_config)
 
     # Task that might need supervisor guidance
     tasks = [
@@ -342,8 +339,8 @@ async def error_recovery_example():
     )
 
     # Create workers
-    limited_worker = orchestrator.create_worker(limited_worker_config)
-    normal_worker = orchestrator.create_worker(normal_worker_config)
+    orchestrator.create_worker(limited_worker_config)
+    orchestrator.create_worker(normal_worker_config)
 
     # Tasks designed to test failure handling
     tasks = [
@@ -368,7 +365,7 @@ async def error_recovery_example():
     successful_tasks = [r for r in results if r.success]
     failed_tasks = [r for r in results if not r.success]
 
-    print(f"\n📊 Results Summary:")
+    print("\n📊 Results Summary:")
     print(f"   Successful tasks: {len(successful_tasks)}")
     print(f"   Failed tasks: {len(failed_tasks)}")
 
@@ -385,10 +382,10 @@ async def error_recovery_example():
 
     # Recovery strategy example
     if failed_tasks:
-        print(f"\n🔄 Recovery Strategy:")
-        print(f"   - Retry failed tasks with higher limits")
-        print(f"   - Break down complex tasks into smaller ones")
-        print(f"   - Reassign tasks to different workers")
+        print("\n🔄 Recovery Strategy:")
+        print("   - Retry failed tasks with higher limits")
+        print("   - Break down complex tasks into smaller ones")
+        print("   - Reassign tasks to different workers")
 
     return results
 

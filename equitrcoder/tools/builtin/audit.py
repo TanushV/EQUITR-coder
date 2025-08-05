@@ -3,7 +3,6 @@ Audit system for EQUITR-coder - automatically runs when all todos are completed.
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -104,7 +103,7 @@ class AutoAuditManager:
                 )
                 return False
             else:
-                print(f"✅ All todos completed - audit triggered!")
+                print("✅ All todos completed - audit triggered!")
                 return True
 
     def record_audit_result(

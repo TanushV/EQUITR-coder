@@ -1,15 +1,12 @@
 import asyncio
-import json
 import logging
 import os
 import random
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import litellm
 
-from ..core.config import Config
 
 # Import shared models from openrouter for consistency
 from .openrouter import ChatResponse, Message, ToolCall

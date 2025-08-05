@@ -6,13 +6,9 @@ This module implements comprehensive testing for multi-agent modes.
 
 import asyncio
 import time
-import traceback
-from pathlib import Path
-from typing import Dict, Any, Optional
 
 from .comprehensive_test_framework import (
-    TestResult, TestStatus, PerformanceMetrics, FailureAnalysis, 
-    ErrorCategory, MultiAgentTestResults
+    TestResult, TestStatus, MultiAgentTestResults
 )
 from .test_environment_manager import TestEnvironmentManager, TestEnvironmentConfig
 
@@ -81,7 +77,7 @@ class MultiAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 f"multi_agent_{self.mode}_docs", env_config
             )
             
@@ -132,7 +128,7 @@ class MultiAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 f"multi_agent_{self.mode}_todos", env_config
             )
             
@@ -183,7 +179,7 @@ class MultiAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 f"multi_agent_{self.mode}_coord", env_config
             )
             
@@ -234,7 +230,7 @@ class MultiAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 f"multi_agent_{self.mode}_audit", env_config
             )
             
@@ -287,7 +283,7 @@ class MultiAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 "multi_agent_parallel_exec", env_config
             )
             

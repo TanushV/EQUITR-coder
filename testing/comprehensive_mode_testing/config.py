@@ -3,7 +3,7 @@ Configuration classes for comprehensive mode testing.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from pathlib import Path
 
 
@@ -23,7 +23,7 @@ class ComprehensiveTestConfig:
     test_task: str = "Create a simple calculator application with basic arithmetic operations (add, subtract, multiply, divide), a command-line interface, input validation, error handling for division by zero, and comprehensive unit tests"
     
     # Multi-agent configuration
-    parallel_agents_count: int = 3
+    parallel_agents_count: int = 4
     max_workers: int = 3
     
     # Testing behavior

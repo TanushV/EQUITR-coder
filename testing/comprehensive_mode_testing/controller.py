@@ -2,22 +2,19 @@
 Main controller for comprehensive mode testing.
 """
 
-import asyncio
 import time
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-from .config import ComprehensiveTestConfig, TestEnvironmentConfig
+from .config import ComprehensiveTestConfig
 from .results import (
     ComprehensiveTestResults,
     SingleAgentTestResults,
     MultiAgentTestResults,
     TestResult,
-    TestStatus,
-    FailureAnalysis,
-    ErrorCategory
+    FailureAnalysis
 )
 
 
@@ -47,7 +44,7 @@ class ComprehensiveModeTestController:
         self.failure_analyses: List[FailureAnalysis] = []
         
         if self.config.verbose_output:
-            print(f"🧪 Initialized comprehensive mode test controller")
+            print("🧪 Initialized comprehensive mode test controller")
             print(f"📁 Test run directory: {self.test_run_dir}")
             print(f"🤖 Model: {self.config.model}")
             print(f"💰 Max cost per test: ${self.config.max_cost_per_test}")
@@ -123,7 +120,7 @@ class ComprehensiveModeTestController:
             await self._save_results(comprehensive_results)
             
             if self.config.verbose_output:
-                print(f"\n📊 Comprehensive testing completed!")
+                print("\n📊 Comprehensive testing completed!")
                 print(f"📁 Results saved to: {self.test_run_dir}")
                 print(f"⏱️  Total execution time: {total_execution_time:.2f} seconds")
                 print(f"💰 Total cost: ${total_cost:.4f}")

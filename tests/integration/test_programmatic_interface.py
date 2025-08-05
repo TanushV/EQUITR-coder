@@ -2,7 +2,6 @@
 Integration tests for the programmatic interface
 """
 
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -24,12 +23,12 @@ class TestProgrammaticInterface:
         # Single mode
         coder = EquitrCoder(mode="single")
         assert coder.mode == "single"
-        assert coder.git_enabled == True
+        assert coder.git_enabled
 
         # Multi mode
         multi_coder = EquitrCoder(mode="multi", git_enabled=False)
         assert multi_coder.mode == "multi"
-        assert multi_coder.git_enabled == False
+        assert not multi_coder.git_enabled
 
     def test_task_configuration(self):
         """Test TaskConfiguration creation."""
@@ -45,7 +44,7 @@ class TestProgrammaticInterface:
         assert config.max_cost == 2.0
         assert config.max_iterations == 10
         assert config.model == "gpt-4"
-        assert config.auto_commit == False
+        assert not config.auto_commit
 
     def test_multi_agent_task_configuration(self):
         """Test MultiAgentTaskConfiguration creation."""
@@ -79,7 +78,7 @@ class TestProgrammaticInterface:
         keys = coder.check_available_api_keys()
 
         assert "openai" in keys
-        assert keys["openai"] == True
+        assert keys["openai"]
 
     async def test_check_model_availability_basic(self):
         """Test basic model availability checking."""
@@ -94,7 +93,7 @@ class TestProgrammaticInterface:
         # Single agent coder
         single_coder = create_single_agent_coder(repo_path=".", git_enabled=True)
         assert single_coder.mode == "single"
-        assert single_coder.git_enabled == True
+        assert single_coder.git_enabled
 
         # Multi agent coder
         multi_coder = create_multi_agent_coder(
@@ -168,7 +167,7 @@ class TestProgrammaticInterface:
             )
             result = await coder.execute_task("Test task", config)
 
-            assert result.success == True
+            assert result.success
             assert "Task completed" in result.content
             assert result.cost == 0.05
             assert result.iterations == 3
@@ -179,7 +178,7 @@ class TestProgrammaticInterface:
         result = await coder.execute_task("test")
 
         # Should return failed result instead of raising exception
-        assert result.success == False
+        assert not result.success
         assert "Invalid mode: invalid" in result.error
 
 
@@ -214,7 +213,7 @@ class TestErrorHandling:
         ):
             result = await coder.execute_task("Test task")
 
-            assert result.success == False
+            assert not result.success
             assert result.error == "Test error"
             assert result.cost == 0.0
             assert result.iterations == 0

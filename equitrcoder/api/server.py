@@ -18,7 +18,6 @@ except ImportError:
 from pydantic import BaseModel
 
 from ..agents.base_agent import BaseAgent
-from ..agents.worker_agent import WorkerAgent
 from ..orchestrators.multi_agent_orchestrator import (
     MultiAgentOrchestrator,
     WorkerConfig,

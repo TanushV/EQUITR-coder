@@ -11,13 +11,11 @@ The workflow differs by mode:
 - Programmatic mode: AI creates them automatically
 """
 
-import asyncio
 import json
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ..providers.litellm import LiteLLMProvider, Message
 from ..tools.builtin.todo import TodoManager

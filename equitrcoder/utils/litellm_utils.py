@@ -1,7 +1,8 @@
 """Utility functions for LiteLLM model compatibility and function calling support."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
+import os
 import litellm
 
 
@@ -73,7 +74,7 @@ def check_function_calling_support(model: str) -> bool:
     # Try LiteLLM's built-in function calling support check
     try:
         return litellm.supports_function_calling(model)
-    except:
+    except Exception:
         # If LiteLLM doesn't recognize the model, assume no function calling
         return False
 
@@ -228,7 +229,3 @@ def get_model_provider(model: str) -> str:
         return "meta"
     else:
         return "unknown"
-
-
-# Import os for environment variable access
-import os

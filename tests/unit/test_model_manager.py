@@ -3,7 +3,7 @@ Unit tests for ModelManager
 """
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -33,28 +33,26 @@ class TestModelManager:
     def test_supports_function_calling(self):
         """Test function calling support detection."""
         # Should support function calling
-        assert self.model_manager._supports_function_calling("gpt-4") == True
+        assert self.model_manager._supports_function_calling("gpt-4")
         assert (
             self.model_manager._supports_function_calling("openai/gpt-3.5-turbo")
-            == True
         )
         assert (
             self.model_manager._supports_function_calling("anthropic/claude-3-sonnet")
-            == True
         )
 
         # Should not support function calling (unknown models)
-        assert self.model_manager._supports_function_calling("unknown-model") == False
+        assert not self.model_manager._supports_function_calling("unknown-model")
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
     def test_check_api_key_available_with_key(self):
         """Test API key availability check when key is present."""
-        assert self.model_manager._check_api_key_available("openai") == True
+        assert self.model_manager._check_api_key_available("openai")
 
     @patch.dict(os.environ, {}, clear=True)
     def test_check_api_key_available_without_key(self):
         """Test API key availability check when key is missing."""
-        assert self.model_manager._check_api_key_available("openai") == False
+        assert not self.model_manager._check_api_key_available("openai")
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
     async def test_validate_model_success(self):
@@ -62,8 +60,8 @@ class TestModelManager:
         result = await self.model_manager.validate_model("gpt-4")
 
         assert result.model == "gpt-4"
-        assert result.is_valid == True
-        assert result.supports_function_calling == True
+        assert result.is_valid
+        assert result.supports_function_calling
         assert result.provider == "openai"
         assert result.availability_status == "available"
         assert result.error_message is None
@@ -74,7 +72,7 @@ class TestModelManager:
         result = await self.model_manager.validate_model("gpt-4")
 
         assert result.model == "gpt-4"
-        assert result.is_valid == False
+        assert not result.is_valid
         assert result.availability_status == "api_key_missing"
         assert "API key not found" in result.error_message
 
@@ -88,7 +86,7 @@ class TestModelManager:
             ):
                 result = await self.model_manager.validate_model("some-model")
 
-                assert result.is_valid == False
+                assert not result.is_valid
                 assert result.availability_status == "no_function_calling"
                 assert "does not support function calling" in result.error_message
 

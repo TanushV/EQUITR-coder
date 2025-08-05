@@ -9,40 +9,27 @@ Features:
 - Real-time updates and proper event handling
 """
 
-import asyncio
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import litellm
-from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
-from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.containers import Container, Horizontal, Vertical
 from textual.events import Key
-from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
-    Footer,
     Header,
     Input,
     Label,
     ListItem,
     ListView,
-    Placeholder,
-    ProgressBar,
     RichLog,
     Static,
     TabbedContent,
     TabPane,
-    Tree,
 )
 
 try:
@@ -50,7 +37,7 @@ try:
 except ImportError:
     TEXTUAL_AVAILABLE = False
 
-from ..core.config import Config, config_manager
+from ..core.config import config_manager
 from ..programmatic import (
     EquitrCoder,
     ExecutionResult,
@@ -159,7 +146,7 @@ class ChatWindow(RichLog):
             error_text = Text(f"  Error: {result['error']}", style="red")
             self.write(error_text)
         elif success:
-            success_text = Text(f"  ✓ Success", style="green")
+            success_text = Text("  ✓ Success", style="green")
             self.write(success_text)
 
         self.write("")
@@ -522,7 +509,7 @@ class EquitrTUI(App):
         selector.remove_class("hidden")
 
         supervisor_input = self.query_one("#supervisor-input", Input)
-        worker_input = self.query_one("#worker-input", Input)
+        self.query_one("#worker-input", Input)
         supervisor_input.focus()
 
         # Initial update
@@ -684,7 +671,7 @@ class EquitrTUI(App):
             # Get todos from todo manager
             todos = todo_manager.list_todos()
             self.todo_sidebar.update_todos(todos)
-        except Exception as e:
+        except Exception:
             # If todo manager fails, show empty list
             self.todo_sidebar.update_todos([])
 

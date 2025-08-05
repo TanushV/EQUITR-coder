@@ -7,7 +7,6 @@ with each other and provide clean, reproducible test conditions.
 
 import os
 import shutil
-import tempfile
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -39,7 +38,7 @@ class TestEnvironmentManager:
         self.active_environments: Dict[str, Path] = {}
         self.environment_configs: Dict[str, TestEnvironmentConfig] = {}
         
-        print(f"🏗️ Test Environment Manager initialized")
+        print("🏗️ Test Environment Manager initialized")
         print(f"📁 Base test directory: {self.base_test_dir}")
     
     def create_isolated_environment(self, test_name: str, config: Optional[TestEnvironmentConfig] = None) -> Path:

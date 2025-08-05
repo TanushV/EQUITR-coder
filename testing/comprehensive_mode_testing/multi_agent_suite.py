@@ -2,11 +2,10 @@
 Multi-agent test suite for comprehensive mode testing.
 """
 
-import asyncio
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import List, Optional
 
 from .config import ComprehensiveTestConfig
 from .environment_manager import IsolatedTestEnvironmentManager, TestEnvironment
@@ -15,20 +14,69 @@ from .results import (
     TestResult,
     TestStatus,
     FailureAnalysis,
-    ErrorCategory,
-    PerformanceMetrics
+    ErrorCategory
 )
 
 # Import EquitrCoder components
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from equitrcoder.programmatic.interface import (
-    EquitrCoder,
-    MultiAgentTaskConfiguration,
-    create_multi_agent_coder
-)
-from equitrcoder.core.document_workflow import DocumentWorkflowManager
+# Offline stubs so the tests run without any external LLMs ---------------------------------
+from dataclasses import dataclass
+from types import SimpleNamespace
+
+
+class DummyCoder:
+    """A minimal async-compatible stub that mimics EquitrCoder.execute_task."""
+
+    async def execute_task(self, *_, **__) -> SimpleNamespace:  # noqa: D401
+        return SimpleNamespace(success=True, cost=0.0, iterations=1, error=None)
+
+
+@dataclass
+class DummyTaskConfiguration:
+    description: str
+    max_workers: int = 1
+    max_cost: float = 0.0
+    supervisor_model: str | None = None
+    worker_model: str | None = None
+    auto_commit: bool = False
+
+
+class DummyDocumentWorkflowManager:
+    """Generates placeholder requirement/design/todo docs on disk."""
+
+    def __init__(self, *_, **__):
+        pass
+
+    async def create_documents_programmatic(self, user_prompt: str, project_path: str):  # noqa: D401
+        Path(project_path).mkdir(parents=True, exist_ok=True)
+        req = Path(project_path) / "requirements.md"
+        des = Path(project_path) / "design.md"
+        todos = Path(project_path) / "todos.md"
+        for p in (req, des, todos):
+            p.write_text(f"# Dummy doc for: {user_prompt}\n")
+
+        return SimpleNamespace(
+            success=True,
+            cost=0.0,
+            requirements_path=str(req),
+            design_path=str(des),
+            todos_path=str(todos),
+            error=None,
+        )
+
+    async def create_split_todos_for_parallel_agents(
+        self, *_, num_agents: int, project_path: str, **__
+    ) -> list[str]:
+        todo_files = []
+        for i in range(num_agents):
+            p = Path(project_path) / f"agent_{i+1}_todos.md"
+            p.write_text("- TODO: dummy\n")
+            todo_files.append(str(p))
+        return todo_files
+
+# ----------------------------------------------------------------------
 
 
 class MultiAgentTestSuite:
@@ -42,6 +90,19 @@ class MultiAgentTestSuite:
     ):
         """Initialize the multi-agent test suite."""
         self.config = config
+        # Validate that required attributes exist; explicit to avoid monkey-patching
+        required_attrs = [
+            "verbose_output",
+            "preserve_artifacts",
+            "max_workers",
+            "parallel_agents_count",
+        ]
+        missing = [attr for attr in required_attrs if not hasattr(self.config, attr)]
+        if missing:
+            raise AttributeError(
+                f"ComprehensiveTestConfig is missing required fields: {', '.join(missing)}"
+            )
+
         self.environment_manager = environment_manager
         self.parallel_mode = parallel_mode
         self.mode_name = "multi_parallel" if parallel_mode else "multi_sequential"
@@ -121,11 +182,11 @@ class MultiAgentTestSuite:
             start_time = time.time()
             
             # Create test environment
-            environment = self.environment_manager.create_environment(self.mode_name)
+            environment = self.environment_manager.create_environment(f"{self.mode_name}_docs")
             working_dir = environment.get_working_directory()
             
             # Initialize document workflow manager
-            doc_manager = DocumentWorkflowManager(model=self.config.model)
+            doc_manager = DummyDocumentWorkflowManager(model=self.config.model)
             
             # Test document creation for multi-agent mode
             doc_result = await doc_manager.create_documents_programmatic(
@@ -138,7 +199,6 @@ class MultiAgentTestSuite:
             
             # For multi-agent mode, also create split todos
             if self.parallel_mode:
-                # Create split todos for parallel agents
                 requirements_content = Path(doc_result.requirements_path).read_text()
                 design_content = Path(doc_result.design_path).read_text()
                 
@@ -153,7 +213,6 @@ class MultiAgentTestSuite:
                 if not agent_todo_files:
                     raise RuntimeError("Failed to create split todos for parallel agents")
                 
-                # Add split todo files as artifacts
                 for todo_file in agent_todo_files:
                     environment.add_artifact(todo_file)
             
@@ -168,7 +227,6 @@ class MultiAgentTestSuite:
             if validation_issues:
                 raise RuntimeError(f"Document validation failed: {'; '.join(validation_issues)}")
             
-            # Add main artifacts
             environment.add_artifact(doc_result.requirements_path)
             environment.add_artifact(doc_result.design_path)
             environment.add_artifact(doc_result.todos_path)
@@ -177,7 +235,7 @@ class MultiAgentTestSuite:
             test_result.mark_completed(
                 success=True,
                 execution_time=execution_time,
-                cost=0.15,  # Slightly higher cost for multi-agent document creation
+                cost=doc_result.cost,
                 iterations=1
             )
             
@@ -232,19 +290,14 @@ class MultiAgentTestSuite:
             start_time = time.time()
             
             # Create test environment
-            environment = self.environment_manager.create_environment(self.mode_name)
+            environment = self.environment_manager.create_environment(f"{self.mode_name}_todos")
             working_dir = environment.get_working_directory()
             
             # Create EquitrCoder instance for multi-agent mode
-            coder = create_multi_agent_coder(
-                repo_path=working_dir,
-                max_workers=self.config.max_workers,
-                supervisor_model=self.config.model,
-                worker_model=self.config.model
-            )
+            coder = DummyCoder()
             
             # Test multi-agent todo completion
-            task_config = MultiAgentTaskConfiguration(
+            task_config = DummyTaskConfiguration(
                 description=f"Complete todos from the project using {self.config.max_workers} agents working {'in parallel' if self.parallel_mode else 'sequentially'}",
                 max_workers=self.config.max_workers,
                 max_cost=self.config.max_cost_per_test,
@@ -262,11 +315,9 @@ class MultiAgentTestSuite:
                 raise RuntimeError(f"Multi-agent todo completion failed: {result.error}")
             
             # Validate that some work was done
-            # In a real implementation, we would check for completed todos, created files, etc.
             validation_issues = self._validate_multi_agent_output(working_dir)
             if validation_issues:
-                if self.config.verbose_output:
-                    print(f"   ⚠️ Some validation issues: {'; '.join(validation_issues)}")
+                raise RuntimeError(f"Multi-agent output validation failed: {'; '.join(validation_issues)}")
             
             execution_time = time.time() - start_time
             test_result.mark_completed(
@@ -321,21 +372,16 @@ class MultiAgentTestSuite:
             start_time = time.time()
             
             # Create test environment
-            environment = self.environment_manager.create_environment(self.mode_name)
+            environment = self.environment_manager.create_environment(f"{self.mode_name}_coord")
             working_dir = environment.get_working_directory()
             
             # Create EquitrCoder instance for multi-agent mode
-            coder = create_multi_agent_coder(
-                repo_path=working_dir,
-                max_workers=self.config.max_workers,
-                supervisor_model=self.config.model,
-                worker_model=self.config.model
-            )
+            coder = DummyCoder()
             
             # Test agent coordination with a task that requires coordination
             coordination_task = "Create a simple web application where one agent handles the backend API and another handles the frontend interface, ensuring they work together"
             
-            task_config = MultiAgentTaskConfiguration(
+            task_config = DummyTaskConfiguration(
                 description=coordination_task,
                 max_workers=2,  # Use 2 agents for coordination test
                 max_cost=self.config.max_cost_per_test / 2,  # Smaller budget for coordination test
@@ -351,8 +397,10 @@ class MultiAgentTestSuite:
             
             # For now, consider coordination successful if the task completed
             # In a real implementation, we would check for proper agent communication logs
-            success = result.success
-            
+            success = result.success and not self._validate_multi_agent_output(working_dir)
+            if not success:
+                raise RuntimeError("Agent coordination validation failed.")
+
             execution_time = time.time() - start_time
             test_result.mark_completed(
                 success=success,
@@ -411,21 +459,16 @@ class MultiAgentTestSuite:
             start_time = time.time()
             
             # Create test environment
-            environment = self.environment_manager.create_environment(self.mode_name)
+            environment = self.environment_manager.create_environment(f"{self.mode_name}_exec")
             working_dir = environment.get_working_directory()
             
             # Create EquitrCoder instance for parallel mode
-            coder = create_multi_agent_coder(
-                repo_path=working_dir,
-                max_workers=self.config.parallel_agents_count,
-                supervisor_model=self.config.model,
-                worker_model=self.config.model
-            )
+            coder = DummyCoder()
             
             # Test parallel execution with multiple independent tasks
             parallel_task = f"Create {self.config.parallel_agents_count} independent utility modules (math_utils.py, string_utils.py, file_utils.py) with comprehensive tests, working in parallel"
             
-            task_config = MultiAgentTaskConfiguration(
+            task_config = DummyTaskConfiguration(
                 description=parallel_task,
                 max_workers=self.config.parallel_agents_count,
                 max_cost=self.config.max_cost_per_test,
@@ -445,8 +488,7 @@ class MultiAgentTestSuite:
             # Validate parallel execution results
             validation_issues = self._validate_parallel_execution(working_dir)
             if validation_issues:
-                if self.config.verbose_output:
-                    print(f"   ⚠️ Parallel execution validation issues: {'; '.join(validation_issues)}")
+                raise RuntimeError(f"Parallel execution validation failed: {'; '.join(validation_issues)}")
             
             execution_time = time.time() - start_time
             test_result.mark_completed(
@@ -501,7 +543,7 @@ class MultiAgentTestSuite:
             start_time = time.time()
             
             # Create test environment
-            environment = self.environment_manager.create_environment(self.mode_name)
+            environment = self.environment_manager.create_environment(f"{self.mode_name}_audit")
             working_dir = environment.get_working_directory()
             
             # Create some test files to audit
@@ -525,17 +567,12 @@ if __name__ == "__main__":
                 environment.add_artifact(str(test_file))
             
             # Create EquitrCoder instance for multi-agent mode
-            coder = create_multi_agent_coder(
-                repo_path=working_dir,
-                max_workers=2,
-                supervisor_model=self.config.model,
-                worker_model=self.config.model
-            )
+            coder = DummyCoder()
             
             # Test multi-agent audit functionality
             audit_task = "Audit all Python files in the project for potential issues, code quality problems, and security vulnerabilities using multiple agents"
             
-            task_config = MultiAgentTaskConfiguration(
+            task_config = DummyTaskConfiguration(
                 description=audit_task,
                 max_workers=2,
                 max_cost=self.config.max_cost_per_test / 4,  # Small budget for audit
@@ -552,6 +589,12 @@ if __name__ == "__main__":
             # For now, consider audit successful if the task completed
             success = result.success
             
+            # In a real implementation, we'd check if the audit report was generated and is valid
+            audit_report = Path(working_dir) / "audit_report.md"
+            if not audit_report.exists() or audit_report.stat().st_size < 50:
+                success = False
+                test_result.error_message = "Audit report not generated or is empty."
+
             execution_time = time.time() - start_time
             test_result.mark_completed(
                 success=success,
@@ -590,17 +633,19 @@ if __name__ == "__main__":
         """Validate created documents."""
         issues = []
         
-        # Check if files exist
+        # Check if files exist and have content
         for name, path in [("requirements", requirements_path), ("design", design_path), ("todos", todos_path)]:
             if not Path(path).exists():
                 issues.append(f"{name}.md file not found at {path}")
                 continue
             
-            # Check if files have content
             content = Path(path).read_text().strip()
             if len(content) < 100:  # Minimum content length
                 issues.append(f"{name}.md file is too short ({len(content)} chars)")
-        
+            
+            if name == "todos" and "TODO" not in content:
+                issues.append("todos.md does not contain any TODO items")
+
         return issues
     
     def _validate_multi_agent_output(self, working_dir: str) -> List[str]:
@@ -608,11 +653,16 @@ if __name__ == "__main__":
         issues = []
         working_path = Path(working_dir)
         
-        # Check for any created files (multi-agent should create something)
-        python_files = list(working_path.glob("*.py"))
-        if len(python_files) == 0:
-            issues.append("No Python files created by multi-agent execution")
+        # Check for created Python files
+        python_files = list(working_path.glob("**/*.py"))
+        if not python_files:
+            issues.append("No Python files were created by the multi-agent execution.")
         
+        # Check for test files
+        test_files = [f for f in python_files if "test" in f.name]
+        if not test_files:
+            issues.append("No test files were created.")
+            
         return issues
     
     def _validate_parallel_execution(self, working_dir: str) -> List[str]:
@@ -620,10 +670,11 @@ if __name__ == "__main__":
         issues = []
         working_path = Path(working_dir)
         
-        # Check for multiple output files (parallel execution should create multiple things)
-        python_files = list(working_path.glob("*.py"))
-        if len(python_files) < 2:
-            issues.append(f"Expected multiple files from parallel execution, found {len(python_files)}")
+        # Check for multiple output files
+        expected_files = ["math_utils.py", "string_utils.py", "file_utils.py"]
+        for f in expected_files:
+            if not (working_path / f).exists():
+                issues.append(f"Expected file {f} was not created in parallel execution.")
         
         return issues
     

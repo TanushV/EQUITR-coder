@@ -1,16 +1,10 @@
 """Simple ASCII TUI interface for EQUITR Coder."""
 
-import asyncio
 import os
-from datetime import datetime
-from typing import Any, Dict, List, Optional
 
-from ..agents.base_agent import BaseAgent
-from ..core.config import Config, config_manager
+from ..core.config import Config
 from ..core.session import SessionManagerV2
-from ..modes.multi_agent_mode import run_multi_agent_sequential
 from ..modes.single_agent_mode import run_single_agent_mode
-from ..tools.discovery import discover_tools
 
 HEADER_COLOR = "\033[94m"  # Bright blue
 SUCCESS_COLOR = "\033[92m"  # Green
@@ -356,10 +350,10 @@ async def run_tui(config: Config) -> None:
     await tui.run()
 
 
-# --- Convenience wrapper expected by CLI ---
-import asyncio as _asyncio
+# --- Convenience wrapper expected by CLI ---  # noqa: E402
+import asyncio as _asyncio  # noqa: E402
 
-from ..core.config import config_manager as _cfg_mgr
+from ..core.config import config_manager as _cfg_mgr  # noqa: E402
 
 
 def launch_tui(mode: str = "single") -> int:

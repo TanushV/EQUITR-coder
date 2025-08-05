@@ -13,13 +13,11 @@ This example demonstrates:
 
 import asyncio
 import os
-from pathlib import Path
 
 from equitrcoder import (
     EquitrCoder,
     MultiAgentTaskConfiguration,
     TaskConfiguration,
-    WorkerConfiguration,
     create_multi_agent_coder,
     create_single_agent_coder,
 )
@@ -50,7 +48,7 @@ async def single_agent_example():
         )
 
         if result.success:
-            print(f"✅ Task completed successfully!")
+            print("✅ Task completed successfully!")
             print(f"   Cost: ${result.cost:.4f}")
             print(f"   Time: {result.execution_time:.2f}s")
             print(f"   Iterations: {result.iterations}")
@@ -94,7 +92,7 @@ async def multi_agent_example():
         )
 
         if result.success:
-            print(f"✅ Multi-agent task completed!")
+            print("✅ Multi-agent task completed!")
             print(f"   Cost: ${result.cost:.4f}")
             print(f"   Time: {result.execution_time:.2f}s")
             print(f"   Workers used: {result.iterations}")
@@ -174,12 +172,12 @@ async def session_management_example():
         )
 
         # Execute first task
-        result1 = await coder.execute_task(
+        await coder.execute_task(
             "Create a simple utility function for string manipulation", config=config
         )
 
         # Execute second task in same session
-        result2 = await coder.execute_task(
+        await coder.execute_task(
             "Add unit tests for the utility function you just created", config=config
         )
 
@@ -210,7 +208,7 @@ async def git_integration_example():
     try:
         # Check git status
         status = coder.get_git_status()
-        print(f"📁 Git Status:")
+        print("📁 Git Status:")
         if "error" in status:
             print(f"   Error: {status['error'][0]}")
         else:
@@ -219,7 +217,7 @@ async def git_integration_example():
 
         # Get recent commits
         commits = coder.get_recent_commits(3)
-        print(f"📜 Recent commits:")
+        print("📜 Recent commits:")
         for commit in commits:
             print(f"   {commit['hash']}: {commit['message'][:50]}...")
 
@@ -267,7 +265,7 @@ async def error_handling_example():
                 else:
                     print(f"⚠️ Attempt {attempt + 1} failed: {result.error}")
                     if attempt < max_retries - 1:
-                        print(f"   Retrying with higher limits...")
+                        print("   Retrying with higher limits...")
                         await asyncio.sleep(1)  # Brief delay before retry
 
             except Exception as e:

@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass

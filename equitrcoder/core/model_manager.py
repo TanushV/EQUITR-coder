@@ -4,13 +4,10 @@ Model Manager for EQUITR Coder
 This module provides centralized model validation, cost estimation, and availability checking.
 """
 
-import asyncio
 import os
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-import litellm
 
 from ..providers.litellm import LiteLLMProvider
 
@@ -163,7 +160,7 @@ class ModelManager:
         if test_call and availability_status == "available":
             try:
                 provider_instance = LiteLLMProvider(model=model)
-                response = await provider_instance.chat(
+                await provider_instance.chat(
                     messages=[{"role": "user", "content": "Test"}], max_tokens=1
                 )
                 availability_status = "verified"

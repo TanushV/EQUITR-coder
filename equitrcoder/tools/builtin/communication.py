@@ -1,10 +1,10 @@
 # equitrcoder/tools/builtin/communication.py
 
-from typing import Any, Dict, List, Optional, Type
+from typing import List, Optional, Type
 from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
-from ...core.global_message_pool import global_message_pool, AgentMessage
+from ...core.global_message_pool import global_message_pool
 
 class SendMessageArgs(BaseModel):
     content: str = Field(..., description="The message content to send.")

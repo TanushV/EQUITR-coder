@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## v2.1.0 (2025-08-05) - Legacy Cleanup & Lint Compliance
+
+### 💥 Breaking Changes
+- **Single-Agent Foundation Only**: Removed `WorkerAgent` class and all public re-exports.  All execution paths (single and multi-agent) are now built on `BaseAgent` / `CleanAgent`.
+- **Offline-Mode Stubs Removed**: DummyCoder and other non-LLM placeholder code deleted; the system again expects real model back-ends.
+- **Deprecated Shim Package Removed**: `EQUITR_coder/` compatibility package deleted.
+
+### 🚀 Enhancements
+- **Project-wide Lint Pass**: Resolved every Ruff / Flake8 functional error in core code; tools use explicit imports, no wildcard re-exports.
+- **Tools Package Hardened**: `equitrcoder/tools/builtin/__init__.py` now exports explicit modules via `__all__`.
+- **GitManager Safety**: Defensive one-line statements expanded for clarity; early returns on non-repo paths.
+- **Utils**: Replaced bare `except` in `litellm_utils.py`; moved imports to top of file.
+
+### 🧹 Legacy Code Isolation
+- Marked `examples/`, legacy `tests/` and auto-generated artefacts as non-core.  Primary runtime resides in:
+  - `equitrcoder/core/*`
+  - `equitrcoder/programmatic/*`
+  - `equitrcoder/tools/*`
+  - `testing/comprehensive_mode_testing/*`
+
+### 🔧 Developer Experience
+- Added `requirements-dev.txt` with Ruff, Flake8, pytest and docs dependencies.
+- Environment setup now mentions creating a virtualenv `equitr-dev` for isolated installs.
+
 ## v2.0.0 (2025-02-08) - Revolutionary Task Group System & Automatic Git Checkpoints
 
 ### 🚀 Major Features

@@ -4,12 +4,10 @@ Base Agent class providing common functionality for all agent types.
 
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from ..core.session import SessionData
 from ..tools.base import Tool
-from ..tools.discovery import discover_tools
 
 
 class BaseAgent:

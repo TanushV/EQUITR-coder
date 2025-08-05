@@ -1,719 +1,159 @@
 # EQUITR Coder
 
-**Advanced Multi-Agent AI Coding Assistant with Strategic Supervision**
-
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Textual TUI](https://img.shields.io/badge/TUI-Textual-green.svg)](https://textual.textualize.io/)
-
-EQUITR Coder is a sophisticated AI coding assistant that combines **weak specialized workers** with a **strong reasoning supervisor** to create an intelligent, hierarchical system for software development. From simple single-agent tasks to complex multi-agent coordination, EQUITR Coder provides clean APIs, advanced TUI, and comprehensive tooling for modern AI-assisted development.
-
-## 🌟 Key Features
-
-### 🧠 **Hierarchical Intelligence System**
-- **Strong Supervisor**: GPT-4/Claude for strategic guidance and architectural decisions
-- **Weak Workers**: Specialized agents (GPT-3.5/smaller models) for efficient task execution
-- **ask_supervisor Tool**: Workers can consult the supervisor for complex problems
-
-### 🔧 **Multiple Interface Modes**
-- **Programmatic**: Clean OOP interface following Python standards
-- **Advanced TUI**: Rich terminal interface with live updates, parallel agent views, real-time monitoring, syntax-highlighted diffs, todo progress sidebar, and customizable themes while maintaining a terminal-like feel
-- **CLI**: Command-line interface for single/multi-agent execution
-- **API**: RESTful FastAPI server for integration
-
-### 🔒 **Enterprise-Grade Security**
-- Restricted file system access per worker
-- Tool whitelisting and permission control
-- Cost limits and iteration bounds
-- Session isolation and audit trails
-
-### 📊 **Comprehensive Monitoring**
-- Real-time cost tracking across all agents
-- Todo list progress monitoring
-- Git integration with automatic commits
-- Session management and history
-
-### 🤖 **Automatic Git Checkpoints**
-To ensure a traceable and recoverable workflow, EQUITR Coder automatically creates a git commit after each logical task group is successfully completed. This creates a detailed history of the AI's work, allowing you to:
-
-- **Track Progress**: See a step-by-step evolution of your codebase in your git log.
-- **Review Changes**: Easily inspect the specific changes made for each task.
-- **Recover from Errors**: If a later task fails, you can easily revert to the last successful checkpoint.
-
-Commit messages are generated automatically based on the task group's specialization and description, for example:
-
-```
-feat(backend): Complete task group 'api_implementation'
-
-Implement the core authentication endpoints.
-```
-
-This feature is enabled by default and can be controlled via the `auto_commit` flag in the TaskConfiguration.
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Basic installation
-pip install -e .
-
-# Install from GitHub
-pip install git+https://github.com/TanushV/EQUITR-coder.git
-
-# With advanced TUI support
-pip install -e .[all]
-
-# Development installation
-pip install -e .[dev]
-```
-
-### Environment Setup
-
-```bash
-# Required: Set your API key
-export OPENAI_API_KEY="your-openai-key"
-# OR
-export ANTHROPIC_API_KEY="your-anthropic-key"
-
-# Optional: Configure defaults
-export EQUITR_MODE="single"          # or "multi"
-export EQUITR_MAX_COST="5.0"
-export EQUITR_MODEL="gpt-4"
-```
-
-## 🚀 The Task Group System
-
-EQUITR Coder implements a **state-of-the-art dependency-aware task management system** that revolutionizes how complex projects are planned and executed:
-
-### 🏗️ Dependency-Aware Architecture
-
-Projects are automatically decomposed into **Task Groups** with intelligent dependency management:
-
-- **Task Groups**: Logical units of work (e.g., `backend_api`, `frontend_ui`, `database_setup`)
-- **Specializations**: Each group has a specialization (`backend`, `frontend`, `database`, `testing`, `documentation`)
-- **Dependencies**: Groups specify which other groups must complete before they can start
-- **Session-Local Tracking**: All todos are stored in `.EQUITR_todos_<task_name>.json` files
-
-### 📋 Structured JSON Planning
-
-The CleanOrchestrator generates a sophisticated JSON plan instead of simple markdown todos:
-
-```json
-{
-  "task_name": "web_server_project",
-  "created_at": "2025-01-27T14:30:22",
-  "task_groups": [
-    {
-      "group_id": "database_setup",
-      "specialization": "database",
-      "description": "Set up database schema and connections",
-      "dependencies": [],
-      "status": "pending",
-      "todos": [
-        {"id": "todo_abc123", "title": "Design user table schema", "status": "pending"},
-        {"id": "todo_def456", "title": "Create database connection pool", "status": "pending"}
-      ]
-    },
-    {
-      "group_id": "backend_api",
-      "specialization": "backend", 
-      "description": "Implement REST API endpoints",
-      "dependencies": ["database_setup"],
-      "status": "pending",
-      "todos": [
-        {"id": "todo_ghi789", "title": "Create user authentication endpoint", "status": "pending"},
-        {"id": "todo_jkl012", "title": "Implement CRUD operations", "status": "pending"}
-      ]
-    },
-    {
-      "group_id": "frontend_ui",
-      "specialization": "frontend",
-      "description": "Build user interface components", 
-      "dependencies": ["backend_api"],
-      "status": "pending",
-      "todos": [
-        {"id": "todo_mno345", "title": "Create login form component", "status": "pending"},
-        {"id": "todo_pqr678", "title": "Build dashboard layout", "status": "pending"}
-      ]
-    }
-  ]
-}
-```
-
-### 📋 Task-Isolated Document Structure
-Each task creates its own isolated folder to prevent todo compounding:
-```
-docs/
-├── task_20250127_143022/          # Unique timestamp folder
-│   ├── requirements.md            # What to build
-│   ├── design.md                  # How to build it  
-│   └── .EQUITR_todos_task_20250127_143022.json  # Structured plan
-└── task_20250127_144155/          # Next task folder
-    ├── requirements.md
-    ├── design.md
-    └── .EQUITR_todos_task_20250127_144155.json
-```
-
-### 🔄 Execution Modes
-
-#### Single-Agent Mode (Sequential Dependencies)
-```python
-from equitrcoder.modes.single_agent_mode import run_single_agent_mode
-
-result = await run_single_agent_mode(
-    task_description="Build a web server",
-    agent_model="moonshot/kimi-k2-0711-preview",
-    orchestrator_model="moonshot/kimi-k2-0711-preview",
-    audit_model="o3"
-)
-# → Agent executes task groups one by one based on dependencies
-# → database_setup → backend_api → frontend_ui → testing
-```
-
-#### Multi-Agent Mode (Parallel Phases)
-```python
-from equitrcoder.modes.multi_agent_mode import run_multi_agent_parallel
-
-result = await run_multi_agent_parallel(
-    task_description="Build a web server",
-    num_agents=3,
-    agent_model="moonshot/kimi-k2-0711-preview",
-    orchestrator_model="moonshot/kimi-k2-0711-preview",
-    audit_model="o3"
-)
-# → Phase 1: [database_setup] (1 agent)
-# → Phase 2: [backend_api] (1 agent) 
-# → Phase 3: [frontend_ui, testing, documentation] (3 agents in parallel)
-```
-
-### 🛠️ New Task Group Tools
-
-Agents now have access to powerful dependency-aware tools:
-
-```python
-# List all task groups and their dependencies
-await agent.call_tool("list_task_groups")
-# Returns: [{"group_id": "backend_api", "specialization": "backend", 
-#           "dependencies": ["database_setup"], "status": "pending", ...}]
-
-# Get specific todos for a group
-await agent.call_tool("list_todos_in_group", group_id="backend_api")
-# Returns: [{"id": "todo_abc123", "title": "Create auth endpoint", "status": "pending"}]
-
-# Mark individual todos as complete
-await agent.call_tool("update_todo_status", todo_id="todo_abc123", status="completed")
-# → When all todos in a group are completed, the group automatically completes
-# → This unlocks dependent groups for execution
-```
-
-### 🤝 Parallel Agent Communication
-
-For multi-agent tasks, agents communicate using built-in tools:
-- `send_agent_message` - Send messages to other agents
-- `receive_agent_messages` - Check for messages from other agents  
-- `get_message_history` - View communication history
-- `get_active_agents` - See which agents are currently active
-
-```bash
-equitrcoder multi "Build a web server" --workers 3 --supervisor-model moonshot/kimi-k2-0711-preview
-# → Creates shared requirements.md and design.md
-# → Splits todos into categorized todos_agent_1.md, todos_agent_2.md, todos_agent_3.md
-# → Agents communicate and coordinate their work
-```
-
-### 🔍 Always-On Auditing
-
-Audits run **after every worker completion** to ensure quality:
-- Validates work against requirements and design documents
-- Creates new todos when work is incomplete or incorrect
-- Escalates to user after maximum failures
-- Ensures continuous quality control
-
-### 📋 Improved Task Management
-
-- **Flexible Task Count**: 1-25 tasks per document (based on project complexity)
-- **Categorized Structure**: Tasks organized into 3-6 logical categories for parallel execution
-- **Parallel-Ready**: Categories designed for easy distribution among 2-6 agents
-- **No Todo Compounding**: Each task uses isolated todo tracking in timestamped folders
-- **Self-Contained Categories**: Each category can be worked on independently
-
-## 💻 Usage Modes
-
-### 1. Programmatic Interface (Recommended)
-
-The cleanest way to integrate EQUITR Coder into your applications:
-
-```python
-import asyncio
-from equitrcoder import EquitrCoder, TaskConfiguration
-
-async def main():
-    # Create coder instance
-    coder = EquitrCoder(mode="single", git_enabled=True)
-    
-    # Check available API keys
-    available_keys = coder.check_available_api_keys()
-    print(f"Available providers: {available_keys}")
-    
-    # Check model availability
-    model_ok = await coder.check_model_availability("gpt-4", test_call=True)
-    if not model_ok:
-        print("Selected model is not available")
-        return
-    
-    # Configure task
-    config = TaskConfiguration(
-        description="Analyze and improve code",
-        max_cost=2.0,
-        max_iterations=15,
-        auto_commit=True
-    )
-    
-    # Execute task
-    result = await coder.execute_task(
-        "Analyze the codebase and add comprehensive type hints",
-        config=config
-    )
-    
-    if result.success:
-        print(f"✅ Success! Cost: ${result.cost:.4f}")
-        if result.git_committed:
-            print(f"📝 Committed: {result.commit_hash}")
-    
-    await coder.cleanup()
-
-asyncio.run(main())
-```
-
-#### Multi-Agent Example
-
-```python
-from equitrcoder import create_multi_agent_coder, MultiAgentTaskConfiguration
-
-async def multi_agent_example():
-    # Create multi-agent system
-    coder = create_multi_agent_coder(
-        max_workers=3,
-        supervisor_model="gpt-4",
-        worker_model="gpt-3.5-turbo"
-    )
-    
-    # Configure complex task
-    config = MultiAgentTaskConfiguration(
-        description="Full-stack development",
-        max_workers=3,
-        max_cost=10.0,
-        auto_commit=True
-    )
-    
-    # Execute complex task with multiple workers
-    result = await coder.execute_task(
-        "Build a complete user authentication system with database, API, and frontend",
-        config=config
-    )
-    
-    print(f"Workers used: {result.iterations}")
-    print(f"Total cost: ${result.cost:.4f}")
-    
-    await coder.cleanup()
-```
-
-### 2. Advanced TUI Mode
-
-Rich terminal interface with real-time monitoring:
-
-```bash
-# Launch single-agent TUI
-equitrcoder tui --mode single
-
-# Launch multi-agent TUI  
-equitrcoder tui --mode multi
-```
-
-**TUI Features:**
-- 📊 **Bottom Status Bar**: Shows mode, models, stage, agent count, and live cost updates
-- 📋 **Left Todo Sidebar**: Real-time todo progress with priority indicators and icons
-- 💬 **Center Chat Window**: Live agent outputs with syntax highlighting and color-coded roles
-- 🪟 **Parallel Agent Tabs**: Split windows for multiple agents with enhanced visuals
-- ⌨️ **Keyboard Controls**: Enter to execute, Ctrl+C to quit, 'm' for model selection
-
-### 3. API Server (Programmatic Integration)
-
-RESTful API for integration into your applications:
-
-```bash
-# Start API server programmatically
-from equitrcoder.api.server import start_server
-start_server(host="localhost", port=8000)
-
-# Execute tasks via HTTP
-curl -X POST http://localhost:8000/execute_task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_description": "Add unit tests to the project",
-    "mode": "single",
-    "max_cost": 2.0
-  }'
-```
-
-## 🧠 ask_supervisor Tool
-
-The `ask_supervisor` tool is the key to EQUITR Coder's intelligence hierarchy. Worker agents can consult the strong supervisor model for:
-
-- **Architectural Decisions**: "Should I use JWT or sessions for auth?"
-- **Complex Debugging**: "How do I troubleshoot this intermittent database error?"
-- **Code Review**: "Is this implementation following best practices?"
-- **Strategic Planning**: "What's the best approach for this refactoring?"
-
-### Example Worker Usage
-
-```python
-# Worker agent automatically has access to ask_supervisor in multi-agent mode
-await worker.call_tool("ask_supervisor", 
-    question="I need to implement caching. What approach should I take for a high-traffic web API?",
-    context_files=["src/api.py", "requirements.txt"],
-    include_repo_tree=True
-)
-```
-
-The supervisor provides structured guidance:
-- **Strategic Analysis**: Core challenges and trade-offs
-- **Recommended Approach**: Step-by-step implementation plan
-- **Architectural Considerations**: How it fits the broader codebase
-- **Risk Assessment**: Potential issues and mitigation strategies
-- **Next Steps**: Immediate actionable items
-
-## 🔧 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    EQUITR CODER SYSTEM                     │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐                ┌─────────────────┐    │
-│  │   SUPERVISOR    │◄──────────────►│   SUPERVISOR    │    │
-│  │ (Strong Model)  │  ask_supervisor │ (Strong Model)  │    │
-│  │   GPT-4/Claude  │                │   GPT-4/Claude  │    │
-│  └─────────────────┘                └─────────────────┘    │
-│           │                                   │            │
-│           ▼                                   ▼            │
-│  ┌─────────────────┐                ┌─────────────────┐    │
-│  │ WORKER AGENT 1  │◄──messaging───►│ WORKER AGENT 2  │    │
-│  │  (Weak Model)   │                │  (Weak Model)   │    │
-│  │ GPT-3.5/Smaller │                │ GPT-3.5/Smaller │    │
-│  └─────────────────┘                └─────────────────┘    │
-│           │                                   │            │
-│           ▼                                   ▼            │
-│  ┌─────────────────┐                ┌─────────────────┐    │
-│  │ RESTRICTED FS   │                │ RESTRICTED FS   │    │
-│  │   Tools/Scope   │                │   Tools/Scope   │    │
-│  └─────────────────┘                └─────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Core Components
-
-#### Agents
-- **BaseAgent**: Core functionality (messaging, tools, cost tracking, session management)  
-- **WorkerAgent**: Adds restricted file system access and tool whitelisting for security
-
-#### Orchestrators
-- **SingleAgentOrchestrator**: Simple wrapper for single-agent tasks with session management
-- **MultiAgentOrchestrator**: Advanced coordination with parallel execution and supervisor oversight
-
-#### Security Features
-- **RestrictedFileSystem**: Path-based access control with traversal protection
-- **Tool Whitelisting**: Fine-grained permission control per worker
-- **Cost Limits**: Per-agent and global cost tracking and limits
-- **Session Isolation**: Separate contexts for different workflows
-
-## 🛠️ Tool System
-
-EQUITR Coder has an extensible plugin architecture:
-
-### Built-in Tools
-
-```python
-# File operations (with security restrictions for WorkerAgent)
-await worker.call_tool("read_file", file_path="src/main.py")
-await worker.call_tool("edit_file", file_path="src/main.py", content="new content")
-
-# Git operations with auto-commit
-await worker.call_tool("git_commit", message="Fix authentication bug")
-
-# Shell commands
-await worker.call_tool("run_cmd", cmd="pytest tests/")
-
-# Supervisor consultation (multi-agent only)
-await worker.call_tool("ask_supervisor", 
-                      question="Should I refactor this function?",
-                      context_files=["src/auth.py"])
-
-# Todo management
-await worker.call_tool("create_todo", description="Add unit tests", priority="high")
-```
-
-### Custom Tools
-
-```python
-from equitrcoder.tools.base import Tool, ToolResult
-from pydantic import BaseModel, Field
-
-class MyCustomArgs(BaseModel):
-    input_text: str = Field(..., description="Text to process")
-
-class MyCustomTool(Tool):
-    def get_name(self) -> str:
-        return "my_custom_tool"
-    
-    def get_description(self) -> str:
-        return "Description of what this tool does"
-    
-    def get_args_schema(self) -> type[BaseModel]:
-        return MyCustomArgs
-    
-    async def run(self, **kwargs) -> ToolResult:
-        args = MyCustomArgs(**kwargs)
-        # Tool logic here
-        return ToolResult(success=True, data="Result")
-
-# Register the tool
-from equitrcoder.tools import registry
-registry.register(MyCustomTool())
-```
-
-## 📚 Documentation
-
-- **[Ask Supervisor Guide](equitrcoder/docs/ASK_SUPERVISOR_GUIDE.md)**: Complete guide to the supervisor consultation system
-- **[Programmatic Usage](equitrcoder/docs/PROGRAMMATIC_USAGE_GUIDE.md)**: Comprehensive programmatic API documentation
-- **[Configuration Guide](equitrcoder/docs/CONFIGURATION_GUIDE.md)**: System configuration options
-- **[Development Setup](equitrcoder/docs/DEVELOPMENT_SETUP.md)**: Contributing and development guide
-- **[Tool System](equitrcoder/docs/TOOL_LOGGING_AND_MULTI_MODEL_GUIDE.md)**: Tool development and logging
-
-## 🎯 Examples
-
-Run the comprehensive examples:
-
-```bash
-# Programmatic interface examples
-cd equitrcoder/examples
-python programmatic_example.py
-
-# Multi-agent coordination
-python multi_agent_coordination.py
-
-# Custom tool development
-python tool_logging_example.py
-```
-
-## 🔒 Security & Cost Management
-
-### File System Security
-```python
-# Workers operate in restricted environments
-worker = WorkerAgent(
-    worker_id="frontend_dev",
-    scope_paths=["src/frontend/", "public/"],  # Only access these paths
-    allowed_tools=["read_file", "edit_file"],  # Limited tool set
-    max_cost=2.0  # Cost boundary
-)
-```
-
-### Cost Controls
-```python
-# Global cost limits
-orchestrator = MultiAgentOrchestrator(
-    global_cost_limit=10.0,  # Total spending cap
-    max_concurrent_workers=3  # Resource limits
-)
-
-# Per-task limits
-config = TaskConfiguration(
-    max_cost=1.0,           # Task-specific limit
-    max_iterations=20       # Iteration boundary
-)
-```
-
-### Git Integration
-```python
-# Automatic commit management
-coder = EquitrCoder(git_enabled=True)
-
-config = TaskConfiguration(
-    auto_commit=True,
-    commit_message="AI-assisted feature implementation"
-)
-
-# Every successful task gets committed with metadata
-result = await coder.execute_task("Add authentication", config)
-if result.git_committed:
-    print(f"Committed as: {result.commit_hash}")
-```
-
-## 🚀 Advanced Patterns
-
-### Retry Logic with Escalating Resources
-```python
-async def robust_execution(task_description, max_retries=3):
-    for attempt in range(max_retries):
-        config = TaskConfiguration(
-            max_cost=1.0 * (attempt + 1),      # Increase cost limit
-            max_iterations=10 * (attempt + 1)  # Increase iterations
-        )
-        
-        result = await coder.execute_task(task_description, config)
-        if result.success:
-            return result
-        
-        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-    
-    return None  # All attempts failed
-```
-
-### Session-Based Development
-```python
-# Continue previous work
-config = TaskConfiguration(
-    session_id="auth_development",
-    description="Authentication system development"
-)
-
-# Each task builds on previous context
-await coder.execute_task("Design user authentication schema", config)
-await coder.execute_task("Implement login endpoint", config)  
-await coder.execute_task("Add password validation", config)
-
-# Review session history
-session = coder.get_session_history("auth_development")
-print(f"Total cost: ${session.cost:.4f}")
-```
-
-### Multi-Worker Coordination
-```python
-# Specialized workers for different domains
-frontend_worker = WorkerConfiguration(
-    worker_id="ui_specialist",
-    scope_paths=["src/frontend/", "assets/"],
-    allowed_tools=["read_file", "edit_file", "run_cmd"]
-)
-
-backend_worker = WorkerConfiguration(
-    worker_id="api_specialist", 
-    scope_paths=["src/backend/", "database/"],
-    allowed_tools=["read_file", "edit_file", "run_cmd", "git_commit"]
-)
-
-# Parallel execution with automatic coordination
-tasks = [
-    {"task_id": "ui", "worker_id": "ui_specialist", "task_description": "Build login UI"},
-    {"task_id": "api", "worker_id": "api_specialist", "task_description": "Build auth API"}
-]
-
-results = await coder.execute_parallel_tasks(tasks)
-```
-
-## Best Practices
-
-### Cost Management
-
-```python
-# Set appropriate limits
-agent = BaseAgent(
-    max_cost=1.0,      # Start small
-    max_iterations=10  # Prevent runaway
-)
-
-# Monitor costs
-status = agent.get_status()
-if status['current_cost'] > 0.8 * agent.max_cost:
-    print("⚠️  Approaching cost limit")
-```
-
-### Error Handling
-
-```python
-try:
-    result = await orchestrator.execute_task("Complex task")
-    
-    if not result["success"]:
-        # Check specific failure reasons
-        if "cost" in result["error"].lower():
-            print("Cost limit exceeded - increase budget")
-        elif "iteration" in result["error"].lower():
-            print("Iteration limit exceeded - increase limit or simplify task")
-        else:
-            print(f"Task failed: {result['error']}")
-            
-except Exception as e:
-    print(f"Execution error: {e}")
-```
-
-### Security Best Practices
-
-```python
-# Always use restricted workers for untrusted tasks
-worker = WorkerAgent(
-    worker_id="untrusted_task",
-    scope_paths=["safe/directory/"],  # Limit scope
-    allowed_tools=["read_file"],      # Minimal tools
-    max_cost=0.5,                     # Low limits
-    max_iterations=5
-)
-
-# Validate file paths
-if not worker.can_access_file(user_provided_path):
-    raise SecurityError("Access denied to file")
-```
-
-## 🤝 Contributing
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Make** your changes with proper tests
-4. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-5. **Push** to the branch (`git push origin feature/amazing-feature`)
-6. **Open** a Pull Request
-
-See [DEVELOPMENT_SETUP.md](equitrcoder/docs/DEVELOPMENT_SETUP.md) for detailed setup instructions.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **OpenAI** and **Anthropic** for providing the language models
-- **Textual** for the advanced terminal UI framework
-- **LiteLLM** for unified model interface
-- **FastAPI** for the API server capabilities
+*A clean-architecture autonomous coding framework for multi-agent, LLM-powered software generation*
 
 ---
 
-**EQUITR Coder**: Where strategic intelligence meets tactical execution. 🧠⚡ 
+## ✨ Why EQUITR Coder?
+EQUITR Coder orchestrates one or many AI agents to plan, implement, test and document complete software projects while maintaining professional Git history.  It is designed for:
 
-## 📋 Troubleshooting
+* **Single-agent** rapid prototyping.
+* **Multi-agent** parallel development with inter-agent communication.
+* Fully **scriptable** programmatic control *and* an interactive **TUI**.
+* Strict **clean-architecture**: each layer (agents, tools, orchestrator, UI) is testable and replaceable.
 
-Common issues and solutions:
+---
 
-### 1. API Key Not Found
-- **Symptom**: "Invalid API key" errors.
-- **Solution**: Set `export OPENAI_API_KEY="your-key"` or add to config. Verify with `echo $OPENAI_API_KEY`.
+## 🗂️ Repository Layout
+```
+equitrcoder/
+  core/               # CleanAgent, CleanOrchestrator, session + planning logic
+  tools/              # Built-in & custom tool implementations
+  programmatic/       # OOP interface (EquitrCoder) for Python scripts / back-end use
+  ui/                 # Textual & ASCII TUIs (core, not legacy!)
+  utils/              # Git & environment helpers
 
-### 2. Budget Exceeded
-- **Symptom**: Tasks stop with "Budget limit reached".
-- **Solution**: Increase budget in config.yaml (`llm: budget: 50.0`) or use `--max-cost` in CLI.
+testing/
+  comprehensive_mode_testing/   # End-to-end single & multi-agent suites
+  run_parallel_tests.py         # Example runner
 
-### 3. Model Not Available
-- **Symptom**: "Model not found" when selecting in TUI/CLI.
-- **Solution**: Ensure API keys are set for the provider (e.g., ANTHROPIC_API_KEY for Claude models). Use `/model` in TUI to check dynamic availability.
+tests/              # Legacy fast unit/integration tests (still runnable)
+examples/           # Usage demos (optional)
+```
+---
 
-### 4. Git Commit Fails
-- **Symptom**: "Git not initialized" or permission errors.
-- **Solution**: Run `git init` in your repo, or set `git: auto_commit: true` in config. Check permissions with `git status`.
+## 🔑 Core Components
+| Layer | Module | Highlights |
+|-------|--------|------------|
+| **Agent** | `core/clean_agent.py` | Executes tool calls, tracks cost/iterations, communicates via message bus |
+| **Orchestrator** | `core/clean_orchestrator.py` | Decomposes tasks into *task-groups*, resolves dependencies, coordinates agents |
+| **Tools** | `tools/builtin/*.py` | File system, Git, shell, search, todo management & more.  Add your own via entry-points |
+| **Programmatic API** | `programmatic/interface.py` | `EquitrCoder.execute_task()` for single tasks; factory helpers for single/multi modes |
+| **TUI** | `ui/tui.py` (simple) & `ui/advanced_tui.py` (Textual) | Real-time status, cost tracking, git diff viewer |
+| **Testing** | `testing/comprehensive_mode_testing/` | Creates isolated workspaces, runs single & multi-agent flows, produces Markdown reports |
 
-### 5. TUI Not Launching
-- **Symptom**: "Textual not found" error.
-- **Solution**: Install with `pip install -e .[all]`. For simple TUI fallback, remove Textual deps.
+---
 
-For more, see [CONFIGURATION_GUIDE.md](equitrcoder/docs/CONFIGURATION_GUIDE.md#troubleshooting-common-issues). 
+## 🚀 Installation
+```bash
+# 1. Clone
+git clone https://github.com/equitr/EQUITR-coder.git
+cd EQUITR-coder
+
+# 2. Create & activate virtual-env
+python -m venv equitr-dev
+source equitr-dev/bin/activate
+
+# 3. Install runtime deps
+pip install -r requirements.txt
+
+# (Optional) Dev / lint / test extras
+pip install -r requirements-dev.txt
+pre-commit install  # for Ruff, black, etc.
+```
+
+### Environment variables
+Set your model keys (OpenAI, Anthropic, Moonshot, …) as needed:
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="..."
+```
+
+---
+
+## ⚡ Quick Start
+```python
+from equitrcoder.programmatic import EquitrCoder, TaskConfiguration
+
+coder = EquitrCoder(repo_path="my_project", git_enabled=True)
+config = TaskConfiguration(max_cost=5, model="gpt-4o-mini")
+
+result = await coder.execute_task(
+    "Build a CLI calculator with tests and docs", config=config
+)
+print(result.success, result.cost)
+```
+
+### Multi-Agent Parallel
+```python
+from equitrcoder.programmatic import EquitrCoder, MultiAgentTaskConfiguration
+
+coder = EquitrCoder(repo_path="multi_project")
+ma_cfg = MultiAgentTaskConfiguration(num_agents=4, max_cost=20)
+await coder.execute_task("Create REST API + React UI + Dockerfile", ma_cfg)
+```
+
+### TUI Mode
+```bash
+python -m equitrcoder.ui.tui   # simple ASCII
+python -m equitrcoder.ui.advanced_tui  # rich Textual interface
+```
+
+### Simulated CLI Session
+
+```text
+$ equitrcoder --mode multi --agents 3 --task "Add OAuth login to my Flask app"
+📄 Planning...
+   ▸ Created requirements.md, design.md, todos.md
+🤖 Spawning 3 agents in parallel
+   🧠  backend_agent → finished (3 iterations, $0.08)
+   🎨  frontend_agent → finished (2 iterations, $0.05)
+   🛠️  tester_agent   → finished (1 iteration, $0.02)
+✅ All task-groups complete.  Auto-commit created: `feat(auth): OAuth login`
+💰 Total cost: $0.15   ⏱ 35 s
+```
+
+### Simulated TUI Walk-through
+
+```text
+$ python -m equitrcoder.ui.advanced_tui
+
+┌──────────────────────────────────────────────────────────┐
+│  EQUITR CODER ‑ PROJECT DASHBOARD                       │
+├──────────────────────────────────────────────────────────┤
+│ Project path : /home/user/projects/mario_game_2025-08-05 │
+│ Agents active : 4 (parallel)                             │
+│ Current phase : 1 / ?                                    │
+│ Cost so far   : $0.37                                    │
+├──────────────────────────────────────────────────────────┤
+│  LIVE LOG                                                │
+│ 08:21:04 planner  ▸ Generated task-groups (graphics, ... │
+│ 08:21:06 graphics ▸ send_message → physics "need jump…" │
+│ 08:21:07 physics  ▸ update_todo_status(todo_17, done)    │
+│ …                                                       │
+└──────────────────────────────────────────────────────────┘
+
+Press <F1> to toggle agent logs • <F2> open git diff • <Ctrl+C> quit
+```
+
+---
+
+## 🧪 Comprehensive Tests
+Run the heavy end-to-end suite (requires real LLM keys):
+```bash
+python testing/run_parallel_tests.py  # runs multi-agent parallel suite
+```
+Outputs go to `testing/comprehensive_tests/run_<timestamp>/` (reports + artefacts).
+
+---
+
+## 🛠️ Developer Guide
+* **Lint / format**  `ruff check . --fix`, `black .`
+* **Unit tests**     `pytest tests/`
+* **Docs**           `sphinx-build -b html docs/ build/docs`
+* **Release**        Update `CHANGELOG.md`, bump version, `python -m build && twine upload ...`
+
+---
+
+## �� License
+Apache-2.0 

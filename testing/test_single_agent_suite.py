@@ -8,7 +8,6 @@ import asyncio
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional
 
 from .comprehensive_test_framework import (
     TestResult, TestStatus, PerformanceMetrics, FailureAnalysis, 
@@ -161,7 +160,7 @@ class SingleAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 "single_agent_todos", env_config
             )
             
@@ -310,7 +309,7 @@ class SingleAgentTestSuite:
                 model=self.model,
                 test_task=self.test_config.test_task
             )
-            env_path = self.environment_manager.create_isolated_environment(
+            self.environment_manager.create_isolated_environment(
                 "single_agent_audit", env_config
             )
             

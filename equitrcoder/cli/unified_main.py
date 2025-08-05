@@ -5,12 +5,9 @@ Unified CLI for equitrcoder with subcommands for different modes.
 import argparse
 import asyncio
 import sys
-from pathlib import Path
-from typing import Optional
 
-from ..core.config import Config, config_manager
+from ..core.config import config_manager
 from ..modes.multi_agent_mode import (
-    run_multi_agent_parallel,
     run_multi_agent_sequential,
 )
 from ..modes.single_agent_mode import run_single_agent_mode
@@ -42,6 +39,10 @@ def create_parser() -> argparse.ArgumentParser:
     # Multi agent command
     multi_parser = subparsers.add_parser("multi", help="Run multi-agent mode")
     multi_parser.add_argument("coordination_task", help="High-level coordination task")
+    multi_parser.add_argument(
+        "--team",
+        help="Comma-separated list of specialist profiles to use (e.g., backend_dev,frontend_dev)"
+    )
     multi_parser.add_argument(
         "--workers", type=int, default=2, help="Number of workers to create"
     )
@@ -124,7 +125,7 @@ async def run_single_agent(args) -> int:
 
         print("=" * 60)
         if result["success"]:
-            print(f"✅ Task completed successfully!")
+            print("✅ Task completed successfully!")
             print(f"💰 Total cost: ${result.get('cost', 0):.4f}")
             print(f"🔄 Iterations: {result.get('iterations', 0)}")
             print(f"📝 Session ID: {result.get('session_id', 'N/A')}")
@@ -175,12 +176,16 @@ async def run_multi_agent(args) -> int:
         )
         print("=" * 60)
 
+        # Parse the team argument
+        team = args.team.split(',') if args.team else None
+
         # Use clean multi-agent sequential mode
         supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"
         worker_model = args.worker_model or "moonshot/kimi-k2-0711-preview"
 
         result = await run_multi_agent_sequential(
             task_description=args.coordination_task,
+            team=team,
             num_agents=args.workers,
             agent_model=worker_model,
             orchestrator_model=worker_model,
@@ -192,7 +197,7 @@ async def run_multi_agent(args) -> int:
 
         print("=" * 60)
         if result["success"]:
-            print(f"✅ Multi-agent task completed successfully!")
+            print("✅ Multi-agent task completed successfully!")
             print(f"💰 Total cost: ${result.get('total_cost', 0):.4f}")
             print(f"🔄 Total iterations: {result.get('total_iterations', 0)}")
             print(f"👥 Agents used: {result.get('num_agents', 0)}")
@@ -209,7 +214,7 @@ async def run_multi_agent(args) -> int:
 def run_tui(args) -> int:
     """Launch TUI mode."""
     try:
-        print(f"🖥️  Launching Interactive TUI...")
+        print("🖥️  Launching Interactive TUI...")
 
         # Load configuration and start SimpleTUI
         config = config_manager.load_config()
@@ -317,9 +322,9 @@ def run_models(args) -> int:
                 for model in model_list:
                     print(f"  - {model}")
 
-        print(f"\n💡 Usage: equitrcoder single 'your task' --model <model_name>")
-        print(f"💡 Recommended: moonshot/kimi-k2-0711-preview (cost-effective)")
-        print(f"💡 For complex tasks: o3 (more expensive but powerful)")
+        print("\n💡 Usage: equitrcoder single 'your task' --model <model_name>")
+        print("💡 Recommended: moonshot/kimi-k2-0711-preview (cost-effective)")
+        print("💡 For complex tasks: o3 (more expensive but powerful)")
 
         return 0
 

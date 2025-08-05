@@ -4,20 +4,21 @@ Programmatic Interface for EQUITR Coder
 This module provides clean, OOP interfaces for using EQUITR Coder programmatically.
 """
 
-from .interface import EquitrCoder
+# Alias removed because EquitrCoderAPI no longer exists
 from .interface import (
-    TaskConfiguration,
-    MultiAgentTaskConfiguration,
+    EquitrCoder,
     ExecutionResult,
+    MultiAgentTaskConfiguration,
+    TaskConfiguration,
+    create_multi_agent_coder,
+    create_single_agent_coder,
 )
-
-# Legacy alias for backward compatibility
-EquitrCoderAPI = EquitrCoder
 
 __all__ = [
     "EquitrCoder",
-    "EquitrCoderAPI",
     "TaskConfiguration",
     "MultiAgentTaskConfiguration",
     "ExecutionResult",
+    "create_single_agent_coder",
+    "create_multi_agent_coder",
 ]

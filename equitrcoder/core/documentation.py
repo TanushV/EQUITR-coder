@@ -5,9 +5,8 @@ Generates mandatory documentation (requirements, design, todos) based on
 conversational planning sessions.
 """
 
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from ..providers.openrouter import Message
 

@@ -3,10 +3,8 @@ Clean Agent Implementation - Takes tools + context and runs until completion.
 Always runs audit when finished.
 """
 
-import asyncio
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from ..core.session import SessionData, SessionManagerV2

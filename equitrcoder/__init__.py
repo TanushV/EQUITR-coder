@@ -45,7 +45,7 @@ __version__ = "2.0.0"
 from .agents import BaseAgent
 
 # Clean Architecture Components
-from .core import CleanOrchestrator
+from .core import CleanAgent, CleanOrchestrator
 from .core.config import Config, config_manager
 
 # Core functionality
@@ -56,11 +56,9 @@ from .modes.single_agent_mode import run_single_agent_mode
 # Programmatic Interface
 from .programmatic import (
     EquitrCoder,
-    EquitrCoderAPI,
     ExecutionResult,
     MultiAgentTaskConfiguration,
     TaskConfiguration,
-    WorkerConfiguration,
     create_multi_agent_coder,
     create_single_agent_coder,
 )
@@ -80,6 +78,7 @@ __all__ = [
     "BaseAgent",
     # Clean Architecture
     "CleanOrchestrator",
+    "CleanAgent",
     "run_single_agent_mode",
     "run_multi_agent_sequential",
     "run_multi_agent_parallel",
@@ -96,10 +95,8 @@ __all__ = [
     "discover_tools",
     # Programmatic Interface
     "EquitrCoder",
-    "EquitrCoderAPI",
     "TaskConfiguration",
     "MultiAgentTaskConfiguration",
-    "WorkerConfiguration",
     "ExecutionResult",
     "create_single_agent_coder",
     "create_multi_agent_coder",

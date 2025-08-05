@@ -2,7 +2,6 @@
 Single agent test suite for comprehensive mode testing.
 """
 
-import asyncio
 import time
 import traceback
 from pathlib import Path
@@ -15,8 +14,7 @@ from .results import (
     TestResult,
     TestStatus,
     FailureAnalysis,
-    ErrorCategory,
-    PerformanceMetrics
+    ErrorCategory
 )
 
 # Import EquitrCoder components
@@ -24,7 +22,6 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from equitrcoder.programmatic.interface import (
-    EquitrCoder,
     TaskConfiguration,
     create_single_agent_coder
 )
@@ -262,7 +259,7 @@ class SingleAgentTestSuite:
             
             # Test todo completion with a simple task
             task_config = TaskConfiguration(
-                description=f"Complete ALL todos from the project systematically. Work through each todo one by one, marking them as completed using the update_todo tool.",
+                description="Complete ALL todos from the project systematically. Work through each todo one by one, marking them as completed using the update_todo tool.",
                 max_cost=self.config.max_cost_per_test,
                 max_iterations=999999,  # No iteration limit
                 model=self.config.model,
@@ -270,7 +267,7 @@ class SingleAgentTestSuite:
             )
             
             if self.config.verbose_output:
-                print(f"   🚀 Starting todo completion with unlimited iterations...")
+                print("   🚀 Starting todo completion with unlimited iterations...")
             
             result = await coder.execute_task(
                 task_description=task_config.description,
@@ -405,7 +402,7 @@ class SingleAgentTestSuite:
             )
             
             if self.config.verbose_output:
-                print(f"   🚀 Starting agent execution with unlimited iterations...")
+                print("   🚀 Starting agent execution with unlimited iterations...")
             
             result = await coder.execute_task(
                 task_description=task_config.description,

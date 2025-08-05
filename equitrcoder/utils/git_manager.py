@@ -58,7 +58,8 @@ venv/
     
     def add_all(self) -> bool:
         """Add all changes to the staging area."""
-        if not self.is_repo: return False
+        if not self.is_repo:
+            return False
         try:
             subprocess.run(["git", "add", "-A"], cwd=self.repo_path, check=True, capture_output=True)
             return True
@@ -68,7 +69,8 @@ venv/
     
     def commit(self, message: str, auto_add: bool = True) -> bool:
         """Commit changes with a specific message."""
-        if not self.is_repo: return False
+        if not self.is_repo:
+            return False
         
         if auto_add:
             self.add_all()

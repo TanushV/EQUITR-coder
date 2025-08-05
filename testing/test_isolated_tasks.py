@@ -10,9 +10,7 @@ This test shows:
 
 import asyncio
 import tempfile
-import shutil
 from pathlib import Path
-from datetime import datetime
 
 from equitrcoder.core.document_workflow import DocumentWorkflowManager
 from equitrcoder.tools.builtin.audit import audit_manager
@@ -227,8 +225,8 @@ async def test_task_segregation_and_audit():
         print(f"✅ Task A ({task_a_result.task_name}): {len(task_a_todos)} todos, all completed, audit ready")
         print(f"✅ Task B ({task_b_result.task_name}): {len(task_b_todos)} todos, all completed, audit ready")
         print(f"📁 Docs segregated in separate folders: docs/{task_a_result.task_name}/ and docs/{task_b_result.task_name}/")
-        print(f"🔍 Audits only trigger when ALL todos for a specific task are completed")
-        print(f"📋 Each audit context is task-specific and includes only relevant todos")
+        print("🔍 Audits only trigger when ALL todos for a specific task are completed")
+        print("📋 Each audit context is task-specific and includes only relevant todos")
 
 
 async def test_audit_reasoning_with_tasks():

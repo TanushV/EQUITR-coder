@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from equitrcoder.config.model_config import ModelConfig, get_config_manager
 
@@ -56,7 +56,6 @@ class ModelSelector:
 
     def reset_to_defaults(self):
         """Reset configuration to defaults."""
-        from equitrcoder.config.model_config import ModelConfig
 
         self.config_manager.save_config(ModelConfig())
 
