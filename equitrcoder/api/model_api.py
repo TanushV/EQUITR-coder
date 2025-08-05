@@ -1,6 +1,11 @@
 from typing import Any, Dict, List
 
-from equitrcoder.config.model_config import ModelConfig, get_config_manager
+from equitrcoder.core.config import Config as ModelConfig, ConfigManager
+
+
+def get_config_manager() -> ConfigManager:
+    """Return a fresh ConfigManager instance (simple helper used by the API layer)."""
+    return ConfigManager()
 
 
 class ModelSelector:

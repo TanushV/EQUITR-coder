@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from .communication import communication
-from .fs import fs
-from .git import git
-from .git_auto import git_auto
-from .search import search
-from .shell import shell
-from .todo import todo
+from . import communication
+from . import fs
+from . import git
+from . import git_auto
+from . import search
+from . import shell
+from . import todo
 
 __all__ = [
     "communication",
