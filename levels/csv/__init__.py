@@ -1,9 +1,7 @@
 """
-CSV level format support for Mario game.
+CSV level files for the Mario game.
 
-This module provides support for loading levels from CSV files.
-CSV format is useful for simple level editing and quick prototyping.
+This directory contains level data in CSV format for easy editing.
 """
 
-__version__ = "1.0.0"
-__author__ = "Mario Game Development Team"
+__all__ = []

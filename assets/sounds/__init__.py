@@ -1,10 +1,5 @@
 """
-Sound assets for the Mario-style platformer game.
+Sound assets package for the Mario game.
 
-This package contains all audio files used in the game including:
-- Background music
-- Sound effects (jump, coin collection, enemy defeat)
-- UI sounds
+Contains sound effects and music files used throughout the game.
 """
-
-__all__ = []

@@ -1,7 +1,5 @@
 """
-Font assets for the Mario game.
+Font assets package.
 
-This package contains font files used for rendering text in the game.
+Contains game fonts and typography assets.
 """
-
-__all__ = []
