@@ -138,14 +138,22 @@ Generate only the raw JSON object and nothing else."""
             Message(role="system", content=system_prompt),
             Message(role="user", content=f"Task: {task_description}\n\nRequirements:\n{requirements}\n\nDesign:\n{design}"),
         ]
-        response = await self.provider.chat(messages=messages)
-        
-        # Parse the JSON plan from the model
-        try:
-            plan_data = json.loads(response.content)
-            task_groups_data = plan_data.get("task_groups", plan_data) # Handle both formats
-        except json.JSONDecodeError:
-            raise ValueError("Failed to decode the JSON plan from the language model.")
+
+        max_retries = 10
+        for attempt in range(1, max_retries + 1):
+            response = await self.provider.chat(messages=messages)
+            try:
+                plan_data = json.loads(response.content)
+                if isinstance(plan_data, list):
+                    task_groups_data = plan_data
+                else:
+                    task_groups_data = plan_data.get("task_groups", plan_data)
+                break  # Successfully parsed JSON
+            except json.JSONDecodeError:
+                if attempt == max_retries:
+                    raise ValueError("Failed to decode the JSON plan from the language model after multiple retries.")
+                print(f"⚠️  Attempt {attempt} returned invalid JSON. Retrying...")
+                continue
         
         # Set up the session-local todo file and manager
         set_global_todo_file(str(todo_file_path))

@@ -79,6 +79,7 @@ async def main() -> None:
         description=TASK_DESCRIPTION,
         num_agents=NUM_AGENTS,
         max_cost=MAX_COST_USD,
+        max_iterations=50,
         supervisor_model=SUPERVISOR_MODEL,
         worker_model=WORKER_MODEL,
         auto_commit=True,

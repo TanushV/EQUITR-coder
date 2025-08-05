@@ -26,6 +26,7 @@ class MultiAgentTaskConfiguration:
     description: str
     num_agents: int = 3
     max_cost: float = 10.0
+    max_iterations: int = 50  # New field with default 50
     supervisor_model: Optional[str] = None
     worker_model: Optional[str] = None
     auto_commit: bool = True # <-- ADDED THIS FLAG
@@ -75,10 +76,11 @@ class EquitrCoder:
                     task_description=task_description,
                     num_agents=config.num_agents,
                     agent_model=config.worker_model or "moonshot/kimi-k2-0711-preview",
-                    orchestrator_model=config.worker_model or "moonshot/kimi-k2-0711-preview",
+                    orchestrator_model=config.supervisor_model or "gpt-4o-mini",
                     audit_model=config.supervisor_model or "o3",
                     project_path=self.repo_path,
                     max_cost_per_agent=config.max_cost / config.num_agents,
+                    max_iterations_per_agent=config.max_iterations,
                     auto_commit=config.auto_commit # Pass the flag
                 )
             else:

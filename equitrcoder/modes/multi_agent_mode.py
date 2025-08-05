@@ -125,11 +125,19 @@ Make sure to only use the tools you have been given.
         return result
 
 async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:
-    config = {'run_parallel': False, 'auto_commit': True, **kwargs}
+    # Separate runtime-only args from constructor kwargs
+    task_desc = kwargs.pop("task_description", "")
+    project_path = kwargs.pop("project_path", ".")
+    team = kwargs.pop("team", None)
+    config = {"run_parallel": False, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""), team=kwargs.get("team"))
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team)
 
 async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
-    config = {'run_parallel': True, 'auto_commit': True, **kwargs}
+    # Separate runtime-only args from constructor kwargs
+    task_desc = kwargs.pop("task_description", "")
+    project_path = kwargs.pop("project_path", ".")
+    team = kwargs.pop("team", None)
+    config = {"run_parallel": True, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""), team=kwargs.get("team"))
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team)
