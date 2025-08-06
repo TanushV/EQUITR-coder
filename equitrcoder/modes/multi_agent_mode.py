@@ -1,6 +1,7 @@
 # equitrcoder/modes/multi_agent_mode.py
 
 import asyncio
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
@@ -47,29 +48,38 @@ class MultiAgentMode:
             set_global_todo_file(docs_result['todos_path'])
             
             phase_num = 1
+            total_cost = 0.0
             while not todo_manager.are_all_tasks_complete():
                 runnable_groups = todo_manager.get_next_runnable_groups()
                 if not runnable_groups:
                     break
                 
                 print(f"\n--- EXECUTING PHASE {phase_num} ({len(runnable_groups)} task groups in parallel) ---")
+                print(f"💰 Total cost so far: ${total_cost:.4f}")
                 
                 agent_coroutines = [self._execute_task_group(group, docs_result, callbacks) for group in runnable_groups]
                 phase_results = await asyncio.gather(*agent_coroutines)
                 
+                # Calculate phase cost
+                phase_cost = sum(result.get("cost", 0.0) for result in phase_results)
+                total_cost += phase_cost
+                
                 if any(not result.get("success") for result in phase_results):
                     print(f"❌ PHASE {phase_num} FAILED. Halting execution.")
-                    return {"success": False, "error": f"A task in phase {phase_num} failed.", "stage": "execution"}
+                    print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Total cost: ${total_cost:.4f}")
+                    return {"success": False, "error": f"A task in phase {phase_num} failed.", "stage": "execution", "cost": total_cost}
                 
                 # --- NEW COMMIT LOGIC ---
                 if self.auto_commit:
                     group_data = [g.model_dump() for g in runnable_groups]
                     git_manager.commit_phase_completion(phase_num, group_data)
                 
-                print(f"✅ PHASE {phase_num} COMPLETED SUCCESSFULLY ---")
+                print(f"✅ PHASE {phase_num} COMPLETED SUCCESSFULLY")
+                print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Total cost: ${total_cost:.4f}")
                 phase_num += 1
             
-            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1}
+            print(f"🎉 ALL PHASES COMPLETED! Total cost: ${total_cost:.4f}")
+            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1, "cost": total_cost}
         
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -104,7 +114,7 @@ class MultiAgentMode:
             context=docs_result,
             max_cost=self.max_cost_per_agent,
             max_iterations=self.max_iterations_per_agent,
-            audit_model=self.audit_model
+            audit_model=self.orchestrator_model  # Always use supervisor model for audit
         )
         if callbacks:
             agent.set_callbacks(**callbacks)
@@ -112,22 +122,89 @@ class MultiAgentMode:
         # The task description now supplements the base system prompt from the profile
         group_task_desc = f"""{system_prompt}
 
-Your current mission is to complete your part of a larger project.
-Your specific objective is to complete all todos in the '{group.description}' task group.
-Use `list_todos_in_group` with group_id='{group.group_id}' to see your tasks.
-Coordinate with other agents using `send_message` if you need information or need to signal completion of a dependency.
-Complete each todo and mark it done with `update_todo_status`.
-Make sure to only use the tools you have been given.
+🎯 MULTI-AGENT MISSION: Complete your part of a larger project with MANDATORY team coordination.
+
+🚨 CRITICAL RULES FOR MULTI-AGENT SUCCESS (FOLLOW RELIGIOUSLY):
+1. **YOUR SPECIFIC OBJECTIVE**: Complete ALL todos in the '{group.description}' task group
+2. **MANDATORY SUPERVISOR CONSULTATION**: You MUST use `ask_supervisor` tool frequently - at least once every 3-5 iterations
+3. **MANDATORY TEAM COMMUNICATION**: You MUST use `send_message` to coordinate with other agents
+4. **NEVER WORK IN ISOLATION**: Working alone without communication is FORBIDDEN
+5. **ASK BEFORE ACTING**: When in doubt, ask supervisor FIRST before making major decisions
+6. **COMMUNICATE PROGRESS**: Send status updates to other agents regularly
+7. **COMPLETE TODOS FULLY**: Mark todos as 'completed' only when fully implemented and tested
+
+🔧 MANDATORY WORKFLOW (Follow this exactly):
+1. **ALWAYS START**: Use `ask_supervisor` to confirm your understanding of the task
+2. **GET YOUR TODOS**: Use `list_todos_in_group` with group_id='{group.group_id}'
+3. **COORDINATE FIRST**: Use `send_message` to announce your start and coordinate with other agents
+4. **ASK FOR GUIDANCE**: Use `ask_supervisor` for ANY unclear requirements or technical decisions
+5. **IMPLEMENT WITH COMMUNICATION**: Work on todos while regularly using `send_message` for updates
+6. **ASK WHEN STUCK**: Use `ask_supervisor` immediately when encountering any blocker
+7. **CONFIRM COMPLETION**: Use `ask_supervisor` to verify your work before marking todos complete
+8. **ANNOUNCE SUCCESS**: Use `send_message` to inform other agents when your group is complete
+
+🚨 COMMUNICATION REQUIREMENTS (NON-NEGOTIABLE):
+- Use `ask_supervisor` at least once every 3-5 iterations
+- Use `send_message` at least once every 5-7 iterations
+- NEVER make major architectural decisions without asking supervisor
+- ALWAYS communicate blockers, progress, and completions to the team
+- Ask supervisor for help with complex code, design decisions, or integration issues
+
+💡 WHEN TO USE EACH TOOL:
+- `ask_supervisor`: Technical questions, design decisions, blockers, verification
+- `send_message`: Progress updates, coordination needs, dependency discussions
+- Both tools are MANDATORY - not optional suggestions!
+
+🏆 SUCCESS METRIC: ALL todos completed through ACTIVE team coordination and supervisor guidance.
+
+Group ID: {group.group_id}
+Specialization: {group.specialization}
+Available Tools: {[tool.name for tool in agent_tools]}
+
+⚠️ REMEMBER: Silent agents who don't communicate will be considered failed agents!
 """
+        print(f"\n🤖 Starting agent {agent_id} for group '{group.group_id}' ({group.specialization})")
+        print(f"   Group Description: {group.description}")
+        print(f"   Dependencies: {group.dependencies}")
+        print(f"   Available Tools: {[tool.name for tool in agent_tools]}")
+        
+        start_time = datetime.now()
         result = await agent.run(group_task_desc)
+        end_time = datetime.now()
+        
+        # Log detailed agent completion with comprehensive metrics
+        agent_cost = result.get("cost", 0.0)
+        agent_iterations = result.get("iterations", 0)
+        execution_time = (end_time - start_time).total_seconds()
+        success_icon = "✅" if result.get("success") else "❌"
+        
+        print(f"\n{success_icon} Agent {agent_id} COMPLETED:")
+        print(f"   Cost: ${agent_cost:.4f}")
+        print(f"   Iterations: {agent_iterations}")
+        print(f"   Execution Time: {execution_time:.1f}s")
+        print(f"   Success: {result.get('success', False)}")
+        
+        # Log communication tool usage
+        tool_calls = result.get("tool_calls", [])
+        ask_supervisor_calls = [tc for tc in tool_calls if tc.get("tool_name") == "ask_supervisor"]
+        send_message_calls = [tc for tc in tool_calls if tc.get("tool_name") == "send_message"]
+        
+        print(f"   Communication Stats:")
+        print(f"     ask_supervisor calls: {len(ask_supervisor_calls)}")
+        print(f"     send_message calls: {len(send_message_calls)}")
+        
+        if len(ask_supervisor_calls) == 0:
+            print(f"   ⚠️  WARNING: Agent {agent_id} made NO supervisor consultations!")
+        if len(send_message_calls) == 0:
+            print(f"   ⚠️  WARNING: Agent {agent_id} made NO inter-agent communications!")
+        
         audit_res = result.get("audit_result", {})
         if audit_res and not audit_res.get("audit_passed", True):
             # Log audit issues and convert them into actionable todos (placeholder)
             print("🚨 Audit reported issues:\n", audit_res.get("audit_content", "No details"))
             # In future we could parse and add new todos. For now, continue execution.
             result["success"] = True
-        if not result.get("success"):
-            todo_manager.update_task_group_status(group.group_id, "failed")
+        # Note: We no longer mark task groups as "failed" - agents must persist until completion
         return result
 
 async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:

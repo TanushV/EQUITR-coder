@@ -1,11 +1,10 @@
 {
-  "name": "Level 1 - Grasslands",
+  "name": "Level 1",
   "width": 50,
   "height": 15,
   "tile_size": 32,
   "player_start": {"x": 2, "y": 12},
   "goal": {"x": 47, "y": 12},
-  "background_color": [135, 206, 235],
   "tiles": [
     {"x": 0, "y": 14, "type": "ground"},
     {"x": 1, "y": 14, "type": "ground"},
@@ -62,21 +61,19 @@
     {"x": 12, "y": 10, "type": "brick"},
     {"x": 20, "y": 8, "type": "brick"},
     {"x": 21, "y": 8, "type": "brick"},
-    {"x": 30, "y": 11, "type": "brick"},
-    {"x": 31, "y": 11, "type": "brick"},
-    {"x": 32, "y": 11, "type": "brick"}
+    {"x": 22, "y": 8, "type": "brick"},
+    {"x": 30, "y": 6, "type": "brick"},
+    {"x": 31, "y": 6, "type": "brick"},
+    {"x": 32, "y": 6, "type": "brick"}
   ],
   "coins": [
-    {"x": 5, "y": 12},
-    {"x": 7, "y": 9},
-    {"x": 15, "y": 12},
-    {"x": 22, "y": 7},
-    {"x": 28, "y": 12},
-    {"x": 35, "y": 12}
+    {"x": 11, "y": 9},
+    {"x": 21, "y": 7},
+    {"x": 31, "y": 5}
   ],
   "enemies": [
-    {"x": 10, "y": 13, "patrol_start": 8, "patrol_end": 15},
-    {"x": 25, "y": 13, "patrol_start": 23, "patrol_end": 28},
-    {"x": 38, "y": 13, "patrol_start": 36, "patrol_end": 42}
+    {"x": 15, "y": 13, "patrol_start": 15, "patrol_end": 20},
+    {"x": 25, "y": 13, "patrol_start": 25, "patrol_end": 30},
+    {"x": 35, "y": 13, "patrol_start": 35, "patrol_end": 40}
   ]
 }

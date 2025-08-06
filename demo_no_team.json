@@ -1,0 +1,71 @@
+{
+  "task_name": "default_task",
+  "created_at": "2025-08-05T23:52:12.436890",
+  "task_groups": [
+    {
+      "group_id": "setup_foundation",
+      "specialization": "backend",
+      "description": "Set up project foundation",
+      "dependencies": [],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_dffde36d",
+          "title": "Initialize project structure",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "api_development",
+      "specialization": "backend",
+      "description": "Build API endpoints",
+      "dependencies": [
+        "setup_foundation"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_61e92769",
+          "title": "Create REST endpoints",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "user_interface",
+      "specialization": "frontend",
+      "description": "Create user interface",
+      "dependencies": [
+        "api_development"
+      ],
+      "status": "pending",
+      "todos": [
+        {
+          "id": "todo_13c110fd",
+          "title": "Build React components",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "group_id": "test_completion",
+      "specialization": "developer",
+      "description": "Test automatic completion",
+      "dependencies": [],
+      "status": "completed",
+      "todos": [
+        {
+          "id": "todo_8a3f8d62",
+          "title": "First task",
+          "status": "completed"
+        },
+        {
+          "id": "todo_2b8c82fc",
+          "title": "Second task",
+          "status": "completed"
+        }
+      ]
+    }
+  ]
+}

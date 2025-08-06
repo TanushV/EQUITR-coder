@@ -2,26 +2,31 @@
 
 This directory contains sound effects and music for the Mario game.
 
-## Sound Effects Needed
+## Current Placeholders
 
-- **jump.ogg**: Player jump sound
-- **coin.ogg**: Coin collection sound
-- **stomp.ogg**: Enemy stomp sound
-- **game_over.ogg**: Game over sound
-- **level_complete.ogg**: Level completion sound
-- **background_music.ogg**: Background music (optional)
+The following sound files are needed:
 
-## Placeholder Sounds
+- `jump.ogg` - Player jump sound
+- `coin.ogg` - Coin collection sound
+- `stomp.ogg` - Enemy stomp sound
+- `game_over.ogg` - Game over sound
+- `level_complete.ogg` - Level completion sound
+- `background_music.ogg` - Background music (optional)
 
-For development, you can use simple beep sounds or find free sound effects from:
-- [OpenGameArt.org](https://opengameart.org/)
-- [Freesound.org](https://freesound.org/)
-- [Zapsplat.com](https://www.zapsplat.com/)
+## Placeholder Creation
+
+For development, you can use simple generated sounds or find free assets:
+
+1. **Generated Sounds**: Use tools like sfxr or bfxr
+2. **Free Assets**: Check OpenGameArt.org or similar sites
+3. **Creative Commons**: Ensure proper attribution
 
 ## Usage
 
-Sounds are loaded automatically by the audio system. Place .ogg or .wav files in this directory and they will be available via the AudioManager class.
+Sounds are loaded through the game's audio system in `game/audio.py`.
 
-## License
+## File Format
 
-Ensure all sound effects used are properly licensed for your project.
+- **Sound Effects**: .ogg or .wav format
+- **Music**: .ogg format (looping)
+- **Quality**: 44.1kHz, 16-bit stereo recommended

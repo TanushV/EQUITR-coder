@@ -1,10 +1,17 @@
-"""Example: create a simple Mario-style platformer project using EQUITR Coder in multi-agent parallel mode.
+"""Example: create a simple Mario-style platformer project using EQUITR Coder in multi-agent parallel mode with specialized agent profiles.
 
 This script will:
 1. Create an output directory `generated_projects/mario_game_<timestamp>`.
 2. Enable verbose logging of every LLM exchange and tool invocation.
-3. Launch `EquitrCoder` in multi-agent parallel mode with 4 agents.
-4. Instruct the agents to implement a minimal Mario clone (Python + Pygame), tests and docs.
+3. Launch `EquitrCoder` in multi-agent parallel mode with 5 specialized agents using custom profiles.
+4. Use specialized agent profiles: game_dev, level_designer, qa_engineer, devops, and audio_engineer.
+5. Instruct the agents to implement a minimal Mario clone (Python + Pygame), tests and docs.
+
+The agents will use their specialized profiles to:
+- game_dev: Handle core game mechanics, physics, and engine systems
+- level_designer: Create level data, game balance, and content
+- qa_engineer: Implement testing frameworks and quality assurance
+- devops: Set up project structure, CI/CD, and build systems
 
 Run with an activated virtual-env that has the required model keys exported.
 """
@@ -23,10 +30,19 @@ from equitrcoder.programmatic import EquitrCoder, MultiAgentTaskConfiguration
 # Configuration
 # -----------------------------------------------------------------------------
 
-NUM_AGENTS = 4
-MAX_COST_USD = 25.0
-SUPERVISOR_MODEL = "o3"  # change per your provider
-WORKER_MODEL = "moonshot/kimi-k2-0711-preview"
+NUM_AGENTS = 5
+MAX_COST_USD = 30.0  # Increased for 5 agents
+SUPERVISOR_MODEL = "o3"  # Using O3 for supervisor (orchestrator and audit)
+WORKER_MODEL = "gpt-4.1"  # Using working DeepSeek model for workers
+
+# Specialized team profiles for Mario game development
+TEAM_PROFILES = [
+    "game_dev",        # Core game mechanics, physics, collision detection
+    "level_designer",  # Level data, game balance, content creation
+    "qa_engineer",     # Testing frameworks, quality assurance
+    "devops",          # Project setup, CI/CD, build systems
+    "audio_engineer"   # Audio systems, sound effects, music integration
+]
 
 TASK_DESCRIPTION = (
     "Create a minimal but working side-scrolling Mario-style platformer using Python and Pygame. "
@@ -83,10 +99,17 @@ async def main() -> None:
         supervisor_model=SUPERVISOR_MODEL,
         worker_model=WORKER_MODEL,
         auto_commit=True,
+        team=TEAM_PROFILES  # Pass the specialized team profiles
     )
 
-    logging.info("🚀 Starting multi-agent task: %s", TASK_DESCRIPTION)
-    result = await coder.execute_task(task_description=TASK_DESCRIPTION, config=cfg)
+    logging.info("🚀 Starting multi-agent task with specialized team: %s", TEAM_PROFILES)
+    logging.info("📋 Task description: %s", TASK_DESCRIPTION)
+    
+    # Execute task with specialized team profiles
+    result = await coder.execute_task(
+        task_description=TASK_DESCRIPTION, 
+        config=cfg
+    )
 
     if result.success:
         logging.info("✅ Project completed! Total cost: $%.2f", result.cost)

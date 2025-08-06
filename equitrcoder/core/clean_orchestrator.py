@@ -50,8 +50,9 @@ class CleanOrchestrator:
             
             # 3. Create the structured todo plan (JSON)
             print("📝 Creating structured todo plan with dependencies...")
-            task_todo_file = f".EQUITR_todos_{task_name}.json"
-            await self._setup_todo_system(task_description, requirements_content, design_content, task_name, project_path / task_todo_file, team)
+            task_todo_file = f"todos_{task_name}.json"
+            todo_path = docs_dir / task_todo_file
+            await self._setup_todo_system(task_description, requirements_content, design_content, task_name, todo_path, team)
             
             print("✅ Documentation and plan created successfully!")
             return {
@@ -59,7 +60,7 @@ class CleanOrchestrator:
                 "task_name": task_name,
                 "requirements_path": str(requirements_path),
                 "design_path": str(design_path),
-                "todos_path": str(project_path / task_todo_file), # Path to the JSON plan
+                "todos_path": str(todo_path), # Path to the JSON plan in docs directory
                 "docs_dir": str(docs_dir),
             }
         except Exception as e:

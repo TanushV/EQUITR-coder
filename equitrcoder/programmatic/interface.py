@@ -1,7 +1,7 @@
 # equitrcoder/programmatic/interface.py
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional, Union, List
 from pathlib import Path
 from datetime import datetime
 from ..core.config import config_manager
@@ -30,6 +30,7 @@ class MultiAgentTaskConfiguration:
     supervisor_model: Optional[str] = None
     worker_model: Optional[str] = None
     auto_commit: bool = True # <-- ADDED THIS FLAG
+    team: Optional[List[str]] = None  # List of agent profile names to use
 
 @dataclass
 class ExecutionResult:
@@ -43,6 +44,10 @@ class ExecutionResult:
     error: Optional[str] = None
     git_committed: bool = False
     commit_hash: Optional[str] = None
+    # New fields for LLM response visibility
+    conversation_history: Optional[List[dict]] = None
+    tool_call_history: Optional[List[dict]] = None
+    llm_responses: Optional[List[dict]] = None
 
 class EquitrCoder:
     """Main programmatic interface for EQUITR Coder."""
@@ -61,33 +66,55 @@ class EquitrCoder:
         
         try:
             if isinstance(config, TaskConfiguration):
+                supervisor_model = config.model or "moonshot/kimi-k2-0711-preview"
                 result_data = await run_single_agent_mode(
                     task_description=task_description,
                     agent_model=config.model or "moonshot/kimi-k2-0711-preview",
-                    orchestrator_model=config.model or "moonshot/kimi-k2-0711-preview",
-                    audit_model=config.model or "o3",
+                    orchestrator_model=supervisor_model,
+                    audit_model=supervisor_model,  # Always use supervisor model for audit
                     project_path=self.repo_path,
                     max_cost=config.max_cost,
                     max_iterations=config.max_iterations,
                     auto_commit=config.auto_commit # Pass the flag
                 )
             elif isinstance(config, MultiAgentTaskConfiguration):
+                supervisor_model = config.supervisor_model or "gpt-4o-mini"
                 result_data = await run_multi_agent_parallel(
                     task_description=task_description,
                     num_agents=config.num_agents,
                     agent_model=config.worker_model or "moonshot/kimi-k2-0711-preview",
-                    orchestrator_model=config.supervisor_model or "gpt-4o-mini",
-                    audit_model=config.supervisor_model or "o3",
+                    orchestrator_model=supervisor_model,
+                    audit_model=supervisor_model,  # Always use supervisor model for audit
                     project_path=self.repo_path,
                     max_cost_per_agent=config.max_cost / config.num_agents,
                     max_iterations_per_agent=config.max_iterations,
-                    auto_commit=config.auto_commit # Pass the flag
+                    auto_commit=config.auto_commit, # Pass the flag
+                    team=config.team  # Pass the team profiles
                 )
             else:
                 raise TypeError("Configuration must be TaskConfiguration or MultiAgentTaskConfiguration")
             
             # The commit hash would be returned from the mode runner if successful
             commit_hash = result_data.get("commit_hash")
+            
+            # Extract detailed LLM response data if available
+            conversation_history = None
+            tool_call_history = None
+            llm_responses = None
+            
+            # For single agent mode, extract from execution_result
+            if isinstance(config, TaskConfiguration) and "execution_result" in result_data:
+                exec_result = result_data["execution_result"]
+                if isinstance(exec_result, dict):
+                    conversation_history = exec_result.get("messages", [])
+                    tool_call_history = exec_result.get("tool_calls", [])
+                    llm_responses = exec_result.get("llm_responses", [])
+            
+            # For multi-agent mode, we'd need to collect from all agents
+            elif isinstance(config, MultiAgentTaskConfiguration):
+                # TODO: Implement multi-agent response collection
+                # This would require changes to the multi-agent mode to return agent details
+                pass
             
             return ExecutionResult(
                 success=result_data.get("success", False),
@@ -98,7 +125,10 @@ class EquitrCoder:
                 execution_time=(datetime.now() - start_time).total_seconds(),
                 error=result_data.get("error"),
                 git_committed=bool(commit_hash),
-                commit_hash=commit_hash
+                commit_hash=commit_hash,
+                conversation_history=conversation_history,
+                tool_call_history=tool_call_history,
+                llm_responses=llm_responses
             )
         except Exception as e:
             return ExecutionResult(

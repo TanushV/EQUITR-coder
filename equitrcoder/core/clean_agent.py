@@ -27,11 +27,11 @@ class CleanAgent:
         session_manager: Optional[SessionManagerV2] = None,
         max_cost: Optional[float] = None,
         max_iterations: Optional[int] = None,
-        audit_model: str = "o3",  # Model for audit (default o3)
+        audit_model: Optional[str] = None,  # Model for audit (defaults to same as main model)
     ):
         self.agent_id = agent_id
         self.model = model
-        self.audit_model = audit_model
+        self.audit_model = audit_model or model  # Default to same as main model
         self.tools = {tool.get_name(): tool for tool in tools}
         self.context = context or {}
         self.session_manager = session_manager or SessionManagerV2()
@@ -54,6 +54,10 @@ class CleanAgent:
         self.current_cost = 0.0
         self.iteration_count = 0
         self.session: Optional[SessionData] = None
+        
+        # Track detailed LLM interactions for programmatic access
+        self.llm_responses: List[Dict[str, Any]] = []
+        self.tool_call_history: List[Dict[str, Any]] = []
 
         # Callbacks
         self.on_message_callback: Optional[Callable] = None
@@ -99,20 +103,45 @@ class CleanAgent:
             # Add initial system message
             system_message = f"""You are {self.agent_id}, an AI coding agent powered by {self.model}.
 
-🚨 CRITICAL RULES:
+🚨 CRITICAL RULES - FOLLOW THESE EXACTLY:
 1. **MANDATORY TOOL USE**: You MUST make at least one tool call in EVERY response
-2. **TODO COMPLETION**: Work systematically through todos using list_todos and update_todo
-3. **UNLIMITED ITERATIONS**: Keep working until ALL todos are completed
-4. **CREATE WORKING CODE**: Actually implement and test your solutions
+2. **TODO COMPLETION IS YOUR PRIMARY GOAL**: Your success is measured ONLY by completing ALL todos
+3. **MANDATORY COMMUNICATION**: If you have access to `ask_supervisor` or `send_message` tools, you MUST use them frequently
+4. **NEVER GIVE UP**: Keep working until ALL todos are marked as 'completed' - this is non-negotiable
+5. **CREATE WORKING CODE**: Actually implement and test your solutions - don't just plan
+6. **BE PERSISTENT**: If something doesn't work, try different approaches until it succeeds
+7. **ASK FOR HELP**: Use communication tools when stuck, confused, or need guidance
+
+🎯 YOUR MISSION: Complete every single todo item through active collaboration and communication.
 
 🔧 AVAILABLE TOOLS: {', '.join(self.tools.keys())}
 
-📋 WORKFLOW:
-1. Use list_todos to see what needs to be done
-2. Work through each todo systematically  
-3. Use update_todo to mark todos as completed when done
-4. Continue until ALL todos are completed
-5. An audit will run automatically when you finish
+📋 MANDATORY WORKFLOW (Follow this religiously):
+1. **COMMUNICATE FIRST**: If you have `ask_supervisor` or `send_message`, use them to understand your role
+2. **GET YOUR TODOS**: Use list_todos_in_group to see your assigned todos
+3. **ASK FOR GUIDANCE**: Use `ask_supervisor` for unclear requirements or technical decisions
+4. **COORDINATE**: Use `send_message` to communicate with other agents about dependencies
+5. **IMPLEMENT**: Work through each todo systematically - implement actual working solutions
+6. **VERIFY**: Use `ask_supervisor` to verify your work is correct before marking complete
+7. **UPDATE STATUS**: Use update_todo_status to mark todos as 'completed' ONLY when fully implemented
+8. **COMMUNICATE SUCCESS**: Use communication tools to announce completion and coordinate next steps
+
+💡 COMMUNICATION REQUIREMENTS:
+- Use `ask_supervisor` at least once every 3-5 iterations if available
+- Use `send_message` to coordinate with other agents if available
+- NEVER work in isolation if communication tools are available
+- Ask for help when stuck rather than struggling alone
+- Communicate progress, blockers, and completions
+
+🏆 SUCCESS TIPS:
+- Read files to understand the codebase before making changes
+- Create files with complete, working implementations
+- Test your code by reading it back and checking for errors
+- Use git_commit to save your progress regularly
+- Use communication tools to get guidance and coordinate
+- If you're stuck, ask for help immediately - don't waste iterations!
+
+🏆 REMEMBER: Your reputation depends on completing ALL todos through effective communication and collaboration.
 
 Agent ID: {self.agent_id}
 Model: {self.model}{context_info}"""
@@ -140,6 +169,10 @@ Model: {self.model}{context_info}"""
                 "execution_result": result,
                 "audit_result": audit_result,
                 "session_id": self.session.session_id if self.session else None,
+                # Include detailed LLM response data for programmatic access
+                "messages": self.messages,
+                "llm_responses": self.llm_responses,
+                "tool_calls": self.tool_call_history,
             }
 
         except Exception as e:
@@ -193,9 +226,53 @@ Model: {self.model}{context_info}"""
                     messages=messages, tools=tool_schemas if tool_schemas else None
                 )
 
+                # Track LLM response for programmatic access
+                llm_response_data = {
+                    "iteration": iteration,
+                    "timestamp": datetime.now().isoformat(),
+                    "model": self.model,
+                    "content": response.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": tc.function
+                        } for tc in (response.tool_calls or [])
+                    ],
+                    "usage": getattr(response, "usage", {}),
+                    "cost": getattr(response, "cost", 0.0)
+                }
+                self.llm_responses.append(llm_response_data)
+
                 # Update cost
                 if hasattr(response, "cost") and response.cost:
                     self.current_cost += response.cost
+
+                # Log detailed LLM response with full content
+                print(f"\n🤖 [{self.agent_id}] Iteration {iteration} - LLM Response:")
+                print(f"   Model: {self.model}")
+                print(f"   Cost: ${getattr(response, 'cost', 0.0):.4f} (Total: ${self.current_cost:.4f})")
+                print(f"   Usage: {getattr(response, 'usage', {})}")
+                
+                if response.content:
+                    print(f"   Content:")
+                    # Log full content with proper formatting
+                    content_lines = response.content.split('\n')
+                    for line in content_lines[:10]:  # Show first 10 lines
+                        print(f"     {line}")
+                    if len(content_lines) > 10:
+                        print(f"     ... ({len(content_lines) - 10} more lines)")
+                
+                if response.tool_calls:
+                    print(f"   Tool Calls ({len(response.tool_calls)}):")
+                    for i, tc in enumerate(response.tool_calls, 1):
+                        args = json.loads(tc.function['arguments'])
+                        print(f"     {i}. {tc.function['name']}:")
+                        for key, value in args.items():
+                            value_str = str(value)[:100] + "..." if len(str(value)) > 100 else str(value)
+                            print(f"        {key}: {value_str}")
+                else:
+                    print("   ⚠️  NO TOOL CALLS - This violates the mandatory tool use rule!")
 
                 # Add assistant message
                 assistant_content = response.content or "Working..."
@@ -210,6 +287,18 @@ Model: {self.model}{context_info}"""
                         tool_name = tool_call.function["name"]
                         tool_args = json.loads(tool_call.function["arguments"])
 
+                        # Track tool call for programmatic access
+                        tool_call_data = {
+                            "iteration": iteration,
+                            "timestamp": datetime.now().isoformat(),
+                            "tool_call_id": tool_call.id,
+                            "tool_name": tool_name,
+                            "tool_args": tool_args,
+                            "success": False,
+                            "result": None,
+                            "error": None
+                        }
+
                         if tool_name in self.tools:
                             # Execute tool
                             tool_result = await self.tools[tool_name].run(**tool_args)
@@ -218,6 +307,20 @@ Model: {self.model}{context_info}"""
                                 if tool_result.success
                                 else tool_result.error
                             )
+
+                            # Update tool call tracking
+                            tool_call_data["success"] = tool_result.success
+                            tool_call_data["result"] = tool_result.data if tool_result.success else None
+                            tool_call_data["error"] = tool_result.error if not tool_result.success else None
+
+                            # Log tool execution result
+                            status_icon = "✅" if tool_result.success else "❌"
+                            print(f"🔧 [{self.agent_id}] Tool Execution: {status_icon} {tool_name}")
+                            if tool_args:
+                                args_preview = str(tool_args)[:100] + "..." if len(str(tool_args)) > 100 else str(tool_args)
+                                print(f"   Args: {args_preview}")
+                            result_preview = result_content[:150] + "..." if len(result_content) > 150 else result_content
+                            print(f"   Result: {result_preview}")
 
                             self.add_message(
                                 "tool",
@@ -231,12 +334,19 @@ Model: {self.model}{context_info}"""
                             tool_results.append(f"Tool {tool_name}: {result_content}")
                         else:
                             error_msg = f"Tool {tool_name} not available"
+                            tool_call_data["error"] = error_msg
+                            
+                            # Log tool error
+                            print(f"🔧 [{self.agent_id}] Tool Error: ❌ {tool_name} (not available)")
+                            
                             self.add_message(
                                 "tool",
                                 error_msg,
                                 {"tool_name": tool_name, "error": "Tool not available"},
                             )
                             tool_results.append(f"Error: {error_msg}")
+                        
+                        self.tool_call_history.append(tool_call_data)
 
                     # Add tool results as user message
                     if tool_results:

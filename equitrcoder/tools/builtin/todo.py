@@ -123,7 +123,7 @@ class TodoManager:
     def are_all_tasks_complete(self) -> bool:
         """Checks if the entire plan is finished."""
         if not self.plan.task_groups: return False
-        return all(g.status in ['completed', 'failed'] for g in self.plan.task_groups)
+        return all(g.status == 'completed' for g in self.plan.task_groups)
 
 # --- UPDATED TOOLS FOR THE NEW SYSTEM ---
 # These are the tools the agents will use to interact with the plan.
