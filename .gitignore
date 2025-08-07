@@ -103,3 +103,4 @@ cython_debug/
 # Automatically generated projects
 generated_projects/
 
+/generated_projects
