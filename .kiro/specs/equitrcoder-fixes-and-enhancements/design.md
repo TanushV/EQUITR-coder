@@ -1,51 +1,66 @@
-# EQUITR Coder Fixes and Enhancements - Design Document
+# EQUITR Coder Comprehensive Technical Debt Resolution - Design Document
 
 ## Overview
 
-This design document outlines the technical approach for implementing comprehensive fixes and enhancements to the EQUITR Coder project. The design focuses on maintaining backward compatibility while adding robust error handling, model validation, and production-ready features.
+This design document outlines the systematic technical approach for resolving all identified technical debt in the EQUITR Coder project. The design focuses on consolidating scattered configurations, standardizing error handling, improving code quality, optimizing performance, and decoupling architecture while maintaining full backward compatibility and adding minimal new files to avoid creating additional technical debt.
 
 ## Architecture
 
-### Core Components Enhancement
+### Technical Debt Resolution Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ENHANCED EQUITR CODER                   │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐    ┌─────────────────┐                │
-│  │ Document        │    │ Audit System    │                │
-│  │ Workflow Mgr    │    │ - Always-On     │                │
-│  │ - 3 Documents   │    │ - Doc Validation│                │
-│  │ - Interactive   │    │ - Todo Creation │                │
-│  │ - Auto Creation │    │ - Escalation    │                │
-│  └─────────────────┘    └─────────────────┘                │
-│           │                       │                        │
-│           ▼                       ▼                        │
-│  ┌─────────────────┐    ┌─────────────────┐                │
-│  │  Model Manager  │    │ Error Handler   │                │
-│  │  - Validation   │    │ - Clear Messages│                │
-│  │  - Cost Est.    │    │ - Suggestions   │                │
-│  │  - Availability │    │ - Recovery      │                │
-│  └─────────────────┘    └─────────────────┘                │
-│           │                       │                        │
-│           ▼                       ▼                        │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │            ENHANCED CORE SYSTEM                         ││
-│  │  ┌─────────────────┐    ┌─────────────────┐            ││
-│  │  │   SUPERVISOR    │    │ WORKER AGENTS   │            ││
-│  │  │ (Strong Model)  │    │ (Todo-Based)    │            ││
-│  │  │ - Doc Context   │    │ - Communication │            ││
-│  │  └─────────────────┘    └─────────────────┘            ││
-│  └─────────────────────────────────────────────────────────┘│
-│           │                       │                        │
-│           ▼                       ▼                        │
-│  ┌─────────────────┐    ┌─────────────────┐                │
-│  │ Agent Comm      │    │ Performance     │                │
-│  │ - Message Pool  │    │ Monitor         │                │
-│  │ - 4 Tools       │    │ - Metrics       │                │
-│  │ - Coordination  │    │ - Alerts        │                │
-│  └─────────────────┘    └─────────────────┘                │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    REFACTORED EQUITR CODER ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                │
+│  │ Unified Config  │  │ Standard Error  │  │ Prompt System   │                │
+│  │ Manager         │  │ Handler         │  │ Consolidator    │                │
+│  │ - Schema Valid  │  │ - No Bare Except│  │ - Clean Templates│               │
+│  │ - Cache Layer   │  │ - Context Errors│  │ - Reduced Verbose│               │
+│  │ - No Hardcoded  │  │ - Recovery Plans│  │ - Single Source │                │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
+│           │                       │                       │                   │
+│           ▼                       ▼                       ▼                   │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                    DECOUPLED CORE SYSTEM                                   ││
+│  │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        ││
+│  │  │ Document        │    │ Audit System    │    │ Performance     │        ││
+│  │  │ Workflow Mgr    │    │ - Always-On     │    │ Monitor         │        ││
+│  │  │ - 3 Documents   │    │ - Doc Validation│    │ - Cache Layer   │        ││
+│  │  │ - Interactive   │    │ - Todo Creation │    │ - Memory Opt    │        ││
+│  │  └─────────────────┘    └─────────────────┘    └─────────────────┘        ││
+│  │           │                       │                       │               ││
+│  │           ▼                       ▼                       ▼               ││
+│  │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        ││
+│  │  │  Model Manager  │    │ Agent Comm      │    │ Validation      │        ││
+│  │  │  - Validation   │    │ - Message Pool  │    │ Engine          │        ││
+│  │  │  - Cost Est.    │    │ - 4 Tools       │    │ - Input Valid   │        ││
+│  │  │  - Availability │    │ - Coordination  │    │ - Schema Check  │        ││
+│  │  └─────────────────┘    └─────────────────┘    └─────────────────┘        ││
+│  │           │                       │                       │               ││
+│  │           ▼                       ▼                       ▼               ││
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐││
+│  │  │                    CLEAN AGENT SYSTEM                                  │││
+│  │  │  ┌─────────────────┐              ┌─────────────────┐                 │││
+│  │  │  │   SUPERVISOR    │              │ WORKER AGENTS   │                 │││
+│  │  │  │ (Strong Model)  │              │ (Todo-Based)    │                 │││
+│  │  │  │ - Doc Context   │              │ - Communication │                 │││
+│  │  │  │ - Clean Logic   │              │ - Single Resp   │                 │││
+│  │  │  └─────────────────┘              └─────────────────┘                 │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│           │                                                                     │
+│           ▼                                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                    INFRASTRUCTURE LAYER                                    ││
+│  │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        ││
+│  │  │ Logging &       │    │ Dependency      │    │ Code Quality    │        ││
+│  │  │ Monitoring      │    │ Injection       │    │ Enforcer        │        ││
+│  │  │ - Structured    │    │ - Loose Coupling│    │ - No Legacy     │        ││
+│  │  │ - Correlation   │    │ - Clear Ifaces  │    │ - No TODOs      │        ││
+│  │  └─────────────────┘    └─────────────────┘    └─────────────────┘        ││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Components and Interfaces
@@ -176,31 +191,231 @@ class PerformanceMonitor:
 - Success rate analysis
 - Performance threshold alerts
 
-### 7. Integration Test Framework
+### 7. Unified Configuration Manager
 
-**Purpose**: Comprehensive end-to-end testing of all workflows.
+**Purpose**: Consolidate all scattered configurations, eliminate hardcoded values, and provide schema validation.
+
+**Interface**:
+```python
+class UnifiedConfigManager:
+    def __init__(self, config_path: Optional[str] = None)
+    def load_config(self) -> ConfigurationData
+    def get(self, key: str, default: Any = None) -> Any
+    def set(self, key: str, value: Any) -> None
+    def validate_schema(self, config: Dict) -> ValidationResult
+    def get_cached_config(self) -> ConfigurationData
+    def reload_config(self) -> None
+    def merge_configs(self, *configs: Dict) -> Dict
+```
+
+**Key Features**:
+- Single source of truth for all configuration
+- Schema validation with clear error messages
+- Configuration caching to eliminate repeated file reads
+- Elimination of hardcoded values (timeout=600, max_cost=5.0, etc.)
+- Hierarchical configuration merging
+- Environment variable override support
+
+### 8. Standardized Error Handler
+
+**Purpose**: Replace all bare except clauses, eliminate silent failures, and provide consistent error patterns.
+
+**Interface**:
+```python
+class StandardizedErrorHandler:
+    def handle_exception(self, exc: Exception, context: Dict) -> HandledError
+    def wrap_function(self, func: Callable) -> Callable  # Decorator for consistent error handling
+    def log_error(self, error: Exception, context: Dict) -> None
+    def create_contextual_error(self, error: Exception, operation: str) -> ContextualError
+    def suggest_recovery(self, error_type: str, context: Dict) -> List[RecoveryAction]
+    def escalate_error(self, error: Exception, attempts: int) -> EscalationResult
+```
+
+**Key Features**:
+- Eliminates all bare `except:` clauses
+- Replaces `except: pass` with proper error handling
+- Provides contextual error messages
+- Implements consistent error patterns across codebase
+- Automatic error logging and recovery suggestions
+- Error escalation for critical failures
+
+### 9. Prompt System Consolidator
+
+**Purpose**: Consolidate scattered prompt configurations into a clean, unified system with reduced verbosity.
+
+**Interface**:
+```python
+class PromptSystemConsolidator:
+    def __init__(self, config_manager: UnifiedConfigManager)
+    def get_prompt_template(self, prompt_type: str) -> PromptTemplate
+    def render_prompt(self, template: str, context: Dict) -> str
+    def optimize_prompt_length(self, prompt: str, max_tokens: int) -> str
+    def validate_prompt_template(self, template: str) -> ValidationResult
+    def get_system_prompts(self) -> Dict[str, str]
+    def update_prompt_template(self, prompt_type: str, template: str) -> None
+```
+
+**Key Features**:
+- Single source for all prompt templates
+- Reduced verbosity while maintaining effectiveness
+- Template validation and optimization
+- Dynamic prompt rendering with context
+- A/B testing support for prompt optimization
+- Clean separation of prompt logic from business logic
+
+### 10. Performance Optimization Engine
+
+**Purpose**: Eliminate repeated operations, optimize memory usage, and implement efficient caching.
+
+**Interface**:
+```python
+class PerformanceOptimizationEngine:
+    def __init__(self, cache_manager: CacheManager)
+    def optimize_file_operations(self) -> None  # Eliminate repeated file reads
+    def optimize_string_operations(self, text: str) -> str  # Efficient string handling
+    def monitor_memory_usage(self) -> MemoryReport
+    def cache_expensive_operations(self, operation: str, func: Callable) -> Any
+    def optimize_context_building(self, context_parts: List[str]) -> str
+    def profile_operation(self, operation_name: str) -> PerformanceProfile
+```
+
+**Key Features**:
+- Caching layer for configuration and frequently accessed data
+- Elimination of repeated file reading/parsing operations
+- Optimized string operations to avoid multiple concatenations
+- Memory usage monitoring and optimization
+- Context string optimization to avoid repeated rebuilding
+- Performance profiling and bottleneck identification
+
+### 11. Architecture Decoupling System
+
+**Purpose**: Reduce tight coupling, implement dependency injection, and standardize interfaces.
+
+**Interface**:
+```python
+class DependencyInjectionContainer:
+    def register(self, interface: Type, implementation: Type) -> None
+    def resolve(self, interface: Type) -> Any
+    def create_scoped_container(self) -> 'DependencyInjectionContainer'
+    
+class InterfaceStandardizer:
+    def validate_interface_compliance(self, cls: Type, interface: Type) -> ComplianceResult
+    def generate_interface_documentation(self, interface: Type) -> str
+    def check_interface_consistency(self, interfaces: List[Type]) -> ConsistencyReport
+```
+
+**Key Features**:
+- Dependency injection to reduce tight coupling
+- Standardized interfaces across similar functionality
+- Single responsibility principle enforcement
+- Simplified class hierarchies
+- Clear component boundaries and contracts
+- Interface compliance validation
+
+### 12. Code Quality Enforcer
+
+**Purpose**: Remove legacy code, resolve TODO items, and enforce consistent coding standards.
+
+**Interface**:
+```python
+class CodeQualityEnforcer:
+    def scan_for_legacy_references(self, codebase_path: str) -> List[LegacyReference]
+    def resolve_todo_items(self, codebase_path: str) -> TodoResolutionReport
+    def simplify_complex_logic(self, file_path: str) -> SimplificationReport
+    def standardize_naming_conventions(self, codebase_path: str) -> NamingReport
+    def enforce_single_responsibility(self, class_path: str) -> ResponsibilityReport
+    def validate_code_patterns(self, codebase_path: str) -> PatternValidationReport
+```
+
+**Key Features**:
+- Automated detection and removal of legacy/deprecated code
+- TODO/FIXME item resolution tracking
+- Complex nested logic simplification
+- Naming convention standardization
+- Single responsibility principle enforcement
+- Consistent code pattern validation
+
+### 13. Comprehensive Validation Engine
+
+**Purpose**: Provide schema validation, input validation, and boundary checking throughout the system.
+
+**Interface**:
+```python
+class ValidationEngine:
+    def validate_configuration(self, config: Dict, schema: Dict) -> ValidationResult
+    def validate_input_parameters(self, params: Dict, spec: ParameterSpec) -> ValidationResult
+    def validate_api_responses(self, response: Dict, expected_schema: Dict) -> ValidationResult
+    def validate_file_permissions(self, file_path: str, required_permissions: List[str]) -> ValidationResult
+    def validate_model_compatibility(self, model: str, requirements: ModelRequirements) -> ValidationResult
+    def create_validation_schema(self, data_type: Type) -> ValidationSchema
+```
+
+**Key Features**:
+- Comprehensive schema validation for all configuration
+- Input parameter validation at system boundaries
+- API response validation and error handling
+- File permission and existence validation
+- Model compatibility and availability validation
+- Dynamic schema generation from type hints
+
+### 14. Logging and Monitoring Infrastructure
+
+**Purpose**: Implement structured logging, correlation tracking, and comprehensive monitoring.
+
+**Interface**:
+```python
+class LoggingInfrastructure:
+    def setup_structured_logging(self, config: LoggingConfig) -> None
+    def log_with_context(self, level: str, message: str, context: Dict) -> None
+    def create_correlation_id(self) -> str
+    def track_request(self, correlation_id: str, operation: str) -> RequestTracker
+    def log_performance_metrics(self, metrics: PerformanceMetrics) -> None
+    def create_audit_trail(self, operation: str, user: str, details: Dict) -> None
+
+class MonitoringInfrastructure:
+    def collect_system_metrics(self) -> SystemMetrics
+    def track_api_usage(self, api_call: APICall) -> None
+    def monitor_resource_consumption(self) -> ResourceReport
+    def create_performance_dashboard(self) -> Dashboard
+    def setup_alerting(self, alert_rules: List[AlertRule]) -> None
+    def generate_usage_reports(self, timeframe: str) -> UsageReport
+```
+
+**Key Features**:
+- Structured logging with correlation IDs
+- Request tracing across component boundaries
+- Performance metrics collection and analysis
+- API usage tracking and cost monitoring
+- Resource consumption monitoring
+- Automated alerting and reporting
+
+### 15. Integration Test Framework
+
+**Purpose**: Comprehensive end-to-end testing of all workflows and technical debt resolution.
 
 **Structure**:
 ```
 tests/
 ├── unit/
-│   ├── test_agents.py
-│   ├── test_orchestrators.py
-│   ├── test_tools.py
-│   └── test_model_manager.py
+│   ├── test_config_manager.py
+│   ├── test_error_handler.py
+│   ├── test_prompt_consolidator.py
+│   ├── test_performance_engine.py
+│   ├── test_validation_engine.py
+│   └── test_code_quality.py
 ├── integration/
-│   ├── test_single_agent_workflow.py
-│   ├── test_multi_agent_workflow.py
-│   ├── test_programmatic_interface.py
-│   └── test_tui_interface.py
+│   ├── test_technical_debt_resolution.py
+│   ├── test_configuration_consolidation.py
+│   ├── test_error_handling_patterns.py
+│   └── test_performance_optimization.py
 ├── performance/
-│   ├── test_cost_tracking.py
-│   ├── test_response_times.py
-│   └── test_resource_usage.py
-└── security/
-    ├── test_file_restrictions.py
-    ├── test_input_validation.py
-    └── test_api_key_handling.py
+│   ├── test_memory_optimization.py
+│   ├── test_caching_efficiency.py
+│   └── test_string_operations.py
+└── quality/
+    ├── test_legacy_code_removal.py
+    ├── test_todo_resolution.py
+    └── test_naming_conventions.py
 ```
 
 ## Data Models

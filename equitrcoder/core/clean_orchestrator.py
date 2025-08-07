@@ -30,14 +30,16 @@ class CleanOrchestrator:
                 return {
                     'requirements_analyst_prompt': config.get('requirements_analyst_prompt', ''),
                     'system_designer_prompt': config.get('system_designer_prompt', ''),
-                    'project_manager_prompt': config.get('project_manager_prompt', '')
+                    'task_group_planner_prompt': config.get('task_group_planner_prompt', ''),
+                    'todo_generator_prompt': config.get('todo_generator_prompt', '')
                 }
         
         # Fallback prompts if config file not found
         return {
             'requirements_analyst_prompt': 'You are a requirements analyst. Create a clear requirements document.',
             'system_designer_prompt': 'You are a system designer. Create a technical design document.',
-            'project_manager_prompt': 'You are a project manager. Create a structured execution plan.'
+            'task_group_planner_prompt': 'You are a project manager. Create task groups for the project.',
+            'todo_generator_prompt': 'You are a technical lead. Create specific todos for a task group.'
         }
     
     async def create_docs(
@@ -108,7 +110,7 @@ class CleanOrchestrator:
         return response.content
     
     async def _setup_todo_system(self, task_description: str, requirements: str, design: str, task_name: str, todo_file_path: Path, team: Optional[List[str]] = None):
-        """Generates and saves the structured todo plan."""
+        """Generates and saves the structured todo plan using a two-stage process."""
         
         # Get available tools context
         available_tools = discover_tools()
@@ -133,9 +135,10 @@ class CleanOrchestrator:
                     "Available Team:\n" + "\n".join(team_details) + "\n\n"
                 )
 
-        # Get project manager prompt from config and format it
-        project_manager_prompt = self.prompts.get('project_manager_prompt', 'You are a project manager.')
-        system_prompt = project_manager_prompt.format(
+        # STAGE 1: Create Task Groups
+        print("🎯 Stage 1: Creating task groups...")
+        task_group_planner_prompt = self.prompts.get('task_group_planner_prompt', 'You are a project manager.')
+        system_prompt = task_group_planner_prompt.format(
             team_prompt_injection=team_prompt_injection,
             tools_context=tools_context
         )
@@ -149,23 +152,23 @@ class CleanOrchestrator:
         for attempt in range(1, max_retries + 1):
             response = await self.provider.chat(messages=messages)
             try:
-                plan_data = json.loads(response.content)
-                if isinstance(plan_data, list):
-                    task_groups_data = plan_data
-                else:
-                    task_groups_data = plan_data.get("task_groups", plan_data)
+                task_groups_data = json.loads(response.content)
+                if not isinstance(task_groups_data, list):
+                    raise ValueError("Expected an array of task groups")
                 break  # Successfully parsed JSON
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, ValueError) as e:
                 if attempt == max_retries:
-                    raise ValueError("Failed to decode the JSON plan from the language model after multiple retries.")
-                print(f"⚠️  Attempt {attempt} returned invalid JSON. Retrying...")
+                    raise ValueError(f"Failed to get valid task groups after multiple retries: {e}")
+                print(f"⚠️  Attempt {attempt} returned invalid task groups. Retrying...")
                 continue
+        
+        print(f"✅ Created {len(task_groups_data)} task groups")
         
         # Set up the session-local todo file and manager
         set_global_todo_file(str(todo_file_path))
-        
-        # Populate the new TodoManager with the structured plan
         manager = get_todo_manager()
+        
+        # Create task groups in the manager
         for group_data in task_groups_data:
             manager.create_task_group(
                 group_id=group_data['group_id'],
@@ -173,8 +176,57 @@ class CleanOrchestrator:
                 description=group_data.get('description', ''),
                 dependencies=group_data.get('dependencies', [])
             )
-            for todo_data in group_data.get('todos', []):
+        
+        # STAGE 2: Create todos for each task group
+        print("📝 Stage 2: Creating todos for each task group...")
+        todo_generator_prompt = self.prompts.get('todo_generator_prompt', 'You are a technical lead.')
+        
+        for group_data in task_groups_data:
+            print(f"  📋 Creating todos for group: {group_data['group_id']}")
+            
+            system_prompt = todo_generator_prompt.format(
+                group_id=group_data['group_id'],
+                specialization=group_data['specialization'],
+                description=group_data.get('description', ''),
+                requirements=requirements,
+                design=design,
+                tools_context=tools_context
+            )
+            
+            messages = [
+                Message(role="system", content=system_prompt),
+                Message(role="user", content=f"Create specific todos for the '{group_data['group_id']}' task group."),
+            ]
+            
+            for attempt in range(1, max_retries + 1):
+                response = await self.provider.chat(messages=messages)
+                try:
+                    todos_data = json.loads(response.content)
+                    if not isinstance(todos_data, list):
+                        raise ValueError("Expected an array of todo objects")
+                    
+                    # Validate todos format
+                    for todo in todos_data:
+                        if not isinstance(todo, dict) or 'title' not in todo:
+                            raise ValueError("Each todo must be an object with a 'title' field")
+                    
+                    break  # Successfully parsed JSON
+                except (json.JSONDecodeError, ValueError) as e:
+                    if attempt == max_retries:
+                        print(f"⚠️  Failed to get valid todos for group {group_data['group_id']} after multiple retries: {e}")
+                        # Create a fallback todo
+                        todos_data = [{"title": f"Implement {group_data['group_id']} functionality"}]
+                        break
+                    print(f"⚠️  Attempt {attempt} returned invalid todos for {group_data['group_id']}. Retrying...")
+                    continue
+            
+            # Add todos to the group
+            for todo_data in todos_data:
                 manager.add_todo_to_group(
                     group_id=group_data['group_id'],
                     title=todo_data['title']
                 )
+            
+            print(f"    ✅ Added {len(todos_data)} todos to {group_data['group_id']}")
+        
+        print("✅ Two-stage todo creation completed successfully!")
