@@ -13,6 +13,8 @@ class SendMessageArgs(BaseModel):
 class ReceiveMessagesArgs(BaseModel):
     pass
 
+
+
 class SendMessage(Tool):
     """Tool for sending messages to other agents."""
     def __init__(self, sender_id: str):
@@ -63,9 +65,19 @@ class ReceiveMessages(Tool):
         ]
         return ToolResult(success=True, data=formatted_messages)
 
+
+
 def create_communication_tools_for_agent(agent_id: str) -> List[Tool]:
     """Factory function to create a set of communication tools for a specific agent."""
+    from .ask_supervisor import AskSupervisor
+    from ...providers.litellm import LiteLLMProvider
+    
+    # Create supervisor provider (using same model as orchestrator)
+    # This will be passed the correct model when the agent is created
+    supervisor_provider = LiteLLMProvider(model="o3")  # Default, will be overridden
+    
     return [
         SendMessage(sender_id=agent_id),
         ReceiveMessages(agent_id=agent_id),
+        AskSupervisor(provider=supervisor_provider),
     ]

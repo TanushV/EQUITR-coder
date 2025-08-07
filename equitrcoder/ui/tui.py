@@ -145,74 +145,6 @@ class SimpleTUI:
             return
 
         try:
-            # MANDATORY: Create the 3 documents first through interactive discussion
-            print(f"{HEADER_COLOR}\n🚀 Starting EQUITR Coder Workflow{RESET}")
-            print(
-                f"{INFO_COLOR}Before we begin coding, we need to create 3 mandatory documents:{RESET}"
-            )
-            print(f"{INFO_COLOR}1. Requirements (what to build){RESET}")
-            print(f"{INFO_COLOR}2. Design (how to build it){RESET}")
-            print(f"{INFO_COLOR}3. Todos (task breakdown){RESET}")
-            print(f"{HEADER_COLOR}=" * 60 + RESET)
-
-            # Import document workflow
-            from ..core.document_workflow import DocumentWorkflowManager
-
-            # Create document workflow manager
-            doc_manager = DocumentWorkflowManager(
-                model=self.worker_model or self.supervisor_model
-            )
-
-            # Interactive callback for user discussion
-            async def interaction_callback(speaker, message):
-                print(f"\n{AGENT_COLOR}[{speaker}] {message}{RESET}")
-                print(f"{HEADER_COLOR}-" * 50 + RESET)
-
-                user_response = input(
-                    f"\n{INFO_COLOR}Your response (or 'done' to finish): {RESET}"
-                ).strip()
-                return (
-                    user_response
-                    if user_response.lower() not in ["done", "quit", "exit"]
-                    else None
-                )
-
-            # Create documents through interactive discussion
-            doc_result = await doc_manager.create_documents_interactive(
-                user_prompt=task,
-                project_path=".",
-                interaction_callback=interaction_callback,
-            )
-
-            if not doc_result.success:
-                print(
-                    f"{ERROR_COLOR}❌ Failed to create documents: {doc_result.error}{RESET}"
-                )
-                return
-
-            print(f"{SUCCESS_COLOR}\n✅ Documents created successfully!{RESET}")
-            print(
-                f"{SUCCESS_COLOR}📄 Requirements: {doc_result.requirements_path}{RESET}"
-            )
-            print(f"{SUCCESS_COLOR}🏗️ Design: {doc_result.design_path}{RESET}")
-            print(f"{SUCCESS_COLOR}📋 Todos: {doc_result.todos_path}{RESET}")
-
-            # Ask user if they want to proceed with execution
-            proceed = (
-                input(f"\n{INFO_COLOR}Proceed with task execution? (y/n): {RESET}")
-                .strip()
-                .lower()
-            )
-            if proceed not in ["y", "yes"]:
-                print(f"{WARNING_COLOR}Task execution cancelled by user.{RESET}")
-                return
-
-            # Now execute the actual task with the created documents as context
-            print(
-                f"{HEADER_COLOR}\n🤖 Starting task execution with created documents...{RESET}"
-            )
-            print(f"{HEADER_COLOR}=" * 60 + RESET)
-
             # Set up live callbacks for clean architecture
             def on_message(message_data):
                 role = message_data["role"].upper()
@@ -259,32 +191,24 @@ class SimpleTUI:
                 "on_tool_call": on_tool_call,
             }
 
-            # Enhanced task description with document context
-            enhanced_task = f"""
-Original task: {task}
+            print(f"{HEADER_COLOR}\n🚀 Starting EQUITR Coder Workflow{RESET}")
+            print(f"{HEADER_COLOR}=" * 60 + RESET)
 
-You have access to the following planning documents that were created:
-- Requirements: {doc_result.requirements_path}
-- Design: {doc_result.design_path}  
-- Todos: {doc_result.todos_path}
-
-Please read these documents first, then execute the task according to the plan.
-Focus on completing the todos one by one, following the design specifications.
-"""
-
-            # Execute using clean single agent mode
+            # Execute using clean single agent mode (SAME AS PROGRAMMATIC AND CLI)
             model = (
                 self.worker_model
                 or self.supervisor_model
                 or "moonshot/kimi-k2-0711-preview"
             )
             result = await run_single_agent_mode(
-                task_description=enhanced_task,
+                task_description=task,
                 agent_model=model,
+                orchestrator_model=model,  # Add missing orchestrator_model
                 audit_model=model,
                 max_cost=5.0,
                 max_iterations=20,
-                session_id=self.current_session_id,
+                auto_commit=True,  # Add missing auto_commit
+                project_path=".",  # Add missing project_path
                 callbacks=callbacks,
             )
 

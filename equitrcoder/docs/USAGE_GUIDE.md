@@ -1,592 +1,262 @@
-# equitrcoder Usage Guide
+# EQUITR Coder Usage Guide
 
-This guide covers how to use equitrcoder's modular architecture for both single-agent and multi-agent AI coding workflows.
+This guide covers all three modes of EQUITR Coder: Programmatic, CLI, and TUI modes. All modes use the **exact same underlying logic** and provide identical functionality.
 
-## Table of Contents
+## Core Architecture
 
-1. [Quick Start](#quick-start)
-2. [Single Agent Usage](#single-agent-usage)
-3. [Multi-Agent Coordination](#multi-agent-coordination)
-4. [Security and Restrictions](#security-and-restrictions)
-5. [Session Management](#session-management)
-6. [Tool System](#tool-system)
-7. [Configuration](#configuration)
-8. [Best Practices](#best-practices)
+All modes follow this unified workflow:
 
-Note: EQUITR Coder supports two primary modes: Programmatic (via Python API) and TUI (Terminal User Interface). CLI mode has been deprecated.
+1. **Document Creation Phase**: Creates requirements.md, design.md, and todos.json in `docs/task_name/` folder
+2. **Agent Execution Phase**: Agents receive enhanced context including:
+   - Full repository map with function extraction
+   - Requirements and design content
+   - Current task group todos
+   - Agent profile information
+   - All conversation history and tool results
+3. **Context Management**: Automatic compression when >75% context used, preserving core information
+4. **Git Integration**: Automatic commits after task group completion (if enabled)
 
-## Quick Start
+---
 
-### Installation
+## 1. Programmatic Mode
 
-```bash
-# Install the package
-pip install -e .
+**Best for**: Integration into other applications, automated workflows, batch processing
 
-# For development with additional tools
-pip install -e .[dev]
-```
-
-### Environment Setup
-
-```bash
-export OPENAI_API_KEY="your-openai-key"
-# OR
-export ANTHROPIC_API_KEY="your-anthropic-key"
-
-# Optional configuration
-export EQUITRCODER_MODEL="gpt-4"
-export EQUITRCODER_MAX_COST="5.0"
-```
-
-### Basic Example
+### Basic Usage
 
 ```python
 import asyncio
-from equitrcoder import BaseAgent, SingleAgentOrchestrator
+from equitrcoder.programmatic.interface import (
+    EquitrCoder, 
+    TaskConfiguration, 
+    MultiAgentTaskConfiguration
+)
 
 async def main():
-    # Create agent with limits
-    agent = BaseAgent(max_cost=1.0, max_iterations=10)
-    orchestrator = SingleAgentOrchestrator(agent)
+    # Initialize the coder
+    coder = EquitrCoder(repo_path=".", git_enabled=True)
     
-    # Execute task
-    result = await orchestrator.execute_task("Analyze project structure")
+    # Single agent task
+    config = TaskConfiguration(
+        description="Create a calculator app with basic math operations",
+        max_cost=2.0,
+        max_iterations=20,
+        model="moonshot/kimi-k2-0711-preview",
+        auto_commit=True
+    )
     
-    if result["success"]:
-        print(f"✅ Success! Cost: ${result['cost']:.4f}")
+    result = await coder.execute_task("Build a calculator", config)
+    
+    if result.success:
+        print(f"✅ Task completed! Cost: ${result.cost:.4f}")
+        print(f"📋 Iterations: {result.iterations}")
+        print(f"🔗 Commit: {result.commit_hash}")
     else:
-        print(f"❌ Failed: {result['error']}")
+        print(f"❌ Task failed: {result.error}")
 
+# Run the example
 asyncio.run(main())
 ```
 
-## Single Agent Usage
-
-### BaseAgent
-
-The `BaseAgent` is the foundation class providing core functionality:
+### Multi-Agent Configuration
 
 ```python
-from equitrcoder.agents.base_agent import BaseAgent
-
-# Create agent with configuration
-agent = BaseAgent(
-    max_cost=2.0,           # Maximum cost limit
-    max_iterations=20,      # Maximum iterations
-    model="gpt-4",          # LLM model to use
-    temperature=0.1         # Model temperature
+# Multi-agent task with specialized team
+multi_config = MultiAgentTaskConfiguration(
+    description="Build a full-stack web application",
+    num_agents=3,
+    max_cost=10.0,
+    max_iterations=50,
+    supervisor_model="gpt-4o-mini",
+    worker_model="moonshot/kimi-k2-0711-preview",
+    auto_commit=True,
+    team=["backend_dev", "frontend_dev", "qa_engineer"]  # Use specialized profiles
 )
 
-# Check agent status
-status = agent.get_status()
-print(f"Current cost: ${status['current_cost']:.4f}")
-print(f"Iterations: {status['current_iterations']}")
+result = await coder.execute_task("Create a todo app with React frontend and Node.js backend", multi_config)
 ```
 
-### SingleAgentOrchestrator
-
-The orchestrator manages single-agent workflows:
+### Advanced Features
 
 ```python
-from equitrcoder.orchestrators.single_orchestrator import SingleAgentOrchestrator
-
-# Create orchestrator
-orchestrator = SingleAgentOrchestrator(agent)
-
-# Execute task
-result = await orchestrator.execute_task(
-    task_description="Fix bug in authentication module",
-    context={"priority": "high"}
-)
-
-# Check results
-if result["success"]:
-    print(f"Task completed in {result['iterations']} iterations")
-    print(f"Cost: ${result['cost']:.4f}")
-    print(f"Session: {result['session_id']}")
-else:
-    print(f"Task failed: {result['error']}")
+# Access detailed execution data
+if result.success:
+    print("📊 Execution Details:")
+    print(f"   Conversation History: {len(result.conversation_history)} messages")
+    print(f"   Tool Calls: {len(result.tool_call_history)} calls")
+    print(f"   LLM Responses: {len(result.llm_responses)} responses")
+    print(f"   Execution Time: {result.execution_time:.2f}s")
 ```
 
-### Monitoring and Callbacks
+---
 
-```python
-# Set up monitoring callbacks
-def on_message(message_data):
-    print(f"[{message_data['role']}] {message_data['content'][:50]}...")
+## 2. CLI Mode
 
-def on_iteration(iteration, status):
-    print(f"Iteration {iteration}: ${status['current_cost']:.4f}")
+**Best for**: Command-line workflows, CI/CD integration, scripting
 
-def on_completion(results, final_status):
-    print(f"Completed! Final cost: ${final_status['current_cost']:.4f}")
-
-# Apply callbacks
-orchestrator.set_callbacks(
-    on_message=on_message,
-    on_iteration=on_iteration,
-    on_completion=on_completion
-)
-
-# Execute with monitoring
-result = await orchestrator.execute_task("Analyze codebase")
-```
-
-## Multi-Agent Coordination
-
-### Creating Workers
-
-```python
-from equitrcoder.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator, WorkerConfig
-
-# Create orchestrator
-orchestrator = MultiAgentOrchestrator(
-    max_concurrent_workers=3,
-    global_cost_limit=10.0
-)
-
-# Define worker configurations
-frontend_config = WorkerConfig(
-    worker_id="frontend_dev",
-    scope_paths=["src/frontend/", "public/"],
-    allowed_tools=["read_file", "edit_file", "run_cmd"],
-    max_cost=3.0,
-    max_iterations=15
-)
-
-backend_config = WorkerConfig(
-    worker_id="backend_dev",
-    scope_paths=["src/backend/", "api/"],
-    allowed_tools=["read_file", "edit_file", "run_cmd", "git_commit"],
-    max_cost=3.0,
-    max_iterations=15
-)
-
-# Create workers
-frontend_worker = orchestrator.create_worker(frontend_config)
-backend_worker = orchestrator.create_worker(backend_config)
-```
-
-### Parallel Task Execution
-
-```python
-# Define parallel tasks
-tasks = [
-    {
-        "task_id": "ui_improvements",
-        "worker_id": "frontend_dev",
-        "task_description": "Improve user interface components",
-        "context": {"priority": "high", "deadline": "2024-01-15"}
-    },
-    {
-        "task_id": "api_optimization",
-        "worker_id": "backend_dev",
-        "task_description": "Optimize API performance",
-        "context": {"priority": "medium", "focus": "database"}
-    }
-]
-
-# Execute tasks in parallel
-results = await orchestrator.execute_parallel_tasks(tasks)
-
-# Process results
-for result in results:
-    status = "✅" if result.success else "❌"
-    print(f"{status} {result.worker_id}: {result.task_id}")
-    print(f"   Time: {result.execution_time:.2f}s")
-    print(f"   Cost: ${result.cost:.4f}")
-    if not result.success:
-        print(f"   Error: {result.error}")
-```
-
-### Orchestrator Statistics
-
-```python
-# Get comprehensive statistics
-stats = orchestrator.get_statistics()
-print(f"Total cost: ${stats['total_cost']:.4f}")
-print(f"Active workers: {stats['active_workers']}")
-print(f"Completed tasks: {stats['completed_tasks']}")
-print(f"Success rate: {stats['success_rate']:.1f}%")
-```
-
-## Security and Restrictions
-
-### WorkerAgent Security
-
-The `WorkerAgent` extends `BaseAgent` with security restrictions:
-
-```python
-from equitrcoder.agents.worker_agent import WorkerAgent
-
-# Create restricted worker
-worker = WorkerAgent(
-    worker_id="secure_worker",
-    scope_paths=["src/", "tests/"],        # Restricted paths
-    allowed_tools=["read_file", "edit_file"],  # Allowed tools only
-    project_root="/safe/project/path",     # Root boundary
-    max_cost=1.0,
-    max_iterations=10
-)
-
-# Test security restrictions
-print(f"Can access src/main.py: {worker.can_access_file('src/main.py')}")
-print(f"Can access ../secrets: {worker.can_access_file('../secrets.txt')}")
-print(f"Can use read_file: {worker.can_use_tool('read_file')}")
-print(f"Can use shell: {worker.can_use_tool('shell')}")
-```
-
-### Scope Statistics
-
-```python
-# Get detailed scope information
-stats = worker.get_scope_stats()
-print("Scope Statistics:")
-print(f"  Allowed paths: {stats['scope_paths']}")
-print(f"  Allowed tools: {stats['allowed_tools']}")
-print(f"  File system stats: {stats['file_system_stats']}")
-```
-
-### Path Traversal Protection
-
-```python
-# The RestrictedFileSystem prevents path traversal attacks
-from equitrcoder.utils.restricted_fs import RestrictedFileSystem
-
-fs = RestrictedFileSystem(
-    allowed_paths=["src/", "docs/"],
-    project_root="/project/root"
-)
-
-# These will be blocked
-print(fs.is_allowed("../../../etc/passwd"))  # False
-print(fs.is_allowed("src/../../../secrets")) # False
-
-# These will be allowed
-print(fs.is_allowed("src/main.py"))          # True
-print(fs.is_allowed("docs/README.md"))       # True
-```
-
-## Session Management
-
-### Creating Sessions
-
-```python
-from equitrcoder.core.session import SessionManagerV2
-
-# Create session manager
-session_manager = SessionManagerV2()
-
-# Create or load session
-session = session_manager.create_session("my-project")
-
-# Use with orchestrator
-orchestrator = SingleAgentOrchestrator(
-    agent, 
-    session_manager=session_manager
-)
-```
-
-### Session Continuity
-
-```python
-# First task
-result1 = await orchestrator.execute_task(
-    "Start implementing user authentication",
-    session_id="auth-feature"
-)
-
-# Continue in same session
-result2 = await orchestrator.execute_task(
-    "Add password validation to the auth system",
-    session_id="auth-feature"  # Same session ID
-)
-
-# Check session history
-session = session_manager.load_session("auth-feature")
-if session:
-    print(f"Total cost: ${session.cost:.4f}")
-    print(f"Messages: {len(session.messages)}")
-    print(f"Iterations: {session.iteration_count}")
-```
-
-### Session Metadata
-
-```python
-# Add metadata to session
-session.metadata.update({
-    "project": "user-management",
-    "version": "1.0.0",
-    "team": "backend-team"
-})
-
-# Save session
-session_manager.save_session(session)
-```
-
-## Tool System
-
-### Built-in Tools
-
-equitrcoder includes several built-in tools:
-
-```python
-# File operations
-await agent.call_tool("read_file", file_path="src/main.py")
-await agent.call_tool("edit_file", file_path="src/main.py", content="new content")
-
-# Git operations
-await agent.call_tool("git_status")
-await agent.call_tool("git_commit", message="Fix authentication bug")
-
-# Shell commands
-await agent.call_tool("run_cmd", cmd="pytest tests/")
-
-# Search operations
-await agent.call_tool("search_files", pattern="*.py", directory="src/")
-```
-
-### Custom Tools
-
-Create custom tools by extending the `Tool` base class:
-
-```python
-from equitrcoder.tools.base import Tool, ToolResult
-from pydantic import BaseModel, Field
-
-class CodeAnalysisArgs(BaseModel):
-    file_path: str = Field(..., description="Path to analyze")
-    analysis_type: str = Field(default="complexity", description="Analysis type")
-
-class CodeAnalysisTool(Tool):
-    def get_name(self) -> str:
-        return "analyze_code"
-    
-    def get_description(self) -> str:
-        return "Analyze code complexity and quality"
-    
-    def get_args_schema(self):
-        return CodeAnalysisArgs
-    
-    async def run(self, file_path: str, analysis_type: str = "complexity") -> ToolResult:
-        # Your analysis logic here
-        try:
-            with open(file_path, 'r') as f:
-                code = f.read()
-            
-            # Simple metrics
-            lines = len(code.split('\n'))
-            functions = code.count('def ')
-            classes = code.count('class ')
-            
-            result = {
-                "file": file_path,
-                "lines": lines,
-                "functions": functions,
-                "classes": classes,
-                "complexity_score": (functions + classes) / max(lines, 1) * 100
-            }
-            
-            return ToolResult(success=True, data=result)
-        except Exception as e:
-            return ToolResult(success=False, error=str(e))
-
-# Add to agent
-agent.add_tool(CodeAnalysisTool())
-```
-
-### Tool Discovery
-
-```python
-from equitrcoder.tools.discovery import discover_tools
-
-# Discover available tools
-tools = discover_tools("equitrcoder.tools.builtin")
-print(f"Found {len(tools)} tools")
-
-for tool in tools:
-    print(f"- {tool.get_name()}: {tool.get_description()}")
-```
-
-## Configuration
-
-### Environment Variables
+### Installation & Setup
 
 ```bash
-# Required: API keys
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Install EQUITR Coder
+pip install equitrcoder
 
-# Optional: Default settings
-export EQUITRCODER_MODEL="gpt-4"
-export EQUITRCODER_MAX_COST="5.0"
-export EQUITRCODER_MAX_ITERATIONS="25"
-export EQUITRCODER_SESSION_DIR="~/.equitrcoder/sessions"
+# Set up API keys
+export MOONSHOT_API_KEY="your_key_here"
+export OPENAI_API_KEY="your_key_here"  # Optional
 ```
 
-### Configuration Files
+### Single Agent Mode
 
-Create `~/.equitrcoder/config.yaml`:
+```bash
+# Basic single agent task
+equitrcoder single "Create a Python calculator" --model moonshot/kimi-k2-0711-preview
 
-```yaml
-llm:
-  model: "gpt-4"
-  max_tokens: 4000
-  temperature: 0.1
-  timeout: 60
+# With cost and iteration limits
+equitrcoder single "Build a web scraper" \
+    --model moonshot/kimi-k2-0711-preview \
+    --max-cost 5.0 \
+    --max-iterations 30
 
-orchestrator:
-  max_iterations: 50
-  max_cost: 10.0
-  use_multi_agent: false
-  concurrent_workers: 3
-
-session:
-  session_dir: "~/.equitrcoder/sessions"
-  max_context: 8000
-  auto_save: true
-
-tools:
-  discovery_paths:
-    - "equitrcoder.tools.builtin"
-    - "equitrcoder.tools.custom"
-  timeout: 30
-
-security:
-  restricted_paths:
-    - "/etc"
-    - "/var"
-    - "~/.ssh"
-  max_file_size: 10485760  # 10MB
+# Resume a session
+equitrcoder single "Continue the calculator" \
+    --model moonshot/kimi-k2-0711-preview \
+    --session-id my_session
 ```
 
-### Project-Specific Configuration
+### Multi-Agent Mode
 
-Create `.equitrcoder.yaml` in your project root:
+```bash
+# Multi-agent with specialized team
+equitrcoder multi "Build a todo app with React and Node.js" \
+    --supervisor-model gpt-4o-mini \
+    --worker-model moonshot/kimi-k2-0711-preview \
+    --team backend_dev,frontend_dev,qa_engineer \
+    --workers 3 \
+    --max-cost 15.0
 
-```yaml
-project:
-  name: "my-project"
-  version: "1.0.0"
-  
-workers:
-  frontend:
-    scope_paths: ["src/frontend/", "public/"]
-    allowed_tools: ["read_file", "edit_file", "run_cmd"]
-    max_cost: 2.0
-    
-  backend:
-    scope_paths: ["src/backend/", "api/"]
-    allowed_tools: ["read_file", "edit_file", "run_cmd", "git_commit"]
-    max_cost: 3.0
-
-defaults:
-  max_cost: 5.0
-  max_iterations: 25
-  model: "gpt-4"
+# Simple multi-agent without specialized profiles
+equitrcoder multi "Create a game in Python" \
+    --supervisor-model moonshot/kimi-k2-0711-preview \
+    --worker-model moonshot/kimi-k2-0711-preview \
+    --workers 2
 ```
 
-## Best Practices
+### Utility Commands
 
-### Cost Management
+```bash
+# List available models
+equitrcoder models
+equitrcoder models --provider moonshot
 
-```python
-# Set appropriate limits
-agent = BaseAgent(
-    max_cost=1.0,      # Start small
-    max_iterations=10  # Prevent runaway
-)
+# List available tools
+equitrcoder tools --list
 
-# Monitor costs
-status = agent.get_status()
-if status['current_cost'] > 0.8 * agent.max_cost:
-    print("⚠️  Approaching cost limit")
+# Discover new tools
+equitrcoder tools --discover
 ```
 
-### Error Handling
+---
 
-```python
-try:
-    result = await orchestrator.execute_task("Complex task")
-    
-    if not result["success"]:
-        # Check specific failure reasons
-        if "cost" in result["error"].lower():
-            print("Cost limit exceeded - increase budget")
-        elif "iteration" in result["error"].lower():
-            print("Iteration limit exceeded - increase limit or simplify task")
-        else:
-            print(f"Task failed: {result['error']}")
-            
-except Exception as e:
-    print(f"Execution error: {e}")
+## 3. TUI Mode (Terminal User Interface)
+
+**Best for**: Interactive development, learning, experimentation
+
+### Launch TUI
+
+```bash
+# Start interactive TUI
+equitrcoder tui
+
+# Or specify mode (currently only single agent supported in TUI)
+equitrcoder tui --mode single
 ```
 
-### Security Best Practices
+### TUI Commands
 
-```python
-# Always use restricted workers for untrusted tasks
-worker = WorkerAgent(
-    worker_id="untrusted_task",
-    scope_paths=["safe/directory/"],  # Limit scope
-    allowed_tools=["read_file"],      # Minimal tools
-    max_cost=0.5,                     # Low limits
-    max_iterations=5
-)
+Once in TUI mode, use these commands:
 
-# Validate file paths
-if not worker.can_access_file(user_provided_path):
-    raise SecurityError("Access denied to file")
+```
+equitrcoder> /help          # Show help menu
+equitrcoder> /model         # Select AI model
+equitrcoder> /session       # Manage sessions
+equitrcoder> /quit          # Exit TUI
+
+# Execute tasks directly
+equitrcoder> Create a Python calculator with GUI
+equitrcoder> Build a web scraper for news articles
+equitrcoder> Add unit tests to the existing code
 ```
 
-### Session Management
+### Model Selection in TUI
 
-```python
-# Use descriptive session IDs
-session_id = f"project-{project_name}-{feature}-{datetime.now().strftime('%Y%m%d')}"
+```
+Available models:
+  1. moonshot/kimi-k2-0711-preview
+  2. openai/gpt-4
+  3. openai/gpt-3.5-turbo
+  4. anthropic/claude-3-sonnet
+  5. anthropic/claude-3-haiku
+  0. Enter custom model
 
-# Clean up old sessions periodically
-session_manager.cleanup_old_sessions(days=30)
-
-# Backup important sessions
-session_manager.export_session("critical-project", "backup.json")
+Select supervisor model (number): 1
+Select worker model (number): 1
 ```
 
-### Multi-Agent Coordination
+---
 
-```python
-# Design workers with clear responsibilities
-workers = {
-    "analyzer": ["read_file", "search_files"],      # Analysis only
-    "implementer": ["read_file", "edit_file"],      # Implementation
-    "tester": ["read_file", "run_cmd"],             # Testing
-    "reviewer": ["read_file", "git_commit"]         # Review and commit
-}
+## Common Features Across All Modes
 
-# Use phases for complex workflows
-phases = [
-    {"phase": "analysis", "workers": ["analyzer"]},
-    {"phase": "implementation", "workers": ["implementer"]},
-    {"phase": "testing", "workers": ["tester"]},
-    {"phase": "review", "workers": ["reviewer"]}
-]
-```
+### 1. **Enhanced Context System**
+All modes provide agents with:
+- **Repository Map**: Complete file structure with function extraction
+- **Requirements Content**: What needs to be built
+- **Design Content**: How to build it
+- **Current Todos**: Specific tasks to complete
+- **Agent Profile**: Specialization and available tools
 
-### Performance Optimization
+### 2. **Context Compression**
+- Automatically triggers when >75% of model's context is used
+- Preserves core context (repo map, requirements, design, todos)
+- Only compresses conversation history and tool results
+- Shows compression statistics
 
-```python
-# Use appropriate models for tasks
-simple_agent = BaseAgent(model="gpt-3.5-turbo")    # For simple tasks
-complex_agent = BaseAgent(model="gpt-4")           # For complex tasks
+### 3. **Git Integration**
+- Automatic repository initialization
+- Commits after each task group completion
+- Commit messages include task group information
+- Can be disabled with `auto_commit=False`
 
-# Batch similar operations
-tasks = [
-    {"task_id": f"analyze_{file}", "description": f"Analyze {file}"}
-    for file in python_files
-]
-results = await orchestrator.execute_parallel_tasks(tasks)
-```
+### 4. **Cost Tracking**
+- Real-time cost monitoring
+- Per-agent cost tracking in multi-agent mode
+- Global cost limits and warnings
+- Detailed cost reporting
+
+### 5. **Tool System**
+- Automatic tool discovery
+- Profile-based tool filtering
+- Built-in tools for file operations, git, communication
+- Extensible tool architecture
+
+---
+
+## Model Recommendations
+
+### Cost-Effective (Recommended)
+- **moonshot/kimi-k2-0711-preview**: Best balance of cost and performance
+- **moonshot/kimi-k1-32k**: Good for smaller tasks
+
+### High-Performance (Expensive)
+- **o3**: Most capable, highest cost
+- **gpt-4o-mini**: Good supervisor model
+- **anthropic/claude-3-sonnet**: Excellent for complex reasoning
+
+### Usage Guidelines
+- **Single Agent**: Use moonshot models for cost efficiency
+- **Multi-Agent Supervisor**: Use gpt-4o-mini or o3 for coordination
+- **Multi-Agent Workers**: Use moonshot models to keep costs down
+
+---
 
 ## Troubleshooting
 
@@ -594,91 +264,38 @@ results = await orchestrator.execute_parallel_tasks(tasks)
 
 1. **API Key Not Found**
    ```bash
-   export OPENAI_API_KEY="your-key-here"
-   # or
-   export ANTHROPIC_API_KEY="your-key-here"
+   export MOONSHOT_API_KEY="your_key_here"
+   # Or create .env file in project root
    ```
 
-2. **Cost Limit Exceeded**
-   ```python
-   # Increase limits or use cheaper model
-   agent = BaseAgent(max_cost=5.0, model="gpt-3.5-turbo")
+2. **Model Not Available**
+   ```bash
+   equitrcoder models  # List available models
    ```
 
-3. **Path Access Denied**
-   ```python
-   # Check worker scope
-   print(worker.can_access_file("path/to/file"))
-   ```
+3. **High Costs**
+   - Use moonshot models instead of OpenAI
+   - Set lower `max_cost` limits
+   - Use fewer agents in multi-agent mode
 
-4. **Tool Not Found**
-   ```python
-   # Check available tools
-   tools = agent.get_available_tools()
-   print([tool.get_name() for tool in tools])
-   ```
-
-### Debug Mode
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Enable detailed logging
-agent = BaseAgent(debug=True)
-```
+4. **Context Limit Reached**
+   - System automatically compresses context
+   - Reduce `max_iterations` if needed
+   - Use models with larger context windows
 
 ### Getting Help
 
-- Check the examples in `equitrcoder/examples/`
-- Review the configuration guide in `equitrcoder/docs/CONFIGURATION_GUIDE.md`
-- Run the basic functionality test: `python test_basic_functionality.py`
-- Use the CLI help: `equitrcoder --help`
-- Review the configuration guide in `equitrcoder/docs/CONFIGURATION_GUIDE.md`
-- Run the basic functionality test: `python test_basic_functionality.py`
-- Launch the TUI for interactive help: `python -m equitrcoder.ui.advanced_tui`
+```bash
+equitrcoder --help           # General help
+equitrcoder single --help    # Single agent help
+equitrcoder multi --help     # Multi-agent help
+equitrcoder tools --list     # Available tools
+```
 
 ---
 
-For more advanced usage patterns, see the examples in the `equitrcoder/examples/` directory.
+## Next Steps
 
-## Programmatic Usage
-
-### Basic Setup
-
-```python
-import asyncio
-from equitrcoder import EquitrCoder, TaskConfiguration
-
-async def main():
-    coder = EquitrCoder()
-    result = await coder.execute_task("Analyze project structure")
-    print(result)
-
-asyncio.run(main())
-```
-
-### Checking API Keys and Model Availability
-
-Before executing tasks, you can verify available API keys and model status:
-
-```python
-async def check_setup():
-    coder = EquitrCoder()
-    
-    # Check available API keys
-    keys = coder.check_available_api_keys()
-    print(f"Available providers: {keys}")
-    
-    # Check if a model is available (basic check)
-    basic_check = await coder.check_model_availability("gpt-4")
-    print(f"Basic availability: {basic_check}")
-    
-    # Check with test call (verifies API connectivity)
-    test_check = await coder.check_model_availability("gpt-4", test_call=True)
-    print(f"Test call successful: {test_check}")
-
-asyncio.run(check_setup())
-```
-
-This helps ensure your environment is properly configured before running tasks.
+- See [CREATING_MODES.md](./CREATING_MODES.md) for creating custom modes
+- See [CREATING_PROFILES.md](./CREATING_PROFILES.md) for creating agent profiles
+- Check [examples/](../examples/) for more usage examples

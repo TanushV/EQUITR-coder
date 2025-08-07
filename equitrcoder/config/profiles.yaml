@@ -1,0 +1,41 @@
+# Profile configuration for EQUITR Coder agents
+# This defines the default tools that all agents inherit
+
+# Default tools that every agent gets (profiles can add more)
+default_tools:
+  # File system operations
+  - create_file
+  - read_file
+  - edit_file
+  - list_files
+  
+  # Git operations
+  - git_commit
+  - git_status
+  - git_diff
+  
+  # Shell operations
+  - run_command
+  
+  # Search capabilities
+  - web_search
+  
+  # Todo management
+  - list_task_groups
+  - list_all_todos
+  - list_todos_in_group
+  - update_todo_status
+  - bulk_update_todo_status
+  
+  # Note: Communication tools (ask_supervisor, send_message, receive_messages) 
+  # are created dynamically per agent and don't need to be listed here
+
+# Profile settings
+settings:
+  profiles_directory: "equitrcoder/profiles"
+  allow_empty_additional_tools: true  # Profiles can have no additional tools
+  
+metadata:
+  version: "1.0"
+  description: "Profile configuration and default tools for EQUITR Coder agents"
+  author: "EQUITR Team"

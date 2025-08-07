@@ -135,8 +135,25 @@ class ListTaskGroups(Tool):
     def get_description(self) -> str: return "Lists the high-level task groups, their specializations, dependencies, and statuses. This is the main way to see the overall project plan."
     def get_args_schema(self) -> Type[BaseModel]: return type('ListTaskGroupsArgs', (BaseModel,), {})
     async def run(self, **kwargs) -> ToolResult:
-        groups_summary = [g.model_dump() for g in todo_manager.plan.task_groups]
+        manager = get_todo_manager()
+        groups_summary = [g.model_dump() for g in manager.plan.task_groups]
         return ToolResult(success=True, data=groups_summary)
+
+class ListAllTodos(Tool):
+    def get_name(self) -> str: return "list_all_todos"
+    def get_description(self) -> str: return "Lists ALL todos across ALL task groups with their statuses. Use this to see the complete project todo list."
+    def get_args_schema(self) -> Type[BaseModel]: return type('ListAllTodosArgs', (BaseModel,), {})
+    async def run(self, **kwargs) -> ToolResult:
+        manager = get_todo_manager()
+        all_todos = []
+        for group in manager.plan.task_groups:
+            for todo in group.todos:
+                todo_data = todo.model_dump()
+                todo_data['group_id'] = group.group_id
+                todo_data['group_description'] = group.description
+                todo_data['specialization'] = group.specialization
+                all_todos.append(todo_data)
+        return ToolResult(success=True, data=all_todos)
 
 class ListTodosInGroup(Tool):
     class Args(BaseModel):
@@ -146,7 +163,8 @@ class ListTodosInGroup(Tool):
     def get_args_schema(self) -> Type[BaseModel]: return self.Args
     async def run(self, **kwargs) -> ToolResult:
         args = self.validate_args(kwargs)
-        group = todo_manager.get_task_group(args.group_id)
+        manager = get_todo_manager()
+        group = manager.get_task_group(args.group_id)
         if not group:
             return ToolResult(success=False, error=f"Task group '{args.group_id}' not found.")
         
@@ -162,14 +180,61 @@ class UpdateTodoStatus(Tool):
     def get_args_schema(self) -> Type[BaseModel]: return self.Args
     async def run(self, **kwargs) -> ToolResult:
         args = self.validate_args(kwargs)
-        updated_group = todo_manager.update_todo_status(args.todo_id, args.status)
+        manager = get_todo_manager()
+        updated_group = manager.update_todo_status(args.todo_id, args.status)
         if not updated_group:
             return ToolResult(success=False, error=f"Todo with ID '{args.todo_id}' not found.")
         return ToolResult(success=True, data=f"Todo '{args.todo_id}' updated. Parent group '{updated_group.group_id}' is now '{updated_group.status}'.")
 
+class BulkUpdateTodoStatus(Tool):
+    class Args(BaseModel):
+        todo_ids: List[str] = Field(..., description="List of todo IDs to update.")
+        status: str = Field(..., description="The new status to apply to all todos, typically 'completed'.")
+    def get_name(self) -> str: return "bulk_update_todo_status"
+    def get_description(self) -> str: return "Updates the status of multiple todo items at once. Efficient for marking several completed todos simultaneously."
+    def get_args_schema(self) -> Type[BaseModel]: return self.Args
+    async def run(self, **kwargs) -> ToolResult:
+        args = self.validate_args(kwargs)
+        manager = get_todo_manager()
+        updated_groups = set()
+        updated_todos = []
+        failed_todos = []
+        
+        for todo_id in args.todo_ids:
+            updated_group = manager.update_todo_status(todo_id, args.status)
+            if updated_group:
+                updated_groups.add(updated_group.group_id)
+                updated_todos.append(todo_id)
+            else:
+                failed_todos.append(todo_id)
+        
+        result_data = {
+            "updated_todos": updated_todos,
+            "failed_todos": failed_todos,
+            "affected_groups": list(updated_groups),
+            "total_updated": len(updated_todos),
+            "total_failed": len(failed_todos)
+        }
+        
+        if failed_todos:
+            return ToolResult(
+                success=False, 
+                error=f"Failed to update {len(failed_todos)} todos: {failed_todos}",
+                data=result_data
+            )
+        
+        return ToolResult(
+            success=True, 
+            data=f"Successfully updated {len(updated_todos)} todos. Affected groups: {list(updated_groups)}"
+        )
+
 # --- GLOBAL INSTANCE AND SESSION MANAGEMENT ---
 
 todo_manager = TodoManager()
+
+def get_todo_manager():
+    """Get the current global todo manager instance."""
+    return todo_manager
 
 def set_global_todo_file(todo_file: str):
     """Crucial function to ensure each run uses its own isolated todo file."""

@@ -6,23 +6,6 @@ llm:
   temperature: 0.1
   max_tokens: 4000
 
-tools:
-  enabled:
-    - create_file
-    - edit_file
-    - list_files
-    - read_file
-    - git_commit
-    - git_diff
-    - git_status
-    - web_search
-    - run_command
-    - create_todo
-    - update_todo
-    - delete_todo
-    - list_todos
-  disabled: []
-
 sandbox:
   type: venv
   timeout: 30
@@ -31,7 +14,7 @@ sandbox:
 
 session:
   persist: true
-  max_context: 100000
+  max_context: "auto"  # Automatically determined based on model capabilities
   session_dir: ~/.EQUITR-coder/sessions
 
 repository:

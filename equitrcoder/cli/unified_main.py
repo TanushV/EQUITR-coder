@@ -8,7 +8,7 @@ import sys
 
 from ..core.config import config_manager
 from ..modes.multi_agent_mode import (
-    run_multi_agent_sequential,
+    run_multi_agent_parallel,
 )
 from ..modes.single_agent_mode import run_single_agent_mode
 from ..tools.discovery import discover_tools
@@ -111,15 +111,17 @@ async def run_single_agent(args) -> int:
         print(f"🤖 Starting single agent task: {args.task}")
         print("=" * 60)
 
-        # Use clean single agent mode
+        # Use clean single agent mode (same as programmatic)
         model = args.model or "moonshot/kimi-k2-0711-preview"
         result = await run_single_agent_mode(
             task_description=args.task,
             agent_model=model,
+            orchestrator_model=model,  # Add missing orchestrator_model
             audit_model=model,
             max_cost=args.max_cost,
             max_iterations=args.max_iterations,
-            session_id=args.session_id,
+            auto_commit=True,  # Add missing auto_commit
+            project_path=".",  # Add missing project_path
             callbacks=callbacks,
         )
 
@@ -179,19 +181,21 @@ async def run_multi_agent(args) -> int:
         # Parse the team argument
         team = args.team.split(',') if args.team else None
 
-        # Use clean multi-agent sequential mode
+        # Use clean multi-agent parallel mode (same as programmatic)
         supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"
         worker_model = args.worker_model or "moonshot/kimi-k2-0711-preview"
 
-        result = await run_multi_agent_sequential(
+        result = await run_multi_agent_parallel(
             task_description=args.coordination_task,
             team=team,
             num_agents=args.workers,
             agent_model=worker_model,
-            orchestrator_model=worker_model,
-            supervisor_model=supervisor_model,
+            orchestrator_model=supervisor_model,  # Use supervisor for orchestrator
             audit_model=supervisor_model,
             max_cost_per_agent=args.max_cost / args.workers,
+            max_iterations_per_agent=50,  # Add missing parameter
+            run_parallel=True,
+            auto_commit=True,
             callbacks=callbacks,
         )
 

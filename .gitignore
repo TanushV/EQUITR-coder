@@ -100,9 +100,6 @@ cython_debug/
 # VS Code
 .vscode/
 
-# Pygame assets
-assets/images/
-assets/sounds/
-assets/fonts/
-assets/levels/
-assets/sprites/
+# Automatically generated projects
+generated_projects/
+

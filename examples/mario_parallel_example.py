@@ -46,8 +46,10 @@ TEAM_PROFILES = [
 
 TASK_DESCRIPTION = (
     "Create a minimal but working side-scrolling Mario-style platformer using Python and Pygame. "
-    "Include a player sprite that can move and jump, simple enemy, coins, scoring, collision detection,"
-    " level data in JSON / CSV, and unit tests for core mechanics. Provide README and usage instructions."
+    "Include a player character that can move and jump, simple enemy, coins, scoring, collision detection, "
+    "level data in JSON / CSV, and unit tests for core mechanics. Use simple colored rectangles for all "
+    "game objects - no sprites or images needed. No music or sound effects required. "
+    "Provide README and usage instructions."
 )
 
 # -----------------------------------------------------------------------------

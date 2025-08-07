@@ -1,14 +1,16 @@
 # equitrcoder/modes/multi_agent_mode.py
 
 import asyncio
+import yaml
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
 from ..tools.discovery import discover_tools
 from ..core.global_message_pool import global_message_pool
 from ..tools.builtin.communication import create_communication_tools_for_agent
-from ..tools.builtin.todo import set_global_todo_file, todo_manager
+from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
 from ..utils.git_manager import GitManager
 from ..core.profile_manager import ProfileManager
 
@@ -25,8 +27,23 @@ class MultiAgentMode:
         self.run_parallel = run_parallel
         self.auto_commit = auto_commit # <-- NEW PROPERTY
         self.profile_manager = ProfileManager()
+        self.system_prompts = self._load_system_prompts()
+        self.global_cost = 0.0  # Track total cost across all agents
         print(f"🎭 Multi-Agent Mode ({'Parallel Phased' if run_parallel else 'Sequential Group'}): Auto-commit is {'ON' if self.auto_commit else 'OFF'}")
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
+    
+    def _load_system_prompts(self) -> Dict[str, str]:
+        """Load system prompts from config."""
+        config_path = Path('equitrcoder/config/system_prompt.yaml')
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        
+        # Fallback prompts if config file not found
+        return {
+            'single_agent_prompt': 'You are working on a single task group. Complete all todos systematically.',
+            'multi_agent_prompt': 'You are part of a team. Coordinate with other agents.'
+        }
     
     async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None) -> Dict[str, Any]:
         try:
@@ -47,58 +64,68 @@ class MultiAgentMode:
             print("🚀 Step 2: Starting phased execution of the plan...")
             set_global_todo_file(docs_result['todos_path'])
             
+            # Change to project directory so tools work with correct relative paths
+            import os
+            original_cwd = os.getcwd()
+            os.chdir(project_path)
+            
             phase_num = 1
-            total_cost = 0.0
-            while not todo_manager.are_all_tasks_complete():
-                runnable_groups = todo_manager.get_next_runnable_groups()
+            while not get_todo_manager().are_all_tasks_complete():
+                runnable_groups = get_todo_manager().get_next_runnable_groups()
                 if not runnable_groups:
                     break
                 
                 print(f"\n--- EXECUTING PHASE {phase_num} ({len(runnable_groups)} task groups in parallel) ---")
-                print(f"💰 Total cost so far: ${total_cost:.4f}")
+                print(f"💰 Global cost so far: ${self.global_cost:.4f}")
                 
                 agent_coroutines = [self._execute_task_group(group, docs_result, callbacks) for group in runnable_groups]
                 phase_results = await asyncio.gather(*agent_coroutines)
                 
-                # Calculate phase cost
+                # Calculate phase cost and add to global cost
                 phase_cost = sum(result.get("cost", 0.0) for result in phase_results)
-                total_cost += phase_cost
+                self.global_cost += phase_cost
                 
                 if any(not result.get("success") for result in phase_results):
                     print(f"❌ PHASE {phase_num} FAILED. Halting execution.")
-                    print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Total cost: ${total_cost:.4f}")
-                    return {"success": False, "error": f"A task in phase {phase_num} failed.", "stage": "execution", "cost": total_cost}
+                    print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Global cost: ${self.global_cost:.4f}")
+                    return {"success": False, "error": f"A task in phase {phase_num} failed.", "stage": "execution", "cost": self.global_cost}
                 
-                # --- NEW COMMIT LOGIC ---
+                # --- COMMIT AFTER EACH TASK GROUP ---
                 if self.auto_commit:
-                    group_data = [g.model_dump() for g in runnable_groups]
-                    git_manager.commit_phase_completion(phase_num, group_data)
+                    for group in runnable_groups:
+                        git_manager.commit_task_group_completion(group.model_dump())
                 
                 print(f"✅ PHASE {phase_num} COMPLETED SUCCESSFULLY")
-                print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Total cost: ${total_cost:.4f}")
+                print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Global cost: ${self.global_cost:.4f}")
                 phase_num += 1
             
-            print(f"🎉 ALL PHASES COMPLETED! Total cost: ${total_cost:.4f}")
-            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1, "cost": total_cost}
+            print(f"🎉 ALL PHASES COMPLETED! Global cost: ${self.global_cost:.4f}")
+            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1, "cost": self.global_cost}
         
         except Exception as e:
             return {"success": False, "error": str(e)}
+        finally:
+            # Restore original working directory
+            try:
+                os.chdir(original_cwd)
+            except:
+                pass
     
     async def _execute_task_group(self, group, docs_result, callbacks):
         agent_id = f"{group.specialization}_agent_{group.group_id}"
         await global_message_pool.register_agent(agent_id)
 
         # --- Profile-based Agent Configuration ---
-        try:
-            profile = self.profile_manager.get_profile(group.specialization)
-            system_prompt = profile.get('system_prompt', "You are a helpful assistant.")
-            allowed_tool_names = profile.get('allowed_tools', [])
-        except ValueError:
-            print(f"Warning: Profile '{group.specialization}' not found. Using default agent configuration.")
-            system_prompt = "You are a helpful assistant."
-            allowed_tool_names = [t.name for t in discover_tools()] # Default to all tools
+        # Use the new ProfileManager method that handles both default and profile agents
+        agent_config = self.profile_manager.get_agent_config(group.specialization)
+        allowed_tool_names = agent_config.get('allowed_tools', [])
+        
+        if group.specialization == 'default' or group.specialization is None:
+            print(f"   Using default agent configuration")
+        else:
+            print(f"   Using profile: {group.specialization}")
 
-        # Filter tools based on the profile
+        # Filter tools based on the agent configuration
         all_available_tools = discover_tools()
         agent_tools = [tool for tool in all_available_tools if tool.name in allowed_tool_names]
         
@@ -106,7 +133,8 @@ class MultiAgentMode:
         communication_tools = create_communication_tools_for_agent(agent_id)
         agent_tools.extend(communication_tools)
         
-        # --- Instantiate Agent with Profile ---
+        # --- Instantiate Agent with Context ---
+        # The CleanAgent will automatically build enhanced context from docs_result
         agent = CleanAgent(
             agent_id=agent_id,
             model=self.agent_model,
@@ -119,50 +147,18 @@ class MultiAgentMode:
         if callbacks:
             agent.set_callbacks(**callbacks)
         
-        # The task description now supplements the base system prompt from the profile
-        group_task_desc = f"""{system_prompt}
-
-🎯 MULTI-AGENT MISSION: Complete your part of a larger project with MANDATORY team coordination.
-
-🚨 CRITICAL RULES FOR MULTI-AGENT SUCCESS (FOLLOW RELIGIOUSLY):
-1. **YOUR SPECIFIC OBJECTIVE**: Complete ALL todos in the '{group.description}' task group
-2. **MANDATORY SUPERVISOR CONSULTATION**: You MUST use `ask_supervisor` tool frequently - at least once every 3-5 iterations
-3. **MANDATORY TEAM COMMUNICATION**: You MUST use `send_message` to coordinate with other agents
-4. **NEVER WORK IN ISOLATION**: Working alone without communication is FORBIDDEN
-5. **ASK BEFORE ACTING**: When in doubt, ask supervisor FIRST before making major decisions
-6. **COMMUNICATE PROGRESS**: Send status updates to other agents regularly
-7. **COMPLETE TODOS FULLY**: Mark todos as 'completed' only when fully implemented and tested
-
-🔧 MANDATORY WORKFLOW (Follow this exactly):
-1. **ALWAYS START**: Use `ask_supervisor` to confirm your understanding of the task
-2. **GET YOUR TODOS**: Use `list_todos_in_group` with group_id='{group.group_id}'
-3. **COORDINATE FIRST**: Use `send_message` to announce your start and coordinate with other agents
-4. **ASK FOR GUIDANCE**: Use `ask_supervisor` for ANY unclear requirements or technical decisions
-5. **IMPLEMENT WITH COMMUNICATION**: Work on todos while regularly using `send_message` for updates
-6. **ASK WHEN STUCK**: Use `ask_supervisor` immediately when encountering any blocker
-7. **CONFIRM COMPLETION**: Use `ask_supervisor` to verify your work before marking todos complete
-8. **ANNOUNCE SUCCESS**: Use `send_message` to inform other agents when your group is complete
-
-🚨 COMMUNICATION REQUIREMENTS (NON-NEGOTIABLE):
-- Use `ask_supervisor` at least once every 3-5 iterations
-- Use `send_message` at least once every 5-7 iterations
-- NEVER make major architectural decisions without asking supervisor
-- ALWAYS communicate blockers, progress, and completions to the team
-- Ask supervisor for help with complex code, design decisions, or integration issues
-
-💡 WHEN TO USE EACH TOOL:
-- `ask_supervisor`: Technical questions, design decisions, blockers, verification
-- `send_message`: Progress updates, coordination needs, dependency discussions
-- Both tools are MANDATORY - not optional suggestions!
-
-🏆 SUCCESS METRIC: ALL todos completed through ACTIVE team coordination and supervisor guidance.
-
-Group ID: {group.group_id}
-Specialization: {group.specialization}
-Available Tools: {[tool.name for tool in agent_tools]}
-
-⚠️ REMEMBER: Silent agents who don't communicate will be considered failed agents!
-"""
+        # Get multi-agent prompt from config and format it
+        multi_agent_prompt = self.system_prompts.get('multi_agent_prompt', 'You are part of a team. Coordinate with other agents.')
+        group_task_desc = multi_agent_prompt.format(
+            agent_id=agent_id,
+            model=self.agent_model,
+            group_description=group.description,
+            group_id=group.group_id,
+            specialization=group.specialization,
+            available_tools=', '.join([tool.name for tool in agent_tools]),
+            mandatory_context_json="{{mandatory_context_json}}",
+            task_description="{{task_description}}"
+        )
         print(f"\n🤖 Starting agent {agent_id} for group '{group.group_id}' ({group.specialization})")
         print(f"   Group Description: {group.description}")
         print(f"   Dependencies: {group.dependencies}")

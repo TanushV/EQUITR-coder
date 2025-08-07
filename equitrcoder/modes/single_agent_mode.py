@@ -1,11 +1,13 @@
 # equitrcoder/modes/single_agent_mode.py
 
+import yaml
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
 from ..tools.discovery import discover_tools
-from ..tools.builtin.todo import todo_manager, set_global_todo_file
+from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
 from ..utils.git_manager import GitManager # <-- NEW IMPORT
 
 class SingleAgentMode:
@@ -18,8 +20,22 @@ class SingleAgentMode:
         self.max_cost = max_cost
         self.max_iterations = max_iterations
         self.auto_commit = auto_commit # <-- NEW PROPERTY
+        self.system_prompts = self._load_system_prompts()
         print(f"🎭 Single Agent Mode (Dependency-Aware): Auto-commit is {'ON' if self.auto_commit else 'OFF'}")
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
+    
+    def _load_system_prompts(self) -> Dict[str, str]:
+        """Load system prompts from config."""
+        config_path = Path('equitrcoder/config/system_prompt.yaml')
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        
+        # Fallback prompts if config file not found
+        return {
+            'single_agent_prompt': 'You are working on a single task group. Complete all todos systematically.',
+            'multi_agent_prompt': 'You are part of a team. Coordinate with other agents.'
+        }
     
     async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None) -> Dict[str, Any]:
         try:
@@ -44,10 +60,15 @@ class SingleAgentMode:
             print("🚀 Step 3: Agent starting sequential execution of task groups...")
             set_global_todo_file(docs_result['todos_path'])
             
+            # Change to project directory so tools work with correct relative paths
+            import os
+            original_cwd = os.getcwd()
+            os.chdir(project_path)
+            
             total_cost = 0.0
             group_num = 1
-            while not todo_manager.are_all_tasks_complete():
-                runnable_groups = todo_manager.get_next_runnable_groups()
+            while not get_todo_manager().are_all_tasks_complete():
+                runnable_groups = get_todo_manager().get_next_runnable_groups()
                 if not runnable_groups:
                     break
                 
@@ -55,50 +76,20 @@ class SingleAgentMode:
                 print(f"\n--- TASK GROUP {group_num}: {group_to_run.group_id} ({group_to_run.specialization}) ---")
                 print(f"💰 Total cost so far: ${total_cost:.4f}")
                 
-                todo_manager.update_task_group_status(group_to_run.group_id, 'in_progress')
+                get_todo_manager().update_task_group_status(group_to_run.group_id, 'in_progress')
                 
-                group_task_desc = f"""🎯 SINGLE-AGENT MISSION: Complete the '{group_to_run.description}' task group with supervisor guidance.
-
-🚨 CRITICAL RULES FOR SUCCESS (FOLLOW RELIGIOUSLY):
-1. **YOUR SPECIFIC OBJECTIVE**: Complete ALL todos in this task group
-2. **MANDATORY SUPERVISOR CONSULTATION**: You MUST use `ask_supervisor` tool frequently - at least once every 3-5 iterations
-3. **ASK BEFORE MAJOR DECISIONS**: When in doubt, ask supervisor FIRST before making architectural choices
-4. **SYSTEMATIC APPROACH**: Work through each todo methodically with supervisor guidance
-5. **COMPLETE IMPLEMENTATION**: Create actual working code, not just plans
-6. **PERSISTENT EFFORT**: Keep trying different approaches until you succeed
-7. **VERIFY WITH SUPERVISOR**: Ask supervisor to verify your work before marking todos complete
-
-🔧 MANDATORY WORKFLOW (Follow this exactly):
-1. **ALWAYS START**: Use `ask_supervisor` to confirm your understanding of the task group
-2. **GET YOUR TODOS**: Use `list_todos_in_group` with group_id='{group_to_run.group_id}'
-3. **ASK FOR GUIDANCE**: Use `ask_supervisor` for ANY unclear requirements or technical decisions
-4. **IMPLEMENT WITH VERIFICATION**: Work on todos while regularly asking supervisor for feedback
-5. **ASK WHEN STUCK**: Use `ask_supervisor` immediately when encountering any blocker
-6. **CONFIRM COMPLETION**: Use `ask_supervisor` to verify your work before marking todos complete
-
-🚨 SUPERVISOR CONSULTATION REQUIREMENTS (NON-NEGOTIABLE):
-- Use `ask_supervisor` at least once every 3-5 iterations
-- NEVER make major architectural decisions without asking supervisor
-- ALWAYS ask supervisor when encountering technical challenges
-- Ask supervisor for help with complex code, design decisions, or integration issues
-- Verify your understanding of requirements with supervisor before starting
-
-💡 WHEN TO USE `ask_supervisor`:
-- Technical questions and design decisions
-- Clarification of requirements or specifications
-- When stuck on implementation details
-- Before making major code changes
-- To verify your work is on the right track
-- When choosing between different approaches
-
-🏆 SUCCESS METRIC: ALL todos completed through ACTIVE supervisor consultation and guidance.
-
-Group ID: {group_to_run.group_id}
-Specialization: {group_to_run.specialization}
-Description: {group_to_run.description}
-
-⚠️ REMEMBER: Silent agents who don't ask for guidance will struggle unnecessarily!
-"""
+                # Get single-agent prompt from config and format it
+                single_agent_prompt = self.system_prompts.get('single_agent_prompt', 'Complete the task group systematically.')
+                group_task_desc = single_agent_prompt.format(
+                    agent_id="single_agent",
+                    model=self.agent_model,
+                    group_description=group_to_run.description,
+                    group_id=group_to_run.group_id,
+                    specialization=group_to_run.specialization,
+                    available_tools=', '.join([tool.get_name() for tool in tools]),
+                    mandatory_context_json="{{mandatory_context_json}}",
+                    task_description="{{task_description}}"
+                )
                 
                 print(f"\n🤖 Starting work on group '{group_to_run.group_id}' ({group_to_run.specialization})")
                 print(f"   Group Description: {group_to_run.description}")
@@ -147,6 +138,12 @@ Description: {group_to_run.description}
         
         except Exception as e:
             return {"success": False, "error": str(e), "mode": "single_agent"}
+        finally:
+            # Restore original working directory
+            try:
+                os.chdir(original_cwd)
+            except:
+                pass
 
 async def run_single_agent_mode(**kwargs) -> Dict[str, Any]:
     # We now expect auto_commit to be passed in

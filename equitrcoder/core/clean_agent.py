@@ -33,7 +33,7 @@ class CleanAgent:
         self.model = model
         self.audit_model = audit_model or model  # Default to same as main model
         self.tools = {tool.get_name(): tool for tool in tools}
-        self.context = context or {}
+        self.base_context = context or {}  # Store original context separately
         self.session_manager = session_manager or SessionManagerV2()
         self.max_cost = max_cost
         self.max_iterations = max_iterations
@@ -64,6 +64,341 @@ class CleanAgent:
         self.on_iteration_callback: Optional[Callable] = None
         self.on_completion_callback: Optional[Callable] = None
         self.on_audit_callback: Optional[Callable] = None
+        
+        # Build enhanced context once at initialization (without repo map - that's generated dynamically)
+        self.context = self._build_enhanced_context()
+
+    def _build_enhanced_context(self) -> Dict[str, Any]:
+        """Build comprehensive context that includes all required information."""
+        enhanced_context = dict(self.base_context)  # Start with original context
+        
+        # If we have basic docs_result, enhance it with additional context
+        if self.base_context:
+            # Get full repo map
+            from pathlib import Path
+            
+            def get_repo_map(path=".", max_depth=3, max_tokens=4000):  # Reduced from 5000 to 4000 for safety
+                """Generate a comprehensive repo map with functions, limited to max_tokens"""
+                import re
+                import tiktoken
+                
+                try:
+                    # Use tiktoken to count tokens accurately
+                    encoding = tiktoken.get_encoding("cl100k_base")
+                except:
+                    # Fallback to rough estimation if tiktoken fails
+                    encoding = None
+                
+                def count_tokens(text):
+                    if encoding:
+                        return len(encoding.encode(text))
+                    else:
+                        # Rough estimation: ~4 chars per token
+                        return len(text) // 4
+                
+                def extract_functions(file_path):
+                    """Extract function/class definitions from code files"""
+                    try:
+                        content = file_path.read_text(encoding='utf-8', errors='ignore')
+                        functions = []
+                        
+                        # Python functions and classes
+                        if file_path.suffix == '.py':
+                            # Find function definitions
+                            func_pattern = r'^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)'
+                            for match in re.finditer(func_pattern, content, re.MULTILINE):
+                                functions.append(match.group(1).strip())
+                        
+                        # JavaScript/TypeScript functions
+                        elif file_path.suffix in ['.js', '.ts', '.jsx', '.tsx']:
+                            # Find function definitions
+                            func_patterns = [
+                                r'function\s+\w+\s*\([^)]*\)',
+                                r'const\s+\w+\s*=\s*\([^)]*\)\s*=>',
+                                r'class\s+\w+',
+                                r'export\s+function\s+\w+\s*\([^)]*\)'
+                            ]
+                            for pattern in func_patterns:
+                                for match in re.finditer(pattern, content, re.MULTILINE):
+                                    functions.append(match.group(0).strip())
+                        
+                        return functions[:5]  # Limit to 5 functions per file
+                    except:
+                        return []
+                
+                repo_map = []
+                current_tokens = 0
+                path = Path(path)
+                
+                def scan_directory(dir_path, current_depth=0, prefix=""):
+                    nonlocal current_tokens
+                    if current_depth > max_depth or current_tokens >= max_tokens:
+                        return
+                    
+                    try:
+                        items = sorted(dir_path.iterdir())
+                        for item in items:
+                            if current_tokens >= max_tokens:
+                                break
+                                
+                            if item.name.startswith('.') and item.name not in ['.gitignore', '.env.example']:
+                                continue
+                            
+                            if item.is_file():
+                                size = item.stat().st_size
+                                file_line = f"{prefix}📄 {item.name} ({size} bytes)"
+                                
+                                # Add functions for code files
+                                if item.suffix in ['.py', '.js', '.ts', '.jsx', '.tsx'] and size < 50000:  # Skip very large files
+                                    functions = extract_functions(item)
+                                    if functions:
+                                        file_line += f" - Functions: {', '.join(functions)}"
+                                
+                                # Check token count with buffer
+                                line_tokens = count_tokens(file_line)
+                                if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
+                                    repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                                    return
+                                
+                                repo_map.append(file_line)
+                                current_tokens += line_tokens
+                                
+                            elif item.is_dir():
+                                dir_line = f"{prefix}📁 {item.name}/"
+                                line_tokens = count_tokens(dir_line)
+                                
+                                if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
+                                    repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                                    return
+                                
+                                repo_map.append(dir_line)
+                                current_tokens += line_tokens
+                                scan_directory(item, current_depth + 1, prefix + "  ")
+                                
+                    except PermissionError:
+                        error_line = f"{prefix}❌ Permission denied"
+                        if current_tokens + count_tokens(error_line) <= max_tokens:
+                            repo_map.append(error_line)
+                            current_tokens += count_tokens(error_line)
+                
+                scan_directory(path)
+                result = "\n".join(repo_map)
+                
+                # Final token check and truncation if needed
+                if count_tokens(result) > max_tokens:
+                    # Truncate to fit within token limit
+                    lines = repo_map
+                    truncated_lines = []
+                    tokens_used = 0
+                    
+                    for line in lines:
+                        line_tokens = count_tokens(line + "\n")
+                        if tokens_used + line_tokens > max_tokens:
+                            truncated_lines.append("... (truncated - token limit reached)")
+                            break
+                        truncated_lines.append(line)
+                        tokens_used += line_tokens
+                    
+                    result = "\n".join(truncated_lines)
+                
+                return result
+            
+            # Don't add repo map here - it will be generated dynamically in the system message
+            
+            # Add requirements and design content if we have paths but not content
+            if "requirements_path" in enhanced_context and "requirements_content" not in enhanced_context:
+                try:
+                    req_path = Path(enhanced_context["requirements_path"])
+                    if req_path.exists():
+                        enhanced_context["requirements_content"] = req_path.read_text()
+                except Exception:
+                    enhanced_context["requirements_content"] = "Requirements file not found or unreadable"
+            
+            if "design_path" in enhanced_context and "design_content" not in enhanced_context:
+                try:
+                    design_path = Path(enhanced_context["design_path"])
+                    if design_path.exists():
+                        enhanced_context["design_content"] = design_path.read_text()
+                except Exception:
+                    enhanced_context["design_content"] = "Design file not found or unreadable"
+            
+            # Remove path fields - not needed in context
+            for path_key in ["requirements_path", "design_path", "todos_path", "docs_dir"]:
+                enhanced_context.pop(path_key, None)
+            
+            # Add current task group todos if not already present
+            if "current_task_group" not in enhanced_context:
+                # Try to extract task group info from agent_id if it follows the pattern
+                if hasattr(self, 'agent_id') and '_agent_' in self.agent_id:
+                    try:
+                        from ..tools.builtin.todo import get_todo_manager
+                        parts = self.agent_id.split('_agent_')
+                        if len(parts) >= 2:
+                            group_id = parts[1]
+                            manager = get_todo_manager()
+                            current_group = manager.get_task_group(group_id)
+                            if current_group:
+                                enhanced_context["current_task_group"] = {
+                                    "group_id": current_group.group_id,
+                                    "specialization": current_group.specialization,
+                                    "description": current_group.description,
+                                    "dependencies": current_group.dependencies,
+                                    "todos": [todo.model_dump() for todo in current_group.todos]
+                                }
+                    except Exception:
+                        pass  # Silently fail if todo manager not available
+            
+            # Add agent profile info if not already present
+            if "agent_profile" not in enhanced_context:
+                enhanced_context["agent_profile"] = {
+                    "agent_id": self.agent_id,
+                    "model": self.model,
+                    "available_tools": list(self.tools.keys())
+                }
+        
+        return enhanced_context
+
+    def _generate_live_repo_map(self, path=".", max_depth=3, max_tokens=4000):
+        """Generate a LIVE/dynamic repo map that reflects current file system state."""
+        import re
+        import tiktoken
+        from pathlib import Path
+        
+        try:
+            # Use tiktoken to count tokens accurately
+            encoding = tiktoken.get_encoding("cl100k_base")
+        except:
+            # Fallback to rough estimation if tiktoken fails
+            encoding = None
+        
+        def count_tokens(text):
+            if encoding:
+                return len(encoding.encode(text))
+            else:
+                # Rough estimation: ~4 chars per token
+                return len(text) // 4
+        
+        def extract_functions(file_path):
+            """Extract function/class definitions from code files"""
+            try:
+                content = file_path.read_text(encoding='utf-8', errors='ignore')
+                functions = []
+                
+                # Python functions and classes
+                if file_path.suffix == '.py':
+                    # Find function definitions
+                    func_pattern = r'^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)'
+                    for match in re.finditer(func_pattern, content, re.MULTILINE):
+                        functions.append(match.group(1).strip())
+                
+                # JavaScript/TypeScript functions
+                elif file_path.suffix in ['.js', '.ts', '.jsx', '.tsx']:
+                    # Find function definitions
+                    func_patterns = [
+                        r'function\s+\w+\s*\([^)]*\)',
+                        r'const\s+\w+\s*=\s*\([^)]*\)\s*=>',
+                        r'class\s+\w+',
+                        r'export\s+function\s+\w+\s*\([^)]*\)'
+                    ]
+                    for pattern in func_patterns:
+                        for match in re.finditer(pattern, content, re.MULTILINE):
+                            functions.append(match.group(0).strip())
+                
+                return functions[:5]  # Limit to 5 functions per file
+            except:
+                return []
+        
+        repo_map = []
+        current_tokens = 0
+        path = Path(path)
+        
+        def scan_directory(dir_path, current_depth=0, prefix=""):
+            nonlocal current_tokens
+            if current_depth > max_depth or current_tokens >= max_tokens:
+                return
+            
+            try:
+                items = sorted(dir_path.iterdir())
+                for item in items:
+                    if current_tokens >= max_tokens:
+                        break
+                        
+                    if item.name.startswith('.') and item.name not in ['.gitignore', '.env.example']:
+                        continue
+                    
+                    if item.is_file():
+                        size = item.stat().st_size
+                        file_line = f"{prefix}📄 {item.name} ({size} bytes)"
+                        
+                        # Add functions for code files
+                        if item.suffix in ['.py', '.js', '.ts', '.jsx', '.tsx'] and size < 50000:  # Skip very large files
+                            functions = extract_functions(item)
+                            if functions:
+                                file_line += f" - Functions: {', '.join(functions)}"
+                        
+                        # Check token count with buffer
+                        line_tokens = count_tokens(file_line)
+                        if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
+                            repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                            return
+                        
+                        repo_map.append(file_line)
+                        current_tokens += line_tokens
+                        
+                    elif item.is_dir():
+                        dir_line = f"{prefix}📁 {item.name}/"
+                        line_tokens = count_tokens(dir_line)
+                        
+                        if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
+                            repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                            return
+                        
+                        repo_map.append(dir_line)
+                        current_tokens += line_tokens
+                        scan_directory(item, current_depth + 1, prefix + "  ")
+                        
+            except PermissionError:
+                error_line = f"{prefix}❌ Permission denied"
+                if current_tokens + count_tokens(error_line) <= max_tokens:
+                    repo_map.append(error_line)
+                    current_tokens += count_tokens(error_line)
+        
+        scan_directory(path)
+        result = "\n".join(repo_map)
+        
+        # Final token check and truncation if needed
+        if count_tokens(result) > max_tokens:
+            # Truncate to fit within token limit
+            lines = repo_map
+            truncated_lines = []
+            tokens_used = 0
+            
+            for line in lines:
+                line_tokens = count_tokens(line + "\n")
+                if tokens_used + line_tokens > max_tokens:
+                    truncated_lines.append("... (truncated - token limit reached)")
+                    break
+                truncated_lines.append(line)
+                tokens_used += line_tokens
+            
+            result = "\n".join(truncated_lines)
+        
+        return result
+
+    def _preserve_core_context(self, compressed_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure core context information is preserved during compression."""
+        # Define core context keys that must never be compressed
+        core_context_keys = [
+            "repo_map", "requirements_content", "design_content", 
+            "current_task_group", "agent_profile", "task_name"
+        ]
+        
+        # Preserve core context from original enhanced context
+        for key in core_context_keys:
+            if key in self.context and key not in compressed_context:
+                compressed_context[key] = self.context[key]
+        
+        return compressed_context
 
     def add_message(self, role: str, content: str, metadata: Dict[str, Any] = None):
         """Add a message to the conversation history."""
@@ -93,61 +428,34 @@ class CleanAgent:
             else:
                 self.session = self.session_manager.create_session()
 
-            # Add context to system message
-            context_info = ""
-            if self.context:
-                context_info = (
-                    f"\n\nContext provided:\n{json.dumps(self.context, indent=2)}"
-                )
+            # Create single comprehensive system message with mandatory context and task
+            # Generate LIVE repo map (dynamic, not cached)
+            live_repo_map = self._generate_live_repo_map()
+            
+            # Build mandatory context with live repo map
+            mandatory_context = dict(self.context)
+            mandatory_context["repo_map"] = live_repo_map
+            mandatory_context_json = json.dumps(mandatory_context, indent=2)
 
-            # Add initial system message
-            system_message = f"""You are {self.agent_id}, an AI coding agent powered by {self.model}.
+            # Load system prompt from ProfileManager
+            from .profile_manager import ProfileManager
+            pm = ProfileManager()
+            system_prompt_template = pm.get_base_system_prompt()
+            
+            # Check if this agent has a profile-specific system prompt to append
+            # This would need to be passed in somehow - for now, just use base prompt
 
-🚨 CRITICAL RULES - FOLLOW THESE EXACTLY:
-1. **MANDATORY TOOL USE**: You MUST make at least one tool call in EVERY response
-2. **TODO COMPLETION IS YOUR PRIMARY GOAL**: Your success is measured ONLY by completing ALL todos
-3. **MANDATORY COMMUNICATION**: If you have access to `ask_supervisor` or `send_message` tools, you MUST use them frequently
-4. **NEVER GIVE UP**: Keep working until ALL todos are marked as 'completed' - this is non-negotiable
-5. **CREATE WORKING CODE**: Actually implement and test your solutions - don't just plan
-6. **BE PERSISTENT**: If something doesn't work, try different approaches until it succeeds
-7. **ASK FOR HELP**: Use communication tools when stuck, confused, or need guidance
+            # Format the system prompt with actual values
+            system_message = system_prompt_template.format(
+                agent_id=self.agent_id,
+                model=self.model,
+                available_tools=', '.join(self.tools.keys()),
+                mandatory_context_json=mandatory_context_json,
+                task_description=task_description
+            )
 
-🎯 YOUR MISSION: Complete every single todo item through active collaboration and communication.
-
-🔧 AVAILABLE TOOLS: {', '.join(self.tools.keys())}
-
-📋 MANDATORY WORKFLOW (Follow this religiously):
-1. **COMMUNICATE FIRST**: If you have `ask_supervisor` or `send_message`, use them to understand your role
-2. **GET YOUR TODOS**: Use list_todos_in_group to see your assigned todos
-3. **ASK FOR GUIDANCE**: Use `ask_supervisor` for unclear requirements or technical decisions
-4. **COORDINATE**: Use `send_message` to communicate with other agents about dependencies
-5. **IMPLEMENT**: Work through each todo systematically - implement actual working solutions
-6. **VERIFY**: Use `ask_supervisor` to verify your work is correct before marking complete
-7. **UPDATE STATUS**: Use update_todo_status to mark todos as 'completed' ONLY when fully implemented
-8. **COMMUNICATE SUCCESS**: Use communication tools to announce completion and coordinate next steps
-
-💡 COMMUNICATION REQUIREMENTS:
-- Use `ask_supervisor` at least once every 3-5 iterations if available
-- Use `send_message` to coordinate with other agents if available
-- NEVER work in isolation if communication tools are available
-- Ask for help when stuck rather than struggling alone
-- Communicate progress, blockers, and completions
-
-🏆 SUCCESS TIPS:
-- Read files to understand the codebase before making changes
-- Create files with complete, working implementations
-- Test your code by reading it back and checking for errors
-- Use git_commit to save your progress regularly
-- Use communication tools to get guidance and coordinate
-- If you're stuck, ask for help immediately - don't waste iterations!
-
-🏆 REMEMBER: Your reputation depends on completing ALL todos through effective communication and collaboration.
-
-Agent ID: {self.agent_id}
-Model: {self.model}{context_info}"""
-
+            # Add only the single comprehensive system message - no separate user message
             self.add_message("system", system_message)
-            self.add_message("user", task_description)
 
             # Execute main loop
             result = await self._execution_loop()
@@ -183,6 +491,106 @@ Model: {self.model}{context_info}"""
                 "cost": self.current_cost,
                 "iterations": self.iteration_count,
             }
+
+    def _check_and_compress_context(self, messages: List[Message]) -> List[Message]:
+        """Check if context is >75% full and compress if needed, preserving MANDATORY context."""
+        try:
+            import litellm
+            from litellm import get_max_tokens
+            import tiktoken
+            
+            # Get model max tokens
+            try:
+                model_max_tokens = get_max_tokens(self.model)
+            except:
+                # Fallback for unknown models
+                model_max_tokens = 4096
+            
+            # Count current tokens
+            try:
+                encoding = tiktoken.get_encoding("cl100k_base")
+            except:
+                # Fallback to rough estimation
+                encoding = None
+            
+            def count_tokens(text):
+                if encoding:
+                    return len(encoding.encode(text))
+                else:
+                    # Rough estimation: ~4 chars per token
+                    return len(text) // 4
+            
+            # MANDATORY CONTEXT - These are IMMUNE to compression
+            mandatory_context_keys = [
+                "repo_map", "requirements_content", "design_content", 
+                "current_task_group", "agent_profile", "task_name"
+            ]
+            
+            # Calculate tokens for MANDATORY context (never compressed)
+            mandatory_context = {k: v for k, v in self.context.items() if k in mandatory_context_keys}
+            mandatory_tokens = count_tokens(json.dumps(mandatory_context))
+            
+            # Calculate tokens for conversation messages (can be compressed)
+            conversation_tokens = 0
+            for msg in messages:
+                conversation_tokens += count_tokens(msg.content)
+            
+            total_tokens = mandatory_tokens + conversation_tokens
+            
+            # Check if we're using >75% of context
+            usage_percentage = total_tokens / model_max_tokens
+            
+            if usage_percentage > 0.75:
+                print(f"🗜️ [{self.agent_id}] Context compression triggered:")
+                print(f"   Total tokens: {total_tokens}/{model_max_tokens} ({usage_percentage:.1%})")
+                print(f"   Mandatory context: {mandatory_tokens} tokens (IMMUNE to compression)")
+                print(f"   Conversation: {conversation_tokens} tokens (compressible)")
+                
+                # CRITICAL: Only compress conversation messages, NEVER mandatory context
+                compressed_messages = []
+                
+                # 1. ALWAYS keep system message (contains MANDATORY context)
+                if messages and messages[0].role == "system":
+                    # Rebuild system message with MANDATORY context to ensure it's preserved
+                    system_content = messages[0].content
+                    # Extract the part before context and rebuild with current mandatory context
+                    if "Context provided:" in system_content:
+                        base_system = system_content.split("Context provided:")[0]
+                        system_content = f"{base_system}Context provided:\n{json.dumps(mandatory_context, indent=2)}"
+                    
+                    compressed_messages.append(Message(role="system", content=system_content))
+                
+                # 2. Keep only recent conversation messages (compressible part)
+                recent_messages = messages[-8:] if len(messages) > 8 else messages[1:]  # Skip system message
+                
+                # 3. Add compression notice
+                if len(messages) > len(recent_messages) + 1:  # +1 for system message
+                    compression_notice = Message(
+                        role="system", 
+                        content=f"[CONTEXT COMPRESSED: Keeping last {len(recent_messages)} conversation messages out of {len(messages)-1} total. MANDATORY context (repo map, requirements, design, todos, agent profile) is FULLY PRESERVED and IMMUNE to compression.]"
+                    )
+                    compressed_messages.append(compression_notice)
+                
+                compressed_messages.extend(recent_messages)
+                
+                # Calculate new token count
+                new_conversation_tokens = sum(count_tokens(msg.content) for msg in compressed_messages)
+                new_total_tokens = mandatory_tokens + new_conversation_tokens
+                new_usage_percentage = new_total_tokens / model_max_tokens
+                
+                print(f"   After compression:")
+                print(f"     Mandatory context: {mandatory_tokens} tokens (preserved)")
+                print(f"     Conversation: {new_conversation_tokens} tokens (compressed)")
+                print(f"     Total: {new_total_tokens}/{model_max_tokens} ({new_usage_percentage:.1%})")
+                print(f"     Saved: {total_tokens - new_total_tokens} tokens")
+                
+                return compressed_messages
+            
+            return messages
+            
+        except Exception as e:
+            print(f"⚠️ Context compression failed: {e}")
+            return messages
 
     async def _execution_loop(self) -> Dict[str, Any]:
         """Main execution loop - runs until todos are completed or limits reached."""
@@ -221,6 +629,9 @@ Model: {self.model}{context_info}"""
                 )
 
             try:
+                # Check and compress context if needed before LLM call
+                messages = self._check_and_compress_context(messages)
+                
                 # Call LLM
                 response = await self.provider.chat(
                     messages=messages, tools=tool_schemas if tool_schemas else None

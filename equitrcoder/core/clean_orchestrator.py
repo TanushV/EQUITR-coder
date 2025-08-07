@@ -1,11 +1,13 @@
 # equitrcoder/core/clean_orchestrator.py
 
 import json
+import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from ..providers.litellm import LiteLLMProvider, Message
-from ..tools.builtin.todo import set_global_todo_file, todo_manager
+from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
+from ..tools.discovery import discover_tools
 from .profile_manager import ProfileManager
 
 class CleanOrchestrator:
@@ -17,6 +19,26 @@ class CleanOrchestrator:
         self.model = model
         self.provider = LiteLLMProvider(model=model)
         self.profile_manager = ProfileManager()
+        self.prompts = self._load_orchestrator_prompts()
+    
+    def _load_orchestrator_prompts(self) -> Dict[str, str]:
+        """Load orchestrator prompts from unified system_prompt.yaml config."""
+        config_path = Path('equitrcoder/config/system_prompt.yaml')
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+                return {
+                    'requirements_analyst_prompt': config.get('requirements_analyst_prompt', ''),
+                    'system_designer_prompt': config.get('system_designer_prompt', ''),
+                    'project_manager_prompt': config.get('project_manager_prompt', '')
+                }
+        
+        # Fallback prompts if config file not found
+        return {
+            'requirements_analyst_prompt': 'You are a requirements analyst. Create a clear requirements document.',
+            'system_designer_prompt': 'You are a system designer. Create a technical design document.',
+            'project_manager_prompt': 'You are a project manager. Create a structured execution plan.'
+        }
     
     async def create_docs(
         self,
@@ -48,10 +70,9 @@ class CleanOrchestrator:
             design_path = docs_dir / "design.md"
             design_path.write_text(design_content)
             
-            # 3. Create the structured todo plan (JSON)
+            # 3. Create the structured todo plan (JSON) in same docs folder
             print("📝 Creating structured todo plan with dependencies...")
-            task_todo_file = f"todos_{task_name}.json"
-            todo_path = docs_dir / task_todo_file
+            todo_path = docs_dir / "todos.json"
             await self._setup_todo_system(task_description, requirements_content, design_content, task_name, todo_path, team)
             
             print("✅ Documentation and plan created successfully!")
@@ -60,38 +81,24 @@ class CleanOrchestrator:
                 "task_name": task_name,
                 "requirements_path": str(requirements_path),
                 "design_path": str(design_path),
-                "todos_path": str(todo_path), # Path to the JSON plan in docs directory
+                "todos_path": str(todo_path),
                 "docs_dir": str(docs_dir),
+                # Include actual content for agent context
+                "requirements_content": requirements_content,
+                "design_content": design_content,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
     
     async def _create_requirements(self, task_description: str) -> str:
-        system_prompt = """You are a requirements analyst. Create a clear, structured requirements document.
-
-Create a requirements.md that includes:
-1. Project Overview - What needs to be built
-2. Functional Requirements - What the system should do  
-3. Technical Requirements - How it should be built
-4. Success Criteria - How to know when complete
-
-Be specific and actionable. Use markdown format."""
+        system_prompt = self.prompts.get('requirements_analyst_prompt', 'You are a requirements analyst.')
         
         messages = [Message(role="system", content=system_prompt), Message(role="user", content=f"Task: {task_description}")]
         response = await self.provider.chat(messages=messages)
         return response.content
     
     async def _create_design(self, task_description: str, requirements: str) -> str:
-        system_prompt = """You are a system designer. Create a technical design document.
-
-Create a design.md that includes:
-1. System Architecture - High-level structure
-2. Components - What parts need to be built
-3. Data Flow - How information moves
-4. Implementation Plan - Step-by-step approach
-5. File Structure - What files/directories will be created
-
-Be technical and specific. Use markdown format."""
+        system_prompt = self.prompts.get('system_designer_prompt', 'You are a system designer.')
         
         messages = [
             Message(role="system", content=system_prompt),
@@ -102,6 +109,12 @@ Be technical and specific. Use markdown format."""
     
     async def _setup_todo_system(self, task_description: str, requirements: str, design: str, task_name: str, todo_file_path: Path, team: Optional[List[str]] = None):
         """Generates and saves the structured todo plan."""
+        
+        # Get available tools context
+        available_tools = discover_tools()
+        tools_context = "Available tools that agents will have access to:\n"
+        for tool in available_tools:
+            tools_context += f"- {tool.get_name()}: {tool.get_description()}\n"
         
         team_prompt_injection = ""
         if team:
@@ -120,20 +133,12 @@ Be technical and specific. Use markdown format."""
                     "Available Team:\n" + "\n".join(team_details) + "\n\n"
                 )
 
-        system_prompt = f"""You are a senior project manager and team lead. Based on the provided requirements and design, decompose the project into a structured JSON execution plan.
-{team_prompt_injection}
-The plan must consist of an array of "Task Groups".
-
-Each Task Group must have:
-1. `group_id`: A unique, descriptive ID (e.g., `backend_api`, `frontend_ui`).
-2. `specialization`: The profile name of the specialist assigned to this group (e.g., `backend_dev`, `frontend_dev`). If no specific team is provided, use a general role (e.g., `backend`, `frontend`).
-3. `description`: A one-sentence summary of the group's objective.
-4. `dependencies`: A list of `group_id`s that must be completed before this group can start. The first group(s) should have an empty list.
-5. `todos`: An array of 2-8 specific, actionable sub-tasks (as `{{ "title": "..." }}` objects) for this group.
-
-Analyze the project to identify logical dependencies. For example, the `frontend_ui` group must depend on the `backend_api` group.
-
-Generate only the raw JSON object and nothing else."""
+        # Get project manager prompt from config and format it
+        project_manager_prompt = self.prompts.get('project_manager_prompt', 'You are a project manager.')
+        system_prompt = project_manager_prompt.format(
+            team_prompt_injection=team_prompt_injection,
+            tools_context=tools_context
+        )
         
         messages = [
             Message(role="system", content=system_prompt),
@@ -160,15 +165,16 @@ Generate only the raw JSON object and nothing else."""
         set_global_todo_file(str(todo_file_path))
         
         # Populate the new TodoManager with the structured plan
+        manager = get_todo_manager()
         for group_data in task_groups_data:
-            todo_manager.create_task_group(
+            manager.create_task_group(
                 group_id=group_data['group_id'],
                 specialization=group_data['specialization'],
                 description=group_data.get('description', ''),
                 dependencies=group_data.get('dependencies', [])
             )
             for todo_data in group_data.get('todos', []):
-                todo_manager.add_todo_to_group(
+                manager.add_todo_to_group(
                     group_id=group_data['group_id'],
                     title=todo_data['title']
                 )
