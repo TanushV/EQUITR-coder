@@ -33,42 +33,11 @@ class ApiTest(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
+            headers = self._prepare_headers(args)
+            response = self._make_request(args, headers)
+            response_data = self._parse_response(response)
             
-            # Prepare request
-            method = args.method.upper()
-            headers = args.headers or {}
-            
-            # Add default headers
-            if 'Content-Type' not in headers and args.data:
-                headers['Content-Type'] = 'application/json'
-            
-            # Make request
-            response = requests.request(
-                method=method,
-                url=args.url,
-                headers=headers,
-                json=args.data if args.data else None,
-                timeout=args.timeout
-            )
-            
-            # Parse response
-            try:
-                response_data = response.json()
-            except:
-                response_data = response.text
-            
-            return ToolResult(
-                success=200 <= response.status_code < 400,
-                data={
-                    "status_code": response.status_code,
-                    "headers": dict(response.headers),
-                    "response_data": response_data,
-                    "response_time": response.elapsed.total_seconds(),
-                    "url": args.url,
-                    "method": method
-                },
-                error=f"HTTP {response.status_code}: {response.reason}" if response.status_code >= 400 else None
-            )
+            return self._create_result(response, response_data, args)
             
         except requests.exceptions.Timeout:
             return ToolResult(success=False, error=f"Request timed out after {args.timeout} seconds")
@@ -76,6 +45,48 @@ class ApiTest(Tool):
             return ToolResult(success=False, error=f"Failed to connect to {args.url}")
         except Exception as e:
             return ToolResult(success=False, error=str(e))
+    
+    def _prepare_headers(self, args) -> dict:
+        """Prepare request headers with defaults"""
+        headers = args.headers or {}
+        if 'Content-Type' not in headers and args.data:
+            headers['Content-Type'] = 'application/json'
+        return headers
+    
+    def _make_request(self, args, headers):
+        """Make the HTTP request"""
+        return requests.request(
+            method=args.method.upper(),
+            url=args.url,
+            headers=headers,
+            json=args.data if args.data else None,
+            timeout=args.timeout
+        )
+    
+    def _parse_response(self, response):
+        """Parse response data, falling back to text if JSON parsing fails"""
+        try:
+            return response.json()
+        except (ValueError, TypeError, AttributeError):
+            return response.text
+    
+    def _create_result(self, response, response_data, args):
+        """Create the final ToolResult"""
+        is_success = 200 <= response.status_code < 400
+        error_msg = f"HTTP {response.status_code}: {response.reason}" if response.status_code >= 400 else None
+        
+        return ToolResult(
+            success=is_success,
+            data={
+                "status_code": response.status_code,
+                "headers": dict(response.headers),
+                "response_data": response_data,
+                "response_time": response.elapsed.total_seconds(),
+                "url": args.url,
+                "method": args.method.upper()
+            },
+            error=error_msg
+        )
 
 
 class DatabaseQueryArgs(BaseModel):
@@ -114,54 +125,15 @@ class DatabaseQuery(Tool):
         try:
             import sqlite3
             
-            # Extract database path from URL
-            db_path = args.database_url.replace("sqlite:///", "").replace("sqlite://", "")
-            
-            # Connect to database
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row  # Enable column access by name
+            db_path = self._extract_db_path(args.database_url)
+            conn = self._create_connection(db_path)
             cursor = conn.cursor()
-            
-            # Execute query
             cursor.execute(args.query)
             
-            # Handle different query types
-            if args.query.strip().upper().startswith(('SELECT', 'PRAGMA')):
-                # Query returns results
-                if args.fetch_results:
-                    results = [dict(row) for row in cursor.fetchall()]
-                    return ToolResult(
-                        success=True,
-                        data={
-                            "results": results,
-                            "row_count": len(results),
-                            "query": args.query,
-                            "database": db_path
-                        }
-                    )
-                else:
-                    return ToolResult(
-                        success=True,
-                        data={
-                            "message": "Query executed successfully (results not fetched)",
-                            "query": args.query,
-                            "database": db_path
-                        }
-                    )
+            if self._is_select_query(args.query):
+                return self._handle_select_query(cursor, args, db_path)
             else:
-                # Query modifies data
-                conn.commit()
-                affected_rows = cursor.rowcount
-                
-                return ToolResult(
-                    success=True,
-                    data={
-                        "affected_rows": affected_rows,
-                        "query": args.query,
-                        "database": db_path,
-                        "message": f"Query executed successfully, {affected_rows} rows affected"
-                    }
-                )
+                return self._handle_modify_query(conn, cursor, args, db_path)
                 
         except sqlite3.Error as e:
             return ToolResult(success=False, error=f"SQLite error: {str(e)}")
@@ -170,6 +142,59 @@ class DatabaseQuery(Tool):
         finally:
             if 'conn' in locals():
                 conn.close()
+    
+    def _extract_db_path(self, database_url: str) -> str:
+        """Extract database path from URL"""
+        return database_url.replace("sqlite:///", "").replace("sqlite://", "")
+    
+    def _create_connection(self, db_path: str):
+        """Create SQLite connection with row factory"""
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
+    def _is_select_query(self, query: str) -> bool:
+        """Check if query is a SELECT or PRAGMA query"""
+        return query.strip().upper().startswith(('SELECT', 'PRAGMA'))
+    
+    def _handle_select_query(self, cursor, args: DatabaseQueryArgs, db_path: str) -> ToolResult:
+        """Handle SELECT queries that return results"""
+        if args.fetch_results:
+            results = [dict(row) for row in cursor.fetchall()]
+            return ToolResult(
+                success=True,
+                data={
+                    "results": results,
+                    "row_count": len(results),
+                    "query": args.query,
+                    "database": db_path
+                }
+            )
+        else:
+            return ToolResult(
+                success=True,
+                data={
+                    "message": "Query executed successfully (results not fetched)",
+                    "query": args.query,
+                    "database": db_path
+                }
+            )
+    
+    def _handle_modify_query(self, conn, cursor, args: DatabaseQueryArgs, db_path: str) -> ToolResult:
+        """Handle INSERT/UPDATE/DELETE queries"""
+        conn.commit()
+        affected_rows = cursor.rowcount
+        
+        return ToolResult(
+            success=True,
+            data={
+                "affected_rows": affected_rows,
+                "query": args.query,
+                "database": db_path,
+                "message": f"Query executed successfully, {affected_rows} rows affected"
+            }
+        )
 
 
 class StartServerArgs(BaseModel):

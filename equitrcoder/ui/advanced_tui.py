@@ -13,6 +13,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from ..core.unified_config import get_config
+
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -28,8 +30,6 @@ from textual.widgets import (
     ListView,
     RichLog,
     Static,
-    TabbedContent,
-    TabPane,
 )
 
 try:
@@ -47,6 +47,7 @@ from ..programmatic import (
     create_single_agent_coder,
 )
 from ..tools.builtin.todo import todo_manager
+from ..core.model_manager import model_manager
 
 
 class TodoSidebar(Static):
@@ -177,6 +178,8 @@ class StatusBar(Static):
 
     mode: reactive[str] = reactive("single")
     models: reactive[str] = reactive("Not set")
+    profiles: reactive[str] = reactive("default")
+    pricing: reactive[str] = reactive("$0.000/1K")
     stage: reactive[str] = reactive("ready")
     agent_count: reactive[int] = reactive(0)
     current_cost: reactive[float] = reactive(0.0)
@@ -187,6 +190,12 @@ class StatusBar(Static):
             yield Label(f"Mode: {self.mode}", id="status-mode", classes="status-item")
             yield Label(
                 f"Models: {self.models}", id="status-models", classes="status-item"
+            )
+            yield Label(
+                f"Profiles: {self.profiles}", id="status-profiles", classes="status-item"
+            )
+            yield Label(
+                f"Prices: {self.pricing}", id="status-pricing", classes="status-item"
             )
             yield Label(
                 f"Stage: {self.stage}", id="status-stage", classes="status-item"
@@ -207,6 +216,12 @@ class StatusBar(Static):
     def watch_models(self, models: str):
         """Update models display."""
         self.query_one("#status-models").update(f"Models: {models}")
+
+    def watch_profiles(self, profiles: str):
+        self.query_one("#status-profiles").update(f"Profiles: {profiles}")
+
+    def watch_pricing(self, pricing: str):
+        self.query_one("#status-pricing").update(f"Prices: {pricing}")
 
     def watch_stage(self, stage: str):
         """Update stage display."""
@@ -235,42 +250,64 @@ class TaskInputPanel(Static):
         with Vertical():
             yield Label("Task Input", classes="panel-title")
             yield Input(placeholder="Enter your task description...", id="task-input")
+            yield Input(placeholder="Comma-separated dataset paths (optional)", id="datasets-input")
+            yield Input(placeholder="Experiments (name:command; name:command; ...)", id="experiments-input")
             with Horizontal():
                 yield Button("Execute Single", variant="primary", id="btn-single")
                 yield Button("Execute Multi", variant="success", id="btn-multi")
+                yield Button("Execute Research", variant="success", id="btn-research")
                 yield Button("Clear", variant="warning", id="btn-clear")
 
 
-class ParallelAgentTabs(TabbedContent):
-    """Tabbed container for parallel agent chat windows."""
+class AgentPanelGrid(Static):
+    """Equal-split grid for agent chat windows."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.agent_windows: Dict[str, ChatWindow] = {}
 
-    def add_agent_window(self, agent_id: str, agent_name: str = None):
-        """Add a new agent chat window."""
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            for agent_id, window in self.agent_windows.items():
+                yield window
+
+    def add_agent_window(self, agent_id: str, agent_name: Optional[str] = None):
         if agent_id in self.agent_windows:
             return
-
-        display_name = agent_name or agent_id
-        chat_window = ChatWindow(agent_id=agent_id)
+        chat_window = ChatWindow(agent_id=agent_id, classes="agent-window")
         self.agent_windows[agent_id] = chat_window
-
-        # Add new tab with chat window
-        tab_pane = TabPane(display_name, chat_window, id=f"tab-{agent_id}")
-        self.add_pane(tab_pane)
+        self.refresh()
 
     def get_agent_window(self, agent_id: str) -> Optional[ChatWindow]:
-        """Get chat window for specific agent."""
         return self.agent_windows.get(agent_id)
 
     def remove_agent_window(self, agent_id: str):
-        """Remove agent chat window."""
         if agent_id in self.agent_windows:
-            tab_pane = self.query_one(f"#tab-{agent_id}")
-            self.remove_pane(tab_pane.id)
             del self.agent_windows[agent_id]
+            self.refresh()
+
+
+class AgentsSidebar(Static):
+    """Right sidebar listing running agents."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.agents: List[str] = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("👥 Running Agents", classes="sidebar-title")
+            yield Container(id="agents-list")
+
+    def update_agents(self, agents: List[str]):
+        self.agents = agents
+        container = self.query_one("#agents-list")
+        container.remove_children()
+        if not agents:
+            container.mount(Label("No active agents", classes="todo-empty"))
+            return
+        for name in agents:
+            container.mount(Label(f"• {name}"))
 
 
 class ModelSuggestion(ListItem):
@@ -295,8 +332,14 @@ class EquitrTUI(App):
         border-right: solid $accent;
     }
     
+    .rightbar {
+        width: 20%;
+        background: $surface;
+        border-left: solid $accent;
+    }
+    
     .main-content {
-        width: 75%;
+        width: 55%;
     }
     
     .sidebar-title {
@@ -358,7 +401,7 @@ class EquitrTUI(App):
     StatusBar {
         height: 1;
         background: $surface;
-        border-top: solid $accent;
+        border-bottom: solid $accent;
     }
     
     TodoSidebar {
@@ -371,10 +414,14 @@ class EquitrTUI(App):
         background: $surface-light;
     }
     
-    ParallelAgentTabs {
+    AgentPanelGrid {
         border: solid $accent;
-        tab-background: $surface;
-        tab-active-background: $primary;
+        layout: horizontal;
+    }
+    
+    .agent-window {
+        width: 1fr;
+        border-right: solid $accent 50%;
     }
     
     .model-suggestions {
@@ -403,14 +450,17 @@ class EquitrTUI(App):
         self.task_running = False
         self.supervisor_model: Optional[str] = None
         self.worker_model: Optional[str] = None
+        self.selected_profiles: List[str] = []
 
         # Initialize components
         self.todo_sidebar = TodoSidebar(classes="sidebar")
         self.status_bar = StatusBar()
         self.task_input = TaskInputPanel()
-        self.agent_tabs = ParallelAgentTabs()
+        self.agent_grid = AgentPanelGrid()
+        self.agents_sidebar = AgentsSidebar(classes="rightbar")
         self.model_suggestions = ListView(classes="model-suggestions hidden")
         self.available_models: Dict[str, List[str]] = self.get_available_models()
+        self.active_agent_names: List[str] = []
 
         # Set initial status
         self.status_bar.mode = mode
@@ -419,14 +469,14 @@ class EquitrTUI(App):
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
         yield Header()
+        yield self.status_bar
 
         with Horizontal():
             yield self.todo_sidebar
 
             with Vertical(classes="main-content"):
                 yield self.task_input
-                yield self.agent_tabs
-                # Add model selectors container
+                yield self.agent_grid
                 with Container(id="model-selector", classes="hidden"):
                     yield Label("Select Models", classes="panel-title")
                     yield Input(
@@ -437,12 +487,14 @@ class EquitrTUI(App):
                     yield Button("Confirm", variant="primary", id="btn-model-confirm")
                     yield Button("Cancel", variant="warning", id="btn-model-cancel")
 
-        yield self.status_bar
+            yield self.agents_sidebar
 
     async def on_mount(self):
         """Initialize TUI after mounting."""
         # Initialize main agent window
-        self.agent_tabs.add_agent_window("main", "Main Agent")
+        self.agent_grid.add_agent_window("main")
+        self.active_agent_names = ["Main Agent"]
+        self.agents_sidebar.update_agents(self.active_agent_names)
 
         # Load todos
         await self.update_todos()
@@ -452,17 +504,34 @@ class EquitrTUI(App):
             self.coder = create_single_agent_coder()
             self.status_bar.models = "Default Single Model"
             self.status_bar.agent_count = 1
+            self.status_bar.profiles = "default"
         else:
             self.coder = create_multi_agent_coder()
-            self.status_bar.models = "GPT-4 (Supervisor) + GPT-3.5 (Workers)"
+            self.status_bar.models = "Supervisor + Workers"
             self.status_bar.agent_count = 3
+            self.status_bar.profiles = ", ".join(self.selected_profiles or ["default"]) or "default"
 
         # Set up callbacks
         self.coder.on_task_start = self.on_task_start
         self.coder.on_task_complete = self.on_task_complete
         self.coder.on_tool_call = self.on_tool_call
         self.coder.on_message = self.on_message
-        self.coder.on_iteration = self.on_iteration  # Add for live costs
+        self.coder.on_iteration = self.on_iteration
+
+    def update_pricing_display(self):
+        """Compute and update pricing string from selected models."""
+        parts = []
+        if self.supervisor_model:
+            sup = self.supervisor_model
+            c = model_manager.cost_cache.get(sup) or {"prompt": 0.0, "completion": 0.0}
+            avg = (c.get("prompt", 0.0) + c.get("completion", 0.0)) / 2.0
+            parts.append(f"sup ${avg:.4f}/1K")
+        if self.worker_model:
+            w = self.worker_model
+            c = model_manager.cost_cache.get(w) or {"prompt": 0.0, "completion": 0.0}
+            avg = (c.get("prompt", 0.0) + c.get("completion", 0.0)) / 2.0
+            parts.append(f"wrk ${avg:.4f}/1K")
+        self.status_bar.pricing = ", ".join(parts) if parts else "$0.0000/1K"
 
     def get_available_models(self) -> Dict[str, List[str]]:
         """Detect available providers and their models using environment variables and Litellm."""
@@ -555,6 +624,8 @@ class EquitrTUI(App):
             await self.execute_task("single")
         elif event.button.id == "btn-multi":
             await self.execute_task("multi")
+        elif event.button.id == "btn-research":
+            await self.execute_task("research")
         elif event.button.id == "btn-clear":
             await self.clear_chat()
         elif event.button.id == "btn-model-confirm":
@@ -566,7 +637,8 @@ class EquitrTUI(App):
                 self.worker_model = worker_input
             models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
             self.status_bar.models = models_display
-            main_window = self.agent_tabs.get_agent_window("main")
+            self.update_pricing_display()
+            main_window = self.agent_grid.get_agent_window("main")
             main_window.add_status_update(f"Models set: {models_display}", "success")
             self.hide_model_selector()
         elif event.button.id == "btn-model-cancel":
@@ -589,10 +661,13 @@ class EquitrTUI(App):
             return
 
         task_input = self.query_one("#task-input", Input)
+        datasets_input = self.query_one("#datasets-input", Input)
+        experiments_input = self.query_one("#experiments-input", Input)
         task_description = task_input.value.strip()
 
         if not task_description:
-            self.agent_tabs.get_agent_window("main").add_status_update(
+            main_window = self.agent_grid.get_agent_window("main")
+            main_window.add_status_update(
                 "Please enter a task description", "warning"
             )
             return
@@ -606,36 +681,80 @@ class EquitrTUI(App):
             task_input.value = ""
 
             # Add user message to main window
-            main_window = self.agent_tabs.get_agent_window("main")
+            main_window = self.agent_grid.get_agent_window("main")
             main_window.add_message("user", task_description)
 
             # Configure and execute task
             if mode == "single":
                 config = TaskConfiguration(
                     description=task_description,
-                    max_cost=5.0,
-                    max_iterations=20,
+                    max_cost=get_config('limits.max_cost', 5.0),
+                    max_iterations=get_config('limits.max_iterations', 20),
                     auto_commit=True,
                 )
-                if self.worker_model:  # Use worker model for single mode
-                    # Assuming single mode uses worker model
-                    pass  # Integrate with coder if needed
                 self.status_bar.update_cost_limit(5.0)
-            else:
+                self.status_bar.agent_count = 1
+                self.active_agent_names = ["Main Agent"]
+            elif mode == "multi":
                 config = MultiAgentTaskConfiguration(
                     description=task_description,
-                    max_workers=3,
-                    max_cost=15.0,
-                    supervisor_model=self.supervisor_model or "gpt-4",
-                    worker_model=self.worker_model or "gpt-3.5-turbo",
+                    max_workers=get_config('limits.max_workers', 3),
+                    max_cost=get_config('limits.max_cost', 15.0),
+                    supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
+                    worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
                     auto_commit=True,
                 )
                 self.status_bar.update_cost_limit(15.0)
-                # Add worker windows for multi-agent mode
-                for i in range(3):
-                    self.agent_tabs.add_agent_window(f"worker_{i+1}", f"Worker {i+1}")
+                # Add worker windows for multi-agent mode (equal split)
+                self.active_agent_names = ["Supervisor"]
+                # Ensure at least 2 workers for demo split equal
+                workers = get_config('limits.max_workers', 3)
+                for i in range(workers):
+                    agent_id = f"worker_{i+1}"
+                    self.agent_grid.add_agent_window(agent_id)
+                    self.active_agent_names.append(f"Worker {i+1}")
+            else:  # research
+                from ..programmatic.interface import ResearchTaskConfiguration
+                config = ResearchTaskConfiguration(
+                    description=task_description,
+                    max_workers=get_config('limits.max_workers', 3),
+                    max_cost=get_config('limits.max_cost', 15.0),
+                    supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
+                    worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
+                    auto_commit=True,
+                    team=["ml_researcher", "data_engineer", "experiment_runner", "report_writer"],
+                )
+                self.status_bar.update_cost_limit(15.0)
+                self.active_agent_names = ["Supervisor"]
+                workers = get_config('limits.max_workers', 3)
+                for i in range(workers):
+                    agent_id = f"worker_{i+1}"
+                    self.agent_grid.add_agent_window(agent_id)
+                    self.active_agent_names.append(f"Worker {i+1}")
+            self.agents_sidebar.update_agents(self.active_agent_names)
 
             # Execute task
+            # For research mode, synthesize a non-interactive research_context from inputs
+            if mode == "research":
+                datasets_raw = datasets_input.value.strip()
+                experiments_raw = experiments_input.value.strip()
+                datasets = []
+                if datasets_raw:
+                    for p in [s.strip() for s in datasets_raw.split(",") if s.strip()]:
+                        datasets.append({"path": p, "description": ""})
+                experiments = []
+                if experiments_raw:
+                    # parse name:command; name:command
+                    for part in [s.strip() for s in experiments_raw.split(";") if s.strip()]:
+                        if ":" in part:
+                            name, cmd = part.split(":", 1)
+                            experiments.append({"name": name.strip(), "command": cmd.strip()})
+                        else:
+                            experiments.append({"name": f"exp_{len(experiments)+1}", "command": part})
+                # We call researcher mode indirectly via EquitrCoder; embed context by temporarily monkey-patching
+                # the programmatic call through config (EquitrCoder passes through to mode).
+                # We use a private attr on config to pass through.
+                setattr(config, "research_context", {"datasets": datasets, "experiments": experiments})
             result = await self.coder.execute_task(task_description, config)
 
             # Show result
@@ -652,7 +771,7 @@ class EquitrTUI(App):
                 main_window.add_status_update(f"Task failed: {result.error}", "error")
 
         except Exception as e:
-            main_window = self.agent_tabs.get_agent_window("main")
+            main_window = self.agent_grid.get_agent_window("main")
             main_window.add_status_update(f"Execution error: {str(e)}", "error")
 
         finally:
@@ -662,29 +781,36 @@ class EquitrTUI(App):
 
     async def clear_chat(self):
         """Clear all chat windows."""
-        for window in self.agent_tabs.agent_windows.values():
+        for window in self.agent_grid.agent_windows.values():
             window.clear()
 
     async def update_todos(self):
         """Update the todo list display."""
         try:
-            # Get todos from todo manager
-            todos = todo_manager.list_todos()
-            self.todo_sidebar.update_todos(todos)
+            # Build grouped todos view from manager
+            groups = []
+            for group in todo_manager.plan.task_groups:
+                group_entry = {
+                    "group_id": group.group_id,
+                    "description": group.description,
+                    "status": group.status,
+                    "todos": [{"title": t.title, "status": t.status} for t in group.todos],
+                }
+                groups.append(group_entry)
+            self.todo_sidebar.update_todos(groups)
         except Exception:
-            # If todo manager fails, show empty list
             self.todo_sidebar.update_todos([])
 
     # Callback methods
     def on_task_start(self, description: str, mode: str):
         """Called when a task starts."""
-        main_window = self.agent_tabs.get_agent_window("main")
+        main_window = self.agent_grid.get_agent_window("main")
         main_window.add_status_update(f"Starting {mode} mode task", "info")
 
     def on_task_complete(self, result: ExecutionResult):
         """Called when a task completes."""
         self.status_bar.current_cost = result.cost
-        main_window = self.agent_tabs.get_agent_window("main")
+        main_window = self.agent_grid.get_agent_window("main")
 
         if result.success:
             main_window.add_status_update("Task execution completed", "success")
@@ -694,7 +820,7 @@ class EquitrTUI(App):
     def on_iteration(self, iteration: int, cost: float):
         """Called on each iteration to update live cost."""
         self.status_bar.current_cost = cost
-        main_window = self.agent_tabs.get_agent_window("main")
+        main_window = self.agent_grid.get_agent_window("main")
         main_window.add_status_update(
             f"Iteration {iteration} | Current Cost: ${cost:.4f}", "info"
         )
@@ -702,7 +828,7 @@ class EquitrTUI(App):
     def on_tool_call(self, tool_data: Dict[str, Any]):
         """Called when a tool is executed."""
         agent_id = tool_data.get("agent_id", "main")
-        window = self.agent_tabs.get_agent_window(agent_id)
+        window = self.agent_grid.get_agent_window(agent_id)
 
         if window:
             window.add_tool_call(
@@ -715,7 +841,7 @@ class EquitrTUI(App):
     def on_message(self, message_data: Dict[str, Any]):
         """Called when a message is generated."""
         agent_id = message_data.get("agent_id", "main")
-        window = self.agent_tabs.get_agent_window(agent_id)
+        window = self.agent_grid.get_agent_window(agent_id)
 
         if window:
             window.add_message(
@@ -739,8 +865,7 @@ class EquitrTUI(App):
 def launch_advanced_tui(mode: str = "single") -> int:
     """Launch the advanced TUI application."""
     if not TEXTUAL_AVAILABLE:
-        print("❌ Advanced TUI requires 'textual' and 'rich' packages.")
-        print("Install them with: pip install textual rich")
+        print("❌ Advanced TUI requires 'textual' and 'rich' packages. Please install them with: pip install textual rich")
         return 1
 
     try:
@@ -753,15 +878,8 @@ def launch_advanced_tui(mode: str = "single") -> int:
 
 
 def launch_tui(mode: str = "single") -> int:
-    """Launch the TUI (uses advanced TUI if available, falls back to simple)."""
-    if TEXTUAL_AVAILABLE:
-        return launch_advanced_tui(mode)
-    else:
-        # Fallback to simple TUI if Textual is not available
-        from .tui import launch_tui as launch_simple_tui
-
-        print("⚠️ Using simple TUI (install 'textual' and 'rich' for advanced features)")
-        return launch_simple_tui(mode)
+    """Launch the unified TUI (advanced only)."""
+    return launch_advanced_tui(mode)
 
 
 if __name__ == "__main__":

@@ -1,443 +1,730 @@
 """
-Performance Monitor for EQUITR Coder
+Performance Optimization Engine for EQUITR Coder
 
-This module provides performance tracking, cost monitoring, and analytics.
+This module provides comprehensive performance monitoring, optimization,
+and regression detection capabilities.
+
+Features:
+- Memory usage monitoring and optimization
+- Performance profiling for bottleneck identification
+- Automated performance regression detection
+- Performance metrics collection and reporting
+- Resource usage optimization
+- Performance alerting and notifications
 """
 
-import json
-import threading
+import os
+import sys
 import time
-from collections import defaultdict, deque
-from dataclasses import asdict, dataclass
+import psutil
+import threading
+import tracemalloc
+from typing import Dict, List, Any, Optional, Callable, Tuple
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, Optional
+from collections import defaultdict, deque
+import logging
+import json
+import weakref
+from contextlib import contextmanager
+from functools import wraps
+import gc
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PerformanceMetrics:
-    """Performance metrics for an operation."""
-
-    operation: str
-    execution_time: float
-    token_usage: int
-    cost: float
-    success: bool
-    error_message: Optional[str]
-    timestamp: datetime
-    metadata: Dict[str, Any]
+    """Performance metrics for a specific operation or time period"""
+    timestamp: datetime = field(default_factory=datetime.now)
+    operation_name: str = ""
+    duration_ms: float = 0.0
+    memory_usage_mb: float = 0.0
+    memory_peak_mb: float = 0.0
+    cpu_percent: float = 0.0
+    thread_count: int = 0
+    gc_collections: int = 0
+    custom_metrics: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert metrics to dictionary"""
+        return {
+            'timestamp': self.timestamp.isoformat(),
+            'operation_name': self.operation_name,
+            'duration_ms': self.duration_ms,
+            'memory_usage_mb': self.memory_usage_mb,
+            'memory_peak_mb': self.memory_peak_mb,
+            'cpu_percent': self.cpu_percent,
+            'thread_count': self.thread_count,
+            'gc_collections': self.gc_collections,
+            'custom_metrics': self.custom_metrics
+        }
 
 
 @dataclass
-class CostAlert:
-    """Cost alert when thresholds are exceeded."""
-
-    alert_type: str
-    current_value: float
-    threshold: float
-    message: str
-    timestamp: datetime
-
-
-class TrackingContext:
-    """Context manager for tracking operation performance."""
-
-    def __init__(
-        self,
-        monitor: "PerformanceMonitor",
-        operation: str,
-        metadata: Dict[str, Any] = None,
-    ):
-        self.monitor = monitor
-        self.operation = operation
-        self.metadata = metadata or {}
-        self.start_time = None
-        self.end_time = None
-
-    def __enter__(self):
-        self.start_time = time.time()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.end_time = time.time()
-        execution_time = self.end_time - self.start_time
-
-        success = exc_type is None
-        error_message = str(exc_val) if exc_val else None
-
-        self.monitor.record_operation(
-            operation=self.operation,
-            execution_time=execution_time,
-            success=success,
-            error_message=error_message,
-            metadata=self.metadata,
-        )
+class PerformanceBaseline:
+    """Performance baseline for regression detection"""
+    operation_name: str
+    avg_duration_ms: float
+    max_duration_ms: float
+    avg_memory_mb: float
+    max_memory_mb: float
+    sample_count: int
+    last_updated: datetime = field(default_factory=datetime.now)
+    
+    def update_with_metrics(self, metrics: PerformanceMetrics) -> None:
+        """Update baseline with new metrics"""
+        # Simple moving average update
+        weight = 1.0 / (self.sample_count + 1)
+        self.avg_duration_ms = (1 - weight) * self.avg_duration_ms + weight * metrics.duration_ms
+        self.avg_memory_mb = (1 - weight) * self.avg_memory_mb + weight * metrics.memory_usage_mb
+        
+        # Update maximums
+        self.max_duration_ms = max(self.max_duration_ms, metrics.duration_ms)
+        self.max_memory_mb = max(self.max_memory_mb, metrics.memory_usage_mb)
+        
+        self.sample_count += 1
+        self.last_updated = datetime.now()
 
 
-class PerformanceMonitor:
-    """Centralized performance monitoring and analytics."""
+@dataclass
+class PerformanceAlert:
+    """Performance alert for threshold violations"""
+    alert_type: str  # 'duration', 'memory', 'cpu', 'regression'
+    operation_name: str
+    threshold_value: float
+    actual_value: float
+    severity: str  # 'warning', 'error', 'critical'
+    timestamp: datetime = field(default_factory=datetime.now)
+    message: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert alert to dictionary"""
+        return {
+            'alert_type': self.alert_type,
+            'operation_name': self.operation_name,
+            'threshold_value': self.threshold_value,
+            'actual_value': self.actual_value,
+            'severity': self.severity,
+            'timestamp': self.timestamp.isoformat(),
+            'message': self.message
+        }
 
-    def __init__(self, max_history: int = 10000, cost_threshold: float = 10.0):
-        self.max_history = max_history
-        self.cost_threshold = cost_threshold
 
-        # Thread-safe storage
-        self._lock = threading.Lock()
-        self._metrics_history: deque[PerformanceMetrics] = deque(maxlen=max_history)
-        self._cost_alerts: deque[CostAlert] = deque(maxlen=1000)
+class MemoryProfiler:
+    """Memory profiling and optimization utilities"""
+    
+    def __init__(self):
+        self._tracemalloc_started = False
+        self._snapshots: List[Any] = []
+        self._max_snapshots = 10
+    
+    def start_profiling(self) -> None:
+        """Start memory profiling"""
+        if not self._tracemalloc_started:
+            tracemalloc.start()
+            self._tracemalloc_started = True
+            logger.debug("Memory profiling started")
+    
+    def stop_profiling(self) -> None:
+        """Stop memory profiling"""
+        if self._tracemalloc_started:
+            tracemalloc.stop()
+            self._tracemalloc_started = False
+            logger.debug("Memory profiling stopped")
+    
+    def take_snapshot(self, description: str = "") -> None:
+        """Take a memory snapshot"""
+        if not self._tracemalloc_started:
+            self.start_profiling()
+        
+        snapshot = tracemalloc.take_snapshot()
+        self._snapshots.append({
+            'snapshot': snapshot,
+            'description': description,
+            'timestamp': datetime.now()
+        })
+        
+        # Limit number of snapshots
+        if len(self._snapshots) > self._max_snapshots:
+            self._snapshots.pop(0)
+        
+        logger.debug(f"Memory snapshot taken: {description}")
+    
+    def get_memory_usage(self) -> Tuple[float, float]:
+        """Get current memory usage in MB"""
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        
+        # RSS (Resident Set Size) - physical memory currently used
+        current_mb = memory_info.rss / 1024 / 1024
+        
+        # Peak memory usage if available
+        try:
+            peak_mb = process.memory_info().peak_wss / 1024 / 1024 if hasattr(process.memory_info(), 'peak_wss') else current_mb
+        except AttributeError:
+            peak_mb = current_mb
+        
+        return current_mb, peak_mb
+    
+    def get_top_memory_consumers(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get top memory consuming code locations"""
+        if not self._snapshots:
+            return []
+        
+        latest_snapshot = self._snapshots[-1]['snapshot']
+        top_stats = latest_snapshot.statistics('lineno')
+        
+        consumers = []
+        for stat in top_stats[:limit]:
+            consumers.append({
+                'filename': stat.traceback.format()[0] if stat.traceback.format() else 'unknown',
+                'size_mb': stat.size / 1024 / 1024,
+                'count': stat.count
+            })
+        
+        return consumers
+    
+    def compare_snapshots(self, index1: int = -2, index2: int = -1) -> List[Dict[str, Any]]:
+        """Compare two memory snapshots"""
+        if len(self._snapshots) < 2:
+            return []
+        
+        snapshot1 = self._snapshots[index1]['snapshot']
+        snapshot2 = self._snapshots[index2]['snapshot']
+        
+        top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        
+        differences = []
+        for stat in top_stats[:10]:  # Top 10 differences
+            differences.append({
+                'filename': stat.traceback.format()[0] if stat.traceback.format() else 'unknown',
+                'size_diff_mb': stat.size_diff / 1024 / 1024,
+                'count_diff': stat.count_diff
+            })
+        
+        return differences
+    
+    def optimize_memory(self) -> Dict[str, Any]:
+        """Perform memory optimization"""
+        # Force garbage collection
+        collected_objects = []
+        for generation in range(3):
+            collected = gc.collect()
+            collected_objects.append(collected)
+        
+        # Get memory usage after optimization
+        current_mb, peak_mb = self.get_memory_usage()
+        
+        return {
+            'gc_collected': sum(collected_objects),
+            'gc_by_generation': collected_objects,
+            'memory_after_mb': current_mb,
+            'peak_memory_mb': peak_mb
+        }
 
-        # Aggregated statistics
-        self._operation_stats: Dict[str, Dict[str, Any]] = defaultdict(
-            lambda: {
-                "count": 0,
-                "total_time": 0.0,
-                "total_cost": 0.0,
-                "total_tokens": 0,
-                "success_count": 0,
-                "error_count": 0,
-            }
-        )
 
-        # Current session tracking
-        self._session_start = datetime.now()
-        self._session_cost = 0.0
-        self._session_tokens = 0
-
-    def start_tracking(
-        self, operation: str, metadata: Dict[str, Any] = None
-    ) -> TrackingContext:
-        """Start tracking an operation."""
-        return TrackingContext(self, operation, metadata)
-
-    def record_operation(
-        self,
-        operation: str,
-        execution_time: float,
-        success: bool = True,
-        error_message: Optional[str] = None,
-        token_usage: int = 0,
-        cost: float = 0.0,
-        metadata: Dict[str, Any] = None,
-    ):
-        """Record metrics for a completed operation."""
-        with self._lock:
-            # Create metrics record
+class PerformanceProfiler:
+    """Performance profiling for bottleneck identification"""
+    
+    def __init__(self):
+        self._profiles: Dict[str, List[PerformanceMetrics]] = defaultdict(list)
+        self._active_profiles: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
+    
+    @contextmanager
+    def profile_operation(self, operation_name: str, custom_metrics: Optional[Dict[str, Any]] = None):
+        """Context manager for profiling operations"""
+        start_time = time.time()
+        start_memory, _ = self._get_memory_usage()
+        start_cpu = psutil.cpu_percent()
+        start_threads = threading.active_count()
+        start_gc = sum(gc.get_stats()[i]['collections'] for i in range(len(gc.get_stats())))
+        
+        try:
+            yield
+        finally:
+            end_time = time.time()
+            end_memory, peak_memory = self._get_memory_usage()
+            end_cpu = psutil.cpu_percent()
+            end_threads = threading.active_count()
+            end_gc = sum(gc.get_stats()[i]['collections'] for i in range(len(gc.get_stats())))
+            
+            # Create performance metrics
             metrics = PerformanceMetrics(
-                operation=operation,
-                execution_time=execution_time,
-                token_usage=token_usage,
-                cost=cost,
-                success=success,
-                error_message=error_message,
-                timestamp=datetime.now(),
-                metadata=metadata or {},
+                operation_name=operation_name,
+                duration_ms=(end_time - start_time) * 1000,
+                memory_usage_mb=end_memory,
+                memory_peak_mb=peak_memory,
+                cpu_percent=(start_cpu + end_cpu) / 2,  # Average CPU usage
+                thread_count=max(start_threads, end_threads),
+                gc_collections=end_gc - start_gc,
+                custom_metrics=custom_metrics or {}
             )
-
-            # Add to history
-            self._metrics_history.append(metrics)
-
-            # Update aggregated stats
-            stats = self._operation_stats[operation]
-            stats["count"] += 1
-            stats["total_time"] += execution_time
-            stats["total_cost"] += cost
-            stats["total_tokens"] += token_usage
-
-            if success:
-                stats["success_count"] += 1
-            else:
-                stats["error_count"] += 1
-
-            # Update session tracking
-            self._session_cost += cost
-            self._session_tokens += token_usage
-
-            # Check for cost alerts
-            self._check_cost_thresholds(cost)
-
-    def record_llm_call(
-        self,
-        model: str,
-        prompt_tokens: int,
-        completion_tokens: int,
-        cost: float,
-        execution_time: float,
-        success: bool = True,
-        error_message: Optional[str] = None,
-    ):
-        """Record metrics for an LLM API call."""
-        self.record_operation(
-            operation="llm_call",
-            execution_time=execution_time,
-            success=success,
-            error_message=error_message,
-            token_usage=prompt_tokens + completion_tokens,
-            cost=cost,
-            metadata={
-                "model": model,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "tokens_per_second": (
-                    (prompt_tokens + completion_tokens) / execution_time
-                    if execution_time > 0
-                    else 0
-                ),
-            },
-        )
-
-    def record_task_execution(
-        self,
-        task_type: str,
-        agent_type: str,
-        execution_time: float,
-        cost: float,
-        iterations: int,
-        success: bool = True,
-        error_message: Optional[str] = None,
-    ):
-        """Record metrics for a task execution."""
-        self.record_operation(
-            operation="task_execution",
-            execution_time=execution_time,
-            success=success,
-            error_message=error_message,
-            cost=cost,
-            metadata={
-                "task_type": task_type,
-                "agent_type": agent_type,
-                "iterations": iterations,
-                "cost_per_iteration": cost / iterations if iterations > 0 else 0,
-            },
-        )
-
-    def _check_cost_thresholds(self, new_cost: float):
-        """Check if cost thresholds are exceeded and create alerts."""
-        # Check session cost threshold
-        if self._session_cost > self.cost_threshold:
-            alert = CostAlert(
-                alert_type="session_threshold",
-                current_value=self._session_cost,
-                threshold=self.cost_threshold,
-                message=f"Session cost ${self._session_cost:.4f} exceeded threshold ${self.cost_threshold:.2f}",
-                timestamp=datetime.now(),
-            )
-            self._cost_alerts.append(alert)
-
-        # Check single operation cost (if unusually high)
-        if (
-            new_cost > self.cost_threshold * 0.1
-        ):  # 10% of threshold for single operation
-            alert = CostAlert(
-                alert_type="high_single_cost",
-                current_value=new_cost,
-                threshold=self.cost_threshold * 0.1,
-                message=f"Single operation cost ${new_cost:.4f} is unusually high",
-                timestamp=datetime.now(),
-            )
-            self._cost_alerts.append(alert)
-
-    def get_performance_report(self, timeframe_hours: int = 24) -> Dict[str, Any]:
-        """Get comprehensive performance report."""
-        cutoff_time = datetime.now() - timedelta(hours=timeframe_hours)
-
+            
+            with self._lock:
+                self._profiles[operation_name].append(metrics)
+                
+                # Limit profile history
+                if len(self._profiles[operation_name]) > 100:
+                    self._profiles[operation_name] = self._profiles[operation_name][-100:]
+    
+    def get_operation_stats(self, operation_name: str) -> Dict[str, Any]:
+        """Get statistics for a specific operation"""
         with self._lock:
-            # Filter metrics by timeframe
-            recent_metrics = [
-                m for m in self._metrics_history if m.timestamp >= cutoff_time
-            ]
-
-            if not recent_metrics:
-                return {
-                    "timeframe_hours": timeframe_hours,
-                    "total_operations": 0,
-                    "message": "No operations in the specified timeframe",
-                }
-
-            # Calculate summary statistics
-            total_operations = len(recent_metrics)
-            successful_operations = sum(1 for m in recent_metrics if m.success)
-            total_cost = sum(m.cost for m in recent_metrics)
-            total_tokens = sum(m.token_usage for m in recent_metrics)
-            total_time = sum(m.execution_time for m in recent_metrics)
-
-            # Operation breakdown
-            operation_breakdown: Dict[str, Dict[str, Any]] = defaultdict(
-                lambda: {
-                    "count": 0,
-                    "avg_time": 0.0,
-                    "total_cost": 0.0,
-                    "success_rate": 0.0,
-                }
-            )
-
-            for metrics in recent_metrics:
-                op_stats = operation_breakdown[metrics.operation]
-                op_stats["count"] += 1
-                op_stats["total_cost"] += metrics.cost
-
-                # Calculate running averages
-                if op_stats["count"] == 1:
-                    op_stats["avg_time"] = metrics.execution_time
-                    op_stats["success_rate"] = 1.0 if metrics.success else 0.0
-                else:
-                    # Update running average
-                    op_stats["avg_time"] = (
-                        op_stats["avg_time"] * (op_stats["count"] - 1)
-                        + metrics.execution_time
-                    ) / op_stats["count"]
-
-                    # Update success rate
-                    success_count = sum(
-                        1
-                        for m in recent_metrics
-                        if m.operation == metrics.operation and m.success
-                    )
-                    op_stats["success_rate"] = success_count / op_stats["count"]
-
-            # Recent alerts
-            recent_alerts = [
-                alert for alert in self._cost_alerts if alert.timestamp >= cutoff_time
-            ]
-
+            profiles = self._profiles.get(operation_name, [])
+            
+            if not profiles:
+                return {}
+            
+            durations = [p.duration_ms for p in profiles]
+            memory_usage = [p.memory_usage_mb for p in profiles]
+            
             return {
-                "timeframe_hours": timeframe_hours,
-                "summary": {
-                    "total_operations": total_operations,
-                    "successful_operations": successful_operations,
-                    "success_rate": (
-                        successful_operations / total_operations
-                        if total_operations > 0
-                        else 0
-                    ),
-                    "total_cost": total_cost,
-                    "total_tokens": total_tokens,
-                    "total_execution_time": total_time,
-                    "avg_cost_per_operation": (
-                        total_cost / total_operations if total_operations > 0 else 0
-                    ),
-                    "avg_time_per_operation": (
-                        total_time / total_operations if total_operations > 0 else 0
-                    ),
-                },
-                "operation_breakdown": dict(operation_breakdown),
-                "session_stats": {
-                    "session_duration": (
-                        datetime.now() - self._session_start
-                    ).total_seconds(),
-                    "session_cost": self._session_cost,
-                    "session_tokens": self._session_tokens,
-                },
-                "alerts": [asdict(alert) for alert in recent_alerts],
-                "cost_efficiency": {
-                    "tokens_per_dollar": (
-                        total_tokens / total_cost if total_cost > 0 else 0
-                    ),
-                    "operations_per_dollar": (
-                        total_operations / total_cost if total_cost > 0 else 0
-                    ),
-                },
+                'operation_name': operation_name,
+                'sample_count': len(profiles),
+                'avg_duration_ms': sum(durations) / len(durations),
+                'min_duration_ms': min(durations),
+                'max_duration_ms': max(durations),
+                'avg_memory_mb': sum(memory_usage) / len(memory_usage),
+                'min_memory_mb': min(memory_usage),
+                'max_memory_mb': max(memory_usage),
+                'last_run': profiles[-1].timestamp.isoformat()
             }
-
-    def get_cost_summary(self) -> Dict[str, Any]:
-        """Get cost summary and budget status."""
+    
+    def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
+        """Get statistics for all profiled operations"""
         with self._lock:
-            return {
-                "session_cost": self._session_cost,
-                "cost_threshold": self.cost_threshold,
-                "threshold_usage_percent": (
-                    (self._session_cost / self.cost_threshold * 100)
-                    if self.cost_threshold > 0
-                    else 0
-                ),
-                "remaining_budget": max(0, self.cost_threshold - self._session_cost),
-                "session_tokens": self._session_tokens,
-                "recent_alerts": len(
-                    [
-                        a
-                        for a in self._cost_alerts
-                        if a.timestamp >= datetime.now() - timedelta(hours=1)
-                    ]
-                ),
-            }
-
-    def get_model_performance(self) -> Dict[str, Any]:
-        """Get performance breakdown by model."""
+            return {op_name: self.get_operation_stats(op_name) 
+                   for op_name in self._profiles.keys()}
+    
+    def identify_bottlenecks(self, threshold_ms: float = 1000) -> List[Dict[str, Any]]:
+        """Identify performance bottlenecks"""
+        bottlenecks = []
+        
         with self._lock:
-            model_stats = defaultdict(
-                lambda: {
-                    "calls": 0,
-                    "total_cost": 0.0,
-                    "total_tokens": 0,
-                    "avg_response_time": 0.0,
-                    "success_rate": 0.0,
-                }
+            for operation_name, profiles in self._profiles.items():
+                if not profiles:
+                    continue
+                
+                avg_duration = sum(p.duration_ms for p in profiles) / len(profiles)
+                max_duration = max(p.duration_ms for p in profiles)
+                
+                if avg_duration > threshold_ms or max_duration > threshold_ms * 2:
+                    bottlenecks.append({
+                        'operation_name': operation_name,
+                        'avg_duration_ms': avg_duration,
+                        'max_duration_ms': max_duration,
+                        'sample_count': len(profiles),
+                        'severity': 'critical' if avg_duration > threshold_ms * 2 else 'warning'
+                    })
+        
+        # Sort by average duration (worst first)
+        bottlenecks.sort(key=lambda x: x['avg_duration_ms'], reverse=True)
+        return bottlenecks
+    
+    def _get_memory_usage(self) -> Tuple[float, float]:
+        """Get current memory usage"""
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        current_mb = memory_info.rss / 1024 / 1024
+        return current_mb, current_mb  # Simplified for now
+
+
+class PerformanceOptimizationEngine:
+    """
+    Comprehensive performance optimization engine
+    """
+    
+    def __init__(self, 
+                 enable_memory_profiling: bool = True,
+                 enable_performance_profiling: bool = True,
+                 alert_thresholds: Optional[Dict[str, float]] = None):
+        """
+        Initialize the performance optimization engine
+        
+        Args:
+            enable_memory_profiling: Enable memory profiling
+            enable_performance_profiling: Enable performance profiling
+            alert_thresholds: Custom alert thresholds
+        """
+        self.enable_memory_profiling = enable_memory_profiling
+        self.enable_performance_profiling = enable_performance_profiling
+        
+        # Default alert thresholds
+        self.alert_thresholds = {
+            'duration_ms': 5000,      # 5 seconds
+            'memory_mb': 500,         # 500 MB
+            'cpu_percent': 80,        # 80% CPU
+            'regression_factor': 2.0  # 2x slower than baseline
+        }
+        if alert_thresholds:
+            self.alert_thresholds.update(alert_thresholds)
+        
+        # Components following SRP
+        try:
+            from .performance_analyzer import (
+                AlertManager, 
+                BaselineManager, 
+                PerformanceReporter, 
+                RegressionDetector
             )
-
-            llm_metrics = [
-                m for m in self._metrics_history if m.operation == "llm_call"
-            ]
-
-            for metrics in llm_metrics:
-                model = metrics.metadata.get("model", "unknown")
-                stats = model_stats[model]
-
-                stats["calls"] += 1
-                stats["total_cost"] += metrics.cost
-                stats["total_tokens"] += metrics.token_usage
-
-                # Update running averages
-                if stats["calls"] == 1:
-                    stats["avg_response_time"] = metrics.execution_time
-                    stats["success_rate"] = 1.0 if metrics.success else 0.0
-                else:
-                    stats["avg_response_time"] = (
-                        stats["avg_response_time"] * (stats["calls"] - 1)
-                        + metrics.execution_time
-                    ) / stats["calls"]
-
-                    success_count = sum(
-                        1
-                        for m in llm_metrics
-                        if m.metadata.get("model") == model and m.success
-                    )
-                    stats["success_rate"] = success_count / stats["calls"]
-
-            return dict(model_stats)
-
-    def export_metrics(self, filepath: str, format: str = "json"):
-        """Export metrics to file."""
+            
+            self.alert_manager = AlertManager(alert_thresholds)
+            self.baseline_manager = BaselineManager()
+            self.performance_reporter = PerformanceReporter()
+            self.regression_detector = RegressionDetector()
+        except ImportError:
+            # Fallback to integrated components if analyzer module not available
+            self.alert_manager = None
+            self.baseline_manager = None
+            self.performance_reporter = None
+            self.regression_detector = None
+        
+        self.memory_profiler = MemoryProfiler() if enable_memory_profiling else None
+        self.performance_profiler = PerformanceProfiler() if enable_performance_profiling else None
+        
+        # State (fallback for when analyzer components not available)
+        self._baselines: Dict[str, PerformanceBaseline] = {}
+        self._alerts: deque = deque(maxlen=1000)  # Keep last 1000 alerts
+        self._metrics_history: deque = deque(maxlen=10000)  # Keep last 10000 metrics
+        self._lock = threading.RLock()
+        
+        # Start memory profiling if enabled
+        if self.memory_profiler:
+            self.memory_profiler.start_profiling()
+        
+        logger.info("PerformanceOptimizationEngine initialized")
+    
+    @contextmanager
+    def monitor_operation(self, operation_name: str, custom_metrics: Optional[Dict[str, Any]] = None):
+        """Monitor a specific operation"""
+        if not self.enable_performance_profiling:
+            yield
+            return
+        
+        with self.performance_profiler.profile_operation(operation_name, custom_metrics) as profiler:
+            yield profiler
+        
+        # Get the latest metrics and check for alerts
+        latest_metrics = self.performance_profiler._profiles[operation_name][-1]
+        self._check_alerts(latest_metrics)
+        self._update_baseline(latest_metrics)
+        
         with self._lock:
-            data = {
-                "export_timestamp": datetime.now().isoformat(),
-                "session_start": self._session_start.isoformat(),
-                "metrics": [asdict(m) for m in self._metrics_history],
-                "operation_stats": dict(self._operation_stats),
-                "cost_alerts": [asdict(a) for a in self._cost_alerts],
-            }
-
-            filepath = Path(filepath)
-
-            if format.lower() == "json":
-                with open(filepath, "w") as f:
-                    json.dump(data, f, indent=2, default=str)
+            self._metrics_history.append(latest_metrics)
+    
+    def profile_function(self, operation_name: Optional[str] = None):
+        """Decorator for profiling functions"""
+        def decorator(func: Callable) -> Callable:
+            op_name = operation_name or f"{func.__module__}.{func.__name__}"
+            
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                with self.monitor_operation(op_name):
+                    return func(*args, **kwargs)
+            return wrapper
+        return decorator
+    
+    def take_memory_snapshot(self, description: str = "") -> None:
+        """Take a memory snapshot"""
+        if self.memory_profiler:
+            self.memory_profiler.take_snapshot(description)
+    
+    def optimize_memory(self) -> Dict[str, Any]:
+        """Perform memory optimization"""
+        if not self.memory_profiler:
+            return {'error': 'Memory profiling not enabled'}
+        
+        return self.memory_profiler.optimize_memory()
+    
+    def detect_regressions(self, operation_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Detect performance regressions"""
+        with self._lock:
+            if self.regression_detector and self.baseline_manager:
+                # Use SRP components
+                baselines = self.baseline_manager.get_all_baselines()
+                recent_metrics = list(self._metrics_history)
+                srp_result = self.regression_detector.detect_regressions(baselines, recent_metrics, operation_name)
+                # Fallback if SRP has no data or finds nothing
+                if srp_result:
+                    return srp_result
+                # Otherwise fall back to internal baselines if available
+                return self._detect_regressions_fallback(operation_name)
             else:
-                raise ValueError(f"Unsupported export format: {format}")
-
-    def reset_session(self):
-        """Reset session-level tracking."""
+                # Fallback to integrated logic
+                return self._detect_regressions_fallback(operation_name)
+    
+    def get_performance_report(self) -> Dict[str, Any]:
+        """Generate comprehensive performance report"""
+        report = {
+            'timestamp': datetime.now().isoformat(),
+            'system_info': self._get_system_info(),
+            'memory_info': self._get_memory_info(),
+            'operation_stats': {},
+            'bottlenecks': [],
+            'regressions': [],
+            'alerts': [],
+            'recommendations': []
+        }
+        
+        # Get operation statistics
+        if self.performance_profiler:
+            report['operation_stats'] = self.performance_profiler.get_all_stats()
+            report['bottlenecks'] = self.performance_profiler.identify_bottlenecks()
+        
+        # Get regressions
+        report['regressions'] = self.detect_regressions()
+        
+        # Get recent alerts
         with self._lock:
-            self._session_start = datetime.now()
-            self._session_cost = 0.0
-            self._session_tokens = 0
-
-    def clear_history(self):
-        """Clear all performance history."""
+            report['alerts'] = [alert.to_dict() for alert in list(self._alerts)[-10:]]
+        
+        # Generate recommendations
+        report['recommendations'] = self._generate_recommendations(report)
+        
+        return report
+    
+    def get_metrics_history(self, operation_name: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get metrics history"""
+        with self._lock:
+            metrics = list(self._metrics_history)
+            
+            if operation_name:
+                metrics = [m for m in metrics if m.operation_name == operation_name]
+            
+            return [m.to_dict() for m in metrics[-limit:]]
+    
+    def clear_history(self) -> None:
+        """Clear all performance history"""
         with self._lock:
             self._metrics_history.clear()
-            self._cost_alerts.clear()
-            self._operation_stats.clear()
-            self.reset_session()
+            self._alerts.clear()
+            self._baselines.clear()
+            
+            if self.performance_profiler:
+                self.performance_profiler._profiles.clear()
+        
+        logger.info("Performance history cleared")
+    
+    def _check_alerts(self, metrics: PerformanceMetrics) -> None:
+        """Check for performance alerts"""
+        alerts = []
+        
+        # Duration alert
+        if metrics.duration_ms > self.alert_thresholds['duration_ms']:
+            alerts.append(PerformanceAlert(
+                alert_type='duration',
+                operation_name=metrics.operation_name,
+                threshold_value=self.alert_thresholds['duration_ms'],
+                actual_value=metrics.duration_ms,
+                severity='warning' if metrics.duration_ms < self.alert_thresholds['duration_ms'] * 2 else 'critical',
+                message=f"Operation took {metrics.duration_ms:.1f}ms (threshold: {self.alert_thresholds['duration_ms']}ms)"
+            ))
+        
+        # Memory alert
+        if metrics.memory_usage_mb > self.alert_thresholds['memory_mb']:
+            alerts.append(PerformanceAlert(
+                alert_type='memory',
+                operation_name=metrics.operation_name,
+                threshold_value=self.alert_thresholds['memory_mb'],
+                actual_value=metrics.memory_usage_mb,
+                severity='warning' if metrics.memory_usage_mb < self.alert_thresholds['memory_mb'] * 2 else 'critical',
+                message=f"Operation used {metrics.memory_usage_mb:.1f}MB (threshold: {self.alert_thresholds['memory_mb']}MB)"
+            ))
+        
+        # CPU alert
+        if metrics.cpu_percent > self.alert_thresholds['cpu_percent']:
+            alerts.append(PerformanceAlert(
+                alert_type='cpu',
+                operation_name=metrics.operation_name,
+                threshold_value=self.alert_thresholds['cpu_percent'],
+                actual_value=metrics.cpu_percent,
+                severity='warning',
+                message=f"High CPU usage: {metrics.cpu_percent:.1f}% (threshold: {self.alert_thresholds['cpu_percent']}%)"
+            ))
+        
+        # Add alerts to history
+        with self._lock:
+            for alert in alerts:
+                self._alerts.append(alert)
+                logger.warning(f"Performance alert: {alert.message}")
+    
+    def _update_baseline(self, metrics: PerformanceMetrics) -> None:
+        """Update performance baseline"""
+        with self._lock:
+            baseline = self._baselines.get(metrics.operation_name)
+            
+            if baseline:
+                baseline.update_with_metrics(metrics)
+            else:
+                self._baselines[metrics.operation_name] = PerformanceBaseline(
+                    operation_name=metrics.operation_name,
+                    avg_duration_ms=metrics.duration_ms,
+                    max_duration_ms=metrics.duration_ms,
+                    avg_memory_mb=metrics.memory_usage_mb,
+                    max_memory_mb=metrics.memory_usage_mb,
+                    sample_count=1
+                )
+    
+    def _get_system_info(self) -> Dict[str, Any]:
+        """Get system information"""
+        return {
+            'cpu_count': psutil.cpu_count(),
+            'cpu_percent': psutil.cpu_percent(),
+            'memory_total_gb': psutil.virtual_memory().total / 1024 / 1024 / 1024,
+            'memory_available_gb': psutil.virtual_memory().available / 1024 / 1024 / 1024,
+            'memory_percent': psutil.virtual_memory().percent,
+            'disk_usage_percent': psutil.disk_usage('/').percent,
+            'python_version': sys.version,
+            'platform': sys.platform
+        }
+    
+    def _get_memory_info(self) -> Dict[str, Any]:
+        """Get memory information"""
+        if not self.memory_profiler:
+            return {}
+        
+        current_mb, peak_mb = self.memory_profiler.get_memory_usage()
+        
+        return {
+            'current_usage_mb': current_mb,
+            'peak_usage_mb': peak_mb,
+            'top_consumers': self.memory_profiler.get_top_memory_consumers(5)
+        }
+    
+    def _detect_regressions_fallback(self, operation_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Fallback regression detection when SRP components not available"""
+        regressions = []
+        
+        operations_to_check = [operation_name] if operation_name else self._baselines.keys()
+        
+        for op_name in operations_to_check:
+            baseline = self._baselines.get(op_name)
+            if not baseline:
+                continue
+            
+            # Get recent metrics for this operation
+            recent_metrics = [m for m in list(self._metrics_history)[-100:] 
+                            if m.operation_name == op_name]
+            
+            if not recent_metrics:
+                continue
+            
+            # Calculate recent averages
+            recent_avg_duration = sum(m.duration_ms for m in recent_metrics) / len(recent_metrics)
+            recent_avg_memory = sum(m.memory_usage_mb for m in recent_metrics) / len(recent_metrics)
+            
+            # Also consider worst-case recent value to catch immediate 3x regressions
+            recent_max_duration = max(m.duration_ms for m in recent_metrics)
+            recent_max_memory = max(m.memory_usage_mb for m in recent_metrics)
+            
+            # Check for regressions
+            duration_factor = recent_avg_duration / baseline.avg_duration_ms if baseline.avg_duration_ms > 0 else 1
+            memory_factor = recent_avg_memory / baseline.avg_memory_mb if baseline.avg_memory_mb > 0 else 1
+            
+            # Include max factors to be sensitive to spikes
+            max_duration_factor = recent_max_duration / baseline.avg_duration_ms if baseline.avg_duration_ms > 0 else 1
+            max_memory_factor = recent_max_memory / baseline.avg_memory_mb if baseline.avg_memory_mb > 0 else 1
+            
+            regression_threshold = self.alert_thresholds['regression_factor']
+            triggered = (
+                duration_factor > regression_threshold or
+                memory_factor > regression_threshold or
+                max_duration_factor > regression_threshold or
+                max_memory_factor > regression_threshold
+            )
+            
+            if triggered:
+                regressions.append({
+                    'operation_name': op_name,
+                    'duration_regression_factor': max(duration_factor, max_duration_factor),
+                    'memory_regression_factor': max(memory_factor, max_memory_factor),
+                    'baseline_duration_ms': baseline.avg_duration_ms,
+                    'recent_duration_ms': recent_avg_duration,
+                    'baseline_memory_mb': baseline.avg_memory_mb,
+                    'recent_memory_mb': recent_avg_memory,
+                    'severity': 'critical' if max(duration_factor, memory_factor, max_duration_factor, max_memory_factor) > regression_threshold * 1.5 else 'warning'
+                })
+        
+        return regressions
+    
+    def _generate_recommendations(self, report: Dict[str, Any]) -> List[str]:
+        """Generate performance recommendations"""
+        recommendations = []
+        
+        # Memory recommendations
+        memory_info = report.get('memory_info', {})
+        if memory_info.get('current_usage_mb', 0) > 1000:  # > 1GB
+            recommendations.append("Consider optimizing memory usage - current usage is high")
+        
+        # Bottleneck recommendations
+        bottlenecks = report.get('bottlenecks', [])
+        if bottlenecks:
+            recommendations.append(f"Address performance bottlenecks in: {', '.join([b['operation_name'] for b in bottlenecks[:3]])}")
+        
+        # Regression recommendations
+        regressions = report.get('regressions', [])
+        if regressions:
+            recommendations.append(f"Investigate performance regressions in: {', '.join([r['operation_name'] for r in regressions[:3]])}")
+        
+        # System recommendations
+        system_info = report.get('system_info', {})
+        if system_info.get('memory_percent', 0) > 80:
+            recommendations.append("System memory usage is high - consider adding more RAM or optimizing memory usage")
+        
+        if system_info.get('cpu_percent', 0) > 80:
+            recommendations.append("System CPU usage is high - consider optimizing CPU-intensive operations")
+        
+        return recommendations
 
 
-# Global performance monitor instance
-performance_monitor = PerformanceMonitor()
+# Global performance engine instance
+_performance_engine: Optional[PerformanceOptimizationEngine] = None
+_engine_lock = threading.Lock()
+
+
+def get_performance_engine() -> PerformanceOptimizationEngine:
+    """Get the global performance optimization engine"""
+    global _performance_engine
+    
+    if _performance_engine is None:
+        with _engine_lock:
+            if _performance_engine is None:
+                _performance_engine = PerformanceOptimizationEngine()
+    
+    return _performance_engine
+
+
+def configure_performance_engine(**kwargs) -> PerformanceOptimizationEngine:
+    """Configure the global performance engine"""
+    global _performance_engine
+    
+    with _engine_lock:
+        _performance_engine = PerformanceOptimizationEngine(**kwargs)
+    
+    return _performance_engine
+
+
+def monitor_performance(operation_name: str, custom_metrics: Optional[Dict[str, Any]] = None):
+    """Context manager for monitoring performance"""
+    engine = get_performance_engine()
+    return engine.monitor_operation(operation_name, custom_metrics)
+
+
+def profile_performance(operation_name: Optional[str] = None):
+    """Decorator for profiling function performance"""
+    engine = get_performance_engine()
+    return engine.profile_function(operation_name)
+
+
+def get_performance_report() -> Dict[str, Any]:
+    """Get comprehensive performance report"""
+    engine = get_performance_engine()
+    return engine.get_performance_report()
+
+
+def optimize_memory() -> Dict[str, Any]:
+    """Optimize memory usage"""
+    engine = get_performance_engine()
+    return engine.optimize_memory()

@@ -9,6 +9,18 @@ from ..providers.litellm import LiteLLMProvider, Message
 from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
 from ..tools.discovery import discover_tools
 from .profile_manager import ProfileManager
+from .unified_config import get_config_manager
+
+
+def _safe_format(template: str, **kwargs) -> str:
+    class _SafeDict(dict):
+        def __missing__(self, key):
+            return "{" + key + "}"
+    try:
+        return template.format_map(_SafeDict(**kwargs))
+    except Exception:
+        # As a last resort, return template unformatted
+        return template
 
 class CleanOrchestrator:
     """Orchestrates the creation of the three mandatory project documents."""
@@ -22,24 +34,19 @@ class CleanOrchestrator:
         self.prompts = self._load_orchestrator_prompts()
     
     def _load_orchestrator_prompts(self) -> Dict[str, str]:
-        """Load orchestrator prompts from unified system_prompt.yaml config."""
-        config_path = Path('equitrcoder/config/system_prompt.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                return {
-                    'requirements_analyst_prompt': config.get('requirements_analyst_prompt', ''),
-                    'system_designer_prompt': config.get('system_designer_prompt', ''),
-                    'task_group_planner_prompt': config.get('task_group_planner_prompt', ''),
-                    'todo_generator_prompt': config.get('todo_generator_prompt', '')
-                }
+        """Load orchestrator prompts from unified configuration."""
+        config_manager = get_config_manager()
+        config_data = config_manager.get_cached_config()
         
-        # Fallback prompts if config file not found
+        # Get prompts from unified configuration
+        prompts = config_data.prompts
+        
+        # Return orchestrator prompts with fallbacks
         return {
-            'requirements_analyst_prompt': 'You are a requirements analyst. Create a clear requirements document.',
-            'system_designer_prompt': 'You are a system designer. Create a technical design document.',
-            'task_group_planner_prompt': 'You are a project manager. Create task groups for the project.',
-            'todo_generator_prompt': 'You are a technical lead. Create specific todos for a task group.'
+            'requirements_analyst_prompt': prompts.get('requirements_analyst_prompt', 'You are a requirements analyst. Create a clear requirements document.'),
+            'system_designer_prompt': prompts.get('system_designer_prompt', 'You are a system designer. Create a technical design document.'),
+            'task_group_planner_prompt': prompts.get('task_group_planner_prompt', 'You are a project manager. Create task groups for the project.'),
+            'todo_generator_prompt': prompts.get('todo_generator_prompt', 'You are a technical lead. Create specific todos for a task group.')
         }
     
     async def create_docs(
@@ -90,6 +97,8 @@ class CleanOrchestrator:
                 "design_content": design_content,
             }
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"success": False, "error": str(e)}
     
     async def _create_requirements(self, task_description: str) -> str:
@@ -138,9 +147,10 @@ class CleanOrchestrator:
         # STAGE 1: Create Task Groups
         print("🎯 Stage 1: Creating task groups...")
         task_group_planner_prompt = self.prompts.get('task_group_planner_prompt', 'You are a project manager.')
-        system_prompt = task_group_planner_prompt.format(
+        system_prompt = _safe_format(
+            task_group_planner_prompt,
             team_prompt_injection=team_prompt_injection,
-            tools_context=tools_context
+            tools_context=tools_context,
         )
         
         messages = [
@@ -184,13 +194,14 @@ class CleanOrchestrator:
         for group_data in task_groups_data:
             print(f"  📋 Creating todos for group: {group_data['group_id']}")
             
-            system_prompt = todo_generator_prompt.format(
+            system_prompt = _safe_format(
+                todo_generator_prompt,
                 group_id=group_data['group_id'],
                 specialization=group_data['specialization'],
                 description=group_data.get('description', ''),
                 requirements=requirements,
                 design=design,
-                tools_context=tools_context
+                tools_context=tools_context,
             )
             
             messages = [
@@ -198,35 +209,58 @@ class CleanOrchestrator:
                 Message(role="user", content=f"Create specific todos for the '{group_data['group_id']}' task group."),
             ]
             
-            for attempt in range(1, max_retries + 1):
-                response = await self.provider.chat(messages=messages)
-                try:
-                    todos_data = json.loads(response.content)
-                    if not isinstance(todos_data, list):
-                        raise ValueError("Expected an array of todo objects")
-                    
-                    # Validate todos format
-                    for todo in todos_data:
-                        if not isinstance(todo, dict) or 'title' not in todo:
-                            raise ValueError("Each todo must be an object with a 'title' field")
-                    
-                    break  # Successfully parsed JSON
-                except (json.JSONDecodeError, ValueError) as e:
-                    if attempt == max_retries:
-                        print(f"⚠️  Failed to get valid todos for group {group_data['group_id']} after multiple retries: {e}")
-                        # Create a fallback todo
-                        todos_data = [{"title": f"Implement {group_data['group_id']} functionality"}]
-                        break
-                    print(f"⚠️  Attempt {attempt} returned invalid todos for {group_data['group_id']}. Retrying...")
-                    continue
-            
-            # Add todos to the group
-            for todo_data in todos_data:
-                manager.add_todo_to_group(
-                    group_id=group_data['group_id'],
-                    title=todo_data['title']
-                )
-            
-            print(f"    ✅ Added {len(todos_data)} todos to {group_data['group_id']}")
+            try:
+                for attempt in range(1, max_retries + 1):
+                    response = await self.provider.chat(messages=messages)
+                    try:
+                        todos_data = json.loads(response.content)
+                        if not isinstance(todos_data, list):
+                            raise ValueError("Expected an array of todo objects")
+                        
+                        # Normalize todos into dicts with 'title'
+                        normalized_todos: List[Dict[str, str]] = []
+                        for todo in todos_data:
+                            title_val = None
+                            if isinstance(todo, dict):
+                                title_val = todo.get('title') or todo.get('name') or todo.get('task')
+                            elif isinstance(todo, str):
+                                title_val = todo
+                            
+                            if not title_val:
+                                # Could not extract title; coerce to string
+                                title_val = str(todo)
+                            normalized_todos.append({'title': title_val})
+                        
+                        todos_data = normalized_todos
+                        break  # Successfully parsed JSON
+                    except (json.JSONDecodeError, ValueError) as e:
+                        if attempt == max_retries:
+                            print(f"⚠️  Failed to get valid todos for group {group_data['group_id']} after multiple retries: {e}")
+                            # Create a fallback todo
+                            todos_data = [{"title": f"Implement {group_data['group_id']} functionality"}]
+                            break
+                        print(f"⚠️  Attempt {attempt} returned invalid todos for {group_data['group_id']}. Retrying...")
+                        continue
+                
+                # Add todos to the group
+                for todo_data in todos_data:
+                    if isinstance(todo_data, dict):
+                        t = todo_data.get('title') or todo_data.get('name') or todo_data.get('task')
+                    else:
+                        t = None
+                    try:
+                        manager.add_todo_to_group(
+                            group_id=group_data['group_id'],
+                            title=t or str(todo_data)
+                        )
+                    except Exception as e:
+                        print(f"⚠️  Skipping todo due to error: {e}")
+                        continue
+                
+                print(f"    ✅ Added {len(todos_data)} todos to {group_data['group_id']}")
+            except Exception as e:
+                print(f"⚠️  Failed to process todos for group {group_data.get('group_id')}: {e}")
+                # Continue to next group without failing the whole operation
+                continue
         
         print("✅ Two-stage todo creation completed successfully!")

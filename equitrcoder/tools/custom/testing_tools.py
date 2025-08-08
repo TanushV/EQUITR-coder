@@ -94,52 +94,59 @@ class TestCoverage(Tool):
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             
             if result.returncode != 0:
-                return ToolResult(
-                    success=False, 
-                    error=f"Coverage run failed: {result.stderr}",
-                    data={"stdout": result.stdout, "stderr": result.stderr}
-                )
+                return self._handle_coverage_run_failure(result)
             
-            # Get coverage report
-            report_cmd = ["python", "-m", "coverage", "report", "--format=json"]
-            report_result = subprocess.run(report_cmd, capture_output=True, text=True)
-            
-            if report_result.returncode == 0:
-                try:
-                    coverage_data = json.loads(report_result.stdout)
-                    total_coverage = coverage_data.get("totals", {}).get("percent_covered", 0)
-                    
-                    # Get text report too
-                    text_cmd = ["python", "-m", "coverage", "report"]
-                    text_result = subprocess.run(text_cmd, capture_output=True, text=True)
-                    
-                    return ToolResult(
-                        success=total_coverage >= args.min_coverage,
-                        data={
-                            "coverage_percentage": total_coverage,
-                            "min_required": args.min_coverage,
-                            "passed_threshold": total_coverage >= args.min_coverage,
-                            "detailed_report": text_result.stdout,
-                            "coverage_data": coverage_data
-                        },
-                        error=f"Coverage {total_coverage:.1f}% is below minimum {args.min_coverage}%" if total_coverage < args.min_coverage else None
-                    )
-                except json.JSONDecodeError:
-                    return ToolResult(
-                        success=False,
-                        error="Failed to parse coverage JSON report",
-                        data={"raw_output": report_result.stdout}
-                    )
-            else:
-                return ToolResult(
-                    success=False,
-                    error=f"Coverage report failed: {report_result.stderr}"
-                )
+            return self._generate_coverage_report(args)
                 
         except subprocess.TimeoutExpired:
             return ToolResult(success=False, error="Coverage analysis timed out after 5 minutes")
         except Exception as e:
             return ToolResult(success=False, error=str(e))
+    
+    def _handle_coverage_run_failure(self, result):
+        """Handle failure when running coverage"""
+        return ToolResult(
+            success=False, 
+            error=f"Coverage run failed: {result.stderr}",
+            data={"stdout": result.stdout, "stderr": result.stderr}
+        )
+    
+    def _generate_coverage_report(self, args):
+        """Generate and parse coverage report"""
+        report_cmd = ["python", "-m", "coverage", "report", "--format=json"]
+        report_result = subprocess.run(report_cmd, capture_output=True, text=True)
+        
+        if report_result.returncode != 0:
+            return ToolResult(
+                success=False,
+                error=f"Coverage report failed: {report_result.stderr}"
+            )
+        
+        try:
+            coverage_data = json.loads(report_result.stdout)
+            total_coverage = coverage_data.get("totals", {}).get("percent_covered", 0)
+            
+            # Get text report too
+            text_cmd = ["python", "-m", "coverage", "report"]
+            text_result = subprocess.run(text_cmd, capture_output=True, text=True)
+            
+            return ToolResult(
+                success=total_coverage >= args.min_coverage,
+                data={
+                    "coverage_percentage": total_coverage,
+                    "min_required": args.min_coverage,
+                    "passed_threshold": total_coverage >= args.min_coverage,
+                    "detailed_report": text_result.stdout,
+                    "coverage_data": coverage_data
+                },
+                error=f"Coverage {total_coverage:.1f}% is below minimum {args.min_coverage}%" if total_coverage < args.min_coverage else None
+            )
+        except json.JSONDecodeError:
+            return ToolResult(
+                success=False,
+                error="Failed to parse coverage JSON report",
+                data={"raw_output": report_result.stdout}
+            )
 
 
 class LintCodeArgs(BaseModel):

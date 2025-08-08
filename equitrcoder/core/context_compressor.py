@@ -12,16 +12,18 @@ from typing import List
 
 from ..providers.openrouter import Message  # shared pydantic model
 from .context_manager import ContextManager
+from .unified_config import get_config
 
 
 class ContextCompressor:
     """Compresses long message histories into a single summary message."""
 
-    def __init__(self, provider, max_summary_tokens: int = 1024):
+    def __init__(self, provider, max_summary_tokens: int = None):
         self.provider = provider
         #   We reuse token-counting logic from ContextManager just for convenience
-        self.counter = ContextManager(max_tokens=100000)
-        self.max_summary_tokens = max_summary_tokens
+        context_max_tokens = get_config('limits.context_max_tokens', 100000)
+        self.counter = ContextManager(max_tokens=context_max_tokens)
+        self.max_summary_tokens = max_summary_tokens or get_config('limits.summary_max_tokens', 1024)
 
     async def compress(self, messages: List[Message]) -> Message:
         """Ask the provider to summarise *messages* and return a new Message.
@@ -48,7 +50,7 @@ class ContextCompressor:
 
         response = await self.provider.chat(
             messages=[Message(role="user", content=summarise_prompt)],
-            temperature=0.2,
+            temperature=get_config('llm.temperature', 0.2),
             max_tokens=self.max_summary_tokens,
         )
 

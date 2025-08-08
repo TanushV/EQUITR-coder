@@ -23,8 +23,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="EQUITR",
-    author_email="coder@equitr.com",
-    url="https://github.com/equitr/equitrcoder",
+    author_email="tanushvanarase@equitr.com",
+    url="https://github.com/tanushv/equitrcoder",
     packages=find_packages(include=["equitrcoder", "equitrcoder.*"]),
     include_package_data=True,
     package_data={

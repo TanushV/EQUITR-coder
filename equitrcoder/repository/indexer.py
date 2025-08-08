@@ -5,6 +5,7 @@ from typing import Dict, List
 import pathspec
 
 from .analyzer import RepositoryAnalyzer
+from ..core.unified_config import get_config
 
 
 class RepositoryIndexer:
@@ -292,7 +293,7 @@ class RepositoryIndexer:
 
         # File tree (limited depth)
         context_parts.append("\n## File Tree")
-        tree_str = self._format_tree(file_tree, max_depth=3)
+        tree_str = self._format_tree(file_tree, max_depth=get_config('limits.max_depth', 3))
         context_parts.append(tree_str)
 
         # Entry points

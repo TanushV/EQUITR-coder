@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 from ..providers.litellm import LiteLLMProvider
 from ..providers.openrouter import Message
+from .unified_config import get_config
 
 
 class ConversationalPlanner:
@@ -103,7 +104,9 @@ Ask your first clarifying question.""".format(
             ]
 
             response = await self.provider.chat(
-                messages=messages, temperature=0.7, max_tokens=400
+                messages=messages, 
+                temperature=get_config('llm.temperature', 0.7), 
+                max_tokens=get_config('limits.planning_max_tokens', 400)
             )
 
             ai_content = response.content.strip()
@@ -203,7 +206,10 @@ Format as a clear, detailed markdown document.
 """
 
         messages = [Message(role="user", content=prompt)]
-        response = await self.provider.chat(messages=messages, max_tokens=1000)
+        response = await self.provider.chat(
+            messages=messages, 
+            max_tokens=get_config('limits.requirements_max_tokens', 1000)
+        )
         return response.content
 
     async def _generate_design_doc(self, context: str, requirements: str) -> str:
@@ -250,7 +256,10 @@ Format as a detailed markdown document with specific file paths and code structu
 """
 
         messages = [Message(role="user", content=prompt)]
-        response = await self.provider.chat(messages=messages, max_tokens=1500)
+        response = await self.provider.chat(
+            messages=messages, 
+            max_tokens=get_config('limits.design_max_tokens', 1500)
+        )
         return response.content
 
     async def _generate_todo_list(
@@ -281,7 +290,10 @@ Include ALL tasks needed to implement the design, in dependency order.
 """
 
         messages = [Message(role="user", content=prompt)]
-        response = await self.provider.chat(messages=messages, max_tokens=1000)
+        response = await self.provider.chat(
+            messages=messages, 
+            max_tokens=get_config('limits.todos_max_tokens', 1000)
+        )
 
         try:
             # Clean JSON response

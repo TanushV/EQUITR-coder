@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 from ..core.session import SessionData, SessionManagerV2
 from ..providers.litellm import LiteLLMProvider, Message
 from ..tools.base import Tool
+from .unified_config import get_config
 
 
 class CleanAgent:
@@ -77,7 +78,9 @@ class CleanAgent:
             # Get full repo map
             from pathlib import Path
             
-            def get_repo_map(path=".", max_depth=3, max_tokens=4000):  # Reduced from 5000 to 4000 for safety
+            def get_repo_map(path=".", max_depth=None, max_tokens=None):
+                max_depth = max_depth or get_config('limits.max_depth', 3)
+                max_tokens = max_tokens or get_config('limits.context_max_tokens', 4000)
                 """Generate a comprehensive repo map with functions, limited to max_tokens"""
                 import re
                 import tiktoken
@@ -85,7 +88,7 @@ class CleanAgent:
                 try:
                     # Use tiktoken to count tokens accurately
                     encoding = tiktoken.get_encoding("cl100k_base")
-                except:
+                except (ImportError, AttributeError, Exception) as e:
                     # Fallback to rough estimation if tiktoken fails
                     encoding = None
                 
@@ -123,7 +126,7 @@ class CleanAgent:
                                     functions.append(match.group(0).strip())
                         
                         return functions[:5]  # Limit to 5 functions per file
-                    except:
+                    except (OSError, UnicodeDecodeError, Exception) as e:
                         return []
                 
                 repo_map = []
@@ -245,8 +248,11 @@ class CleanAgent:
                                     "dependencies": current_group.dependencies,
                                     "todos": [todo.model_dump() for todo in current_group.todos]
                                 }
-                    except Exception:
-                        pass  # Silently fail if todo manager not available
+                    except Exception as e:
+                        # Todo manager not available, log warning and continue
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Todo manager not available for context enhancement: {e}")
             
             # Add agent profile info if not already present
             if "agent_profile" not in enhanced_context:
@@ -258,7 +264,9 @@ class CleanAgent:
         
         return enhanced_context
 
-    def _generate_live_repo_map(self, path=".", max_depth=3, max_tokens=4000):
+    def _generate_live_repo_map(self, path=".", max_depth=None, max_tokens=None):
+        max_depth = max_depth or get_config('limits.max_depth', 3)
+        max_tokens = max_tokens or get_config('limits.context_max_tokens', 4000)
         """Generate a LIVE/dynamic repo map that reflects current file system state."""
         import re
         import tiktoken
@@ -267,7 +275,7 @@ class CleanAgent:
         try:
             # Use tiktoken to count tokens accurately
             encoding = tiktoken.get_encoding("cl100k_base")
-        except:
+        except (ImportError, AttributeError, Exception) as e:
             # Fallback to rough estimation if tiktoken fails
             encoding = None
         
@@ -305,7 +313,7 @@ class CleanAgent:
                             functions.append(match.group(0).strip())
                 
                 return functions[:5]  # Limit to 5 functions per file
-            except:
+            except (OSError, UnicodeDecodeError, Exception) as e:
                 return []
         
         repo_map = []
@@ -502,14 +510,14 @@ class CleanAgent:
             # Get model max tokens
             try:
                 model_max_tokens = get_max_tokens(self.model)
-            except:
+            except (ImportError, AttributeError, Exception) as e:
                 # Fallback for unknown models
                 model_max_tokens = 4096
             
             # Count current tokens
             try:
                 encoding = tiktoken.get_encoding("cl100k_base")
-            except:
+            except (ImportError, AttributeError, Exception) as e:
                 # Fallback to rough estimation
                 encoding = None
             
@@ -807,8 +815,11 @@ class CleanAgent:
                                             "reason": "All todos completed",
                                             "final_message": response_content,
                                         }
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            # Failed to check todo completion status, log warning and continue
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Failed to check todo completion status: {e}")
 
                     # Force tool use
                     warning_message = "ERROR: You must use tools in every response! Use list_todos to check remaining work or update_todo to mark tasks complete."
@@ -845,7 +856,7 @@ class CleanAgent:
 
             print(f"🔍 Running automatic audit with {self.audit_model}...")
             read_only_tools = [
-                self.tools[name] for name in ("read_file", "list_files", "grep_search") if name in self.tools
+                self.tools[name] for name in ("read_file", "list_files", "grep_search", "git_status", "git_diff") if name in self.tools
             ]
             if not read_only_tools:
                 return {"success": False, "reason": "No audit tools available", "audit_passed": False}

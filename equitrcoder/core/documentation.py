@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..providers.openrouter import Message
+from .unified_config import get_config
 
 
 class DocumentationGenerator:
@@ -409,8 +410,8 @@ Be specific and comprehensive based on the conversation details.
         try:
             response = await self.provider.chat(
                 messages=[Message(role="user", content=prompt)],
-                temperature=0.3,
-                max_tokens=2000,
+                temperature=get_config('llm.temperature', 0.3),
+                max_tokens=get_config('limits.requirements_max_tokens', 2000),
             )
             return response.content
         except Exception as e:
@@ -470,8 +471,8 @@ Be specific about implementation details and architectural decisions.
         try:
             response = await self.provider.chat(
                 messages=[Message(role="user", content=prompt)],
-                temperature=0.3,
-                max_tokens=2500,
+                temperature=get_config('llm.temperature', 0.3),
+                max_tokens=get_config('limits.design_max_tokens', 2500),
             )
             return response.content
         except Exception as e:
@@ -530,8 +531,8 @@ Include priority levels (High/Medium/Low) for each task.
         try:
             response = await self.provider.chat(
                 messages=[Message(role="user", content=prompt)],
-                temperature=0.3,
-                max_tokens=2000,
+                temperature=get_config('llm.temperature', 0.3),
+                max_tokens=get_config('limits.todos_max_tokens', 2000),
             )
             return response.content
         except Exception as e:

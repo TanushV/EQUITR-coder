@@ -94,20 +94,35 @@ class TodoManager:
 
     def update_todo_status(self, todo_id: str, status: str) -> Optional[TaskGroup]:
         """Updates a single todo's status and checks if the parent group is now complete."""
+        target_group = self._find_group_by_todo_id(todo_id)
+        if not target_group:
+            return None
+        
+        self._update_todo_in_group(target_group, todo_id, status)
+        self._check_group_completion(target_group)
+        self._save_plan()
+        return target_group
+    
+    def _find_group_by_todo_id(self, todo_id: str) -> Optional[TaskGroup]:
+        """Find the group containing the specified todo ID"""
         for group in self.plan.task_groups:
-            for todo in group.todos:
-                if todo.id == todo_id:
-                    todo.status = status
-                    
-                    # CRITICAL: Check if this completes the parent group
-                    all_done = all(t.status == 'completed' for t in group.todos)
-                    if all_done and group.status != 'completed':
-                        group.status = 'completed'
-                        print(f"🎉 Task Group '{group.group_id}' has been completed!")
-                    
-                    self._save_plan()
-                    return group
+            if any(todo.id == todo_id for todo in group.todos):
+                return group
         return None
+    
+    def _update_todo_in_group(self, group: TaskGroup, todo_id: str, status: str) -> None:
+        """Update the status of a specific todo in a group"""
+        for todo in group.todos:
+            if todo.id == todo_id:
+                todo.status = status
+                break
+    
+    def _check_group_completion(self, group: TaskGroup) -> None:
+        """Check if all todos in a group are completed and update group status"""
+        all_done = all(t.status == 'completed' for t in group.todos)
+        if all_done and group.status != 'completed':
+            group.status = 'completed'
+            print(f"🎉 Task Group '{group.group_id}' has been completed!")
 
     def get_next_runnable_groups(self) -> List[TaskGroup]:
         """Key method for dependency management: Finds all pending groups whose dependencies are met."""

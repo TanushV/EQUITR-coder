@@ -9,6 +9,7 @@ from ..core.clean_orchestrator import CleanOrchestrator
 from ..tools.discovery import discover_tools
 from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
 from ..utils.git_manager import GitManager # <-- NEW IMPORT
+from ..core.unified_config import get_config_manager
 
 class SingleAgentMode:
     """Runs a single agent that executes task groups sequentially based on dependencies."""
@@ -25,22 +26,23 @@ class SingleAgentMode:
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
     
     def _load_system_prompts(self) -> Dict[str, str]:
-        """Load system prompts from config."""
-        config_path = Path('equitrcoder/config/system_prompt.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
+        """Load system prompts from unified configuration."""
+        config_manager = get_config_manager()
+        config_data = config_manager.get_cached_config()
         
-        # Fallback prompts if config file not found
+        # Get prompts from unified configuration
+        prompts = config_data.prompts
+        
+        # Return prompts with fallbacks
         return {
-            'single_agent_prompt': 'You are working on a single task group. Complete all todos systematically.',
-            'multi_agent_prompt': 'You are part of a team. Coordinate with other agents.'
+            'single_agent_prompt': prompts.get('single_agent_prompt', 'You are working on a single task group. Complete all todos systematically.'),
+            'multi_agent_prompt': prompts.get('multi_agent_prompt', 'You are part of a team. Coordinate with other agents.')
         }
     
-    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None) -> Dict[str, Any]:
+    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, task_name: Optional[str] = None) -> Dict[str, Any]:
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
-            docs_result = await orchestrator.create_docs(task_description=task_description, project_path=project_path)
+            docs_result = await orchestrator.create_docs(task_description=task_description, project_path=project_path, task_name=task_name)
             if not docs_result["success"]:
                 return {"success": False, "error": f"Documentation failed: {docs_result['error']}", "stage": "planning"}
             
@@ -142,8 +144,9 @@ class SingleAgentMode:
             # Restore original working directory
             try:
                 os.chdir(original_cwd)
-            except:
-                pass
+            except OSError as e:
+                # Failed to change back to original directory, log but continue
+                print(f"Warning: Failed to change back to original directory: {e}")
 
 async def run_single_agent_mode(**kwargs) -> Dict[str, Any]:
     # We now expect auto_commit to be passed in
@@ -157,4 +160,4 @@ async def run_single_agent_mode(**kwargs) -> Dict[str, Any]:
         **kwargs
     }
     mode = SingleAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""), project_path=kwargs.get("project_path", "."))
+    return await mode.run(task_description=kwargs.get("task_description", ""), project_path=kwargs.get("project_path", "."), task_name=kwargs.get("task_name"))

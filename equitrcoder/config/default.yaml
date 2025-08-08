@@ -35,6 +35,20 @@ orchestrator:
   supervisor_model: "o3"
   worker_model: "moonshot/kimi-k2-0711-preview"
 
+# Consolidated limits configuration
+limits:
+  max_cost: 5.0
+  max_workers: 3
+  max_depth: 3
+  devops_timeout: 600  # 10 minutes for DevOps operations
+  context_max_tokens: 4000
+  summary_max_tokens: 1000
+  test_max_tokens: 1
+  planning_max_tokens: 400
+  requirements_max_tokens: 2000
+  design_max_tokens: 2500
+  todos_max_tokens: 2000
+
 profiles:
   default: default
   available:

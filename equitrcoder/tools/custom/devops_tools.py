@@ -10,6 +10,7 @@ from typing import Type, Dict, Any, List
 from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
+from ...core.unified_config import get_config
 
 
 class DockerBuildArgs(BaseModel):
@@ -53,11 +54,12 @@ class DockerBuild(Tool):
             cmd.append(args.build_context)
             
             # Run docker build
+            timeout = get_config('limits.devops_timeout', 600)
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=timeout
             )
             
             return ToolResult(
@@ -282,7 +284,7 @@ class CheckSystemResources(Tool):
                             if 'Cpu(s):' in line:
                                 resource_info['cpu'] = line.strip()
                                 break
-                except:
+                except (subprocess.SubprocessError, OSError, Exception) as e:
                     resource_info['cpu'] = "CPU information unavailable"
             
             # Get memory information
@@ -296,7 +298,7 @@ class CheckSystemResources(Tool):
                     )
                     if mem_result.returncode == 0:
                         resource_info['memory'] = mem_result.stdout
-                except:
+                except (subprocess.SubprocessError, OSError, Exception) as e:
                     resource_info['memory'] = "Memory information unavailable"
             
             # Get disk information
@@ -310,7 +312,7 @@ class CheckSystemResources(Tool):
                     )
                     if disk_result.returncode == 0:
                         resource_info['disk'] = disk_result.stdout
-                except:
+                except (subprocess.SubprocessError, OSError, Exception) as e:
                     resource_info['disk'] = "Disk information unavailable"
             
             return ToolResult(

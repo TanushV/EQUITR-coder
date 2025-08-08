@@ -2,6 +2,7 @@ import os
 import yaml
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from .unified_config import get_config_manager
 
 class ProfileManager:
     def __init__(self, profiles_dir: str = 'equitrcoder/profiles'):
@@ -24,14 +25,15 @@ class ProfileManager:
         return profiles
 
     def _load_profiles_config(self) -> Dict[str, Any]:
-        """Load the profiles configuration from profiles.yaml."""
-        config_path = Path('equitrcoder/config/profiles.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
+        """Load the profiles configuration from unified configuration."""
+        config_manager = get_config_manager()
+        config_data = config_manager.get_cached_config()
         
-        # Fallback config if file not found
-        return {
+        # Get profiles configuration from unified config
+        profiles_config = config_data.profiles
+        
+        # Return with fallbacks
+        return profiles_config if profiles_config else {
             'default_tools': [
                 "create_file", "read_file", "edit_file", "list_files",
                 "git_commit", "git_status", "git_diff", "run_command", "web_search",
@@ -45,15 +47,23 @@ class ProfileManager:
         }
 
     def _load_system_prompt_config(self) -> Dict[str, Any]:
-        """Load the system prompt configuration from system_prompt.yaml."""
-        config_path = Path('equitrcoder/config/system_prompt.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
+        """Load the system prompt configuration from unified configuration."""
+        config_manager = get_config_manager()
+        config_data = config_manager.get_cached_config()
         
-        # Fallback config if file not found
-        return {
-            'base_system_prompt': 'You are {agent_id}, an AI coding agent powered by {model}.'
+        # Get prompts configuration from unified config
+        prompts_config = config_data.prompts
+        
+        # Return with fallbacks
+        return prompts_config if prompts_config else {
+            'base_system_prompt': (
+                'You are {agent_id}, an AI coding agent powered by {model}.\n\n'
+                'Tools available: {available_tools}\n\n'
+                'IMPORTANT: Aggressively leverage the ask_supervisor tool for any non-trivial decisions, architectural choices, ambiguities, or whenever you are uncertain.\n'
+                'Prefer over-communication with the supervisor to making assumptions. Consult early and often.\n\n'
+                'Repository context (live):\n{mandatory_context_json}\n\n'
+                'Current assignment and operating directives:\n{task_description}'
+            )
         }
 
     def get_default_tools(self) -> List[str]:

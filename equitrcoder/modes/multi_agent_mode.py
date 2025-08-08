@@ -13,6 +13,7 @@ from ..tools.builtin.communication import create_communication_tools_for_agent
 from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
 from ..utils.git_manager import GitManager
 from ..core.profile_manager import ProfileManager
+from ..core.unified_config import get_config_manager
 
 class MultiAgentMode:
     """Manages multi-agent execution with dependency-aware phasing and auto-commits."""
@@ -33,25 +34,27 @@ class MultiAgentMode:
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
     
     def _load_system_prompts(self) -> Dict[str, str]:
-        """Load system prompts from config."""
-        config_path = Path('equitrcoder/config/system_prompt.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
+        """Load system prompts from unified configuration."""
+        config_manager = get_config_manager()
+        config_data = config_manager.get_cached_config()
         
-        # Fallback prompts if config file not found
+        # Get prompts from unified configuration
+        prompts = config_data.prompts
+        
+        # Return prompts with fallbacks
         return {
-            'single_agent_prompt': 'You are working on a single task group. Complete all todos systematically.',
-            'multi_agent_prompt': 'You are part of a team. Coordinate with other agents.'
+            'single_agent_prompt': prompts.get('single_agent_prompt', 'You are working on a single task group. Complete all todos systematically.'),
+            'multi_agent_prompt': prompts.get('multi_agent_prompt', 'You are part of a team. Coordinate with other agents.')
         }
     
-    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None, task_name: Optional[str] = None) -> Dict[str, Any]:
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             docs_result = await orchestrator.create_docs(
-                task_description=task_description, 
+                task_description=task_description,
                 project_path=project_path,
-                team=team
+                task_name=task_name,
+                team=team,
             )
             if not docs_result["success"]:
                 return {"success": False, "error": f"Documentation failed: {docs_result['error']}", "stage": "planning"}
@@ -108,8 +111,9 @@ class MultiAgentMode:
             # Restore original working directory
             try:
                 os.chdir(original_cwd)
-            except:
-                pass
+            except OSError as e:
+                # Failed to change back to original directory, log but continue
+                print(f"Warning: Failed to change back to original directory: {e}")
     
     async def _execute_task_group(self, group, docs_result, callbacks):
         agent_id = f"{group.specialization}_agent_{group.group_id}"
@@ -210,7 +214,7 @@ async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:
     team = kwargs.pop("team", None)
     config = {"run_parallel": False, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=task_desc, project_path=project_path, team=team)
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=kwargs.get("task_name"))
 
 async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
     # Separate runtime-only args from constructor kwargs
@@ -219,4 +223,4 @@ async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
     team = kwargs.pop("team", None)
     config = {"run_parallel": True, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=task_desc, project_path=project_path, team=team)
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=kwargs.get("task_name"))
