@@ -50,14 +50,6 @@ jobs:
           python -m coverage report -m
           python -m coverage xml
 
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          flags: unittests
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
       - name: Build docs (sanity)
         if: ${{ always() }}
         run: |
@@ -68,6 +60,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build-test
     runs-on: ubuntu-latest
+    env:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
     permissions:
       contents: write
     steps:
@@ -87,9 +81,9 @@ jobs:
           path: dist/*
       # Optional: publish to PyPI when secrets available
       - name: Publish to PyPI
-        if: ${{ secrets.PYPI_TOKEN != '' }}
+        if: ${{ env.PYPI_TOKEN != '' }}
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          TWINE_PASSWORD: ${{ env.PYPI_TOKEN }}
         run: |
           python -m twine upload dist/*
