@@ -112,54 +112,25 @@ Please provide clear, actionable guidance. You can use read-only tools like grep
 Respond with specific, practical advice that the agent can immediately act upon."""
 
         # Query supervisor model in a loop until it provides an answer
-        from ...providers.litellm import LiteLLMProvider, Message
+        from ...providers.litellm import Message
         
         # Available read-only tools for supervisor
         read_only_tools = []
         try:
-            from . import search, fs
-            # Add read-only tools that supervisor can use
-            read_only_tools = [
-                {
-                    "name": "grep_search",
-                    "description": "Search for text patterns in files",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "pattern": {"type": "string"},
-                            "file_pattern": {"type": "string", "default": "*"}
-                        },
-                        "required": ["pattern"]
-                    }
-                },
-                {
-                    "name": "read_file", 
-                    "description": "Read contents of a file",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"}
-                        },
-                        "required": ["path"]
-                    }
-                },
-                {
-                    "name": "list_files",
-                    "description": "List files in a directory", 
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string", "default": "."}
-                        }
-                    }
-                }
-            ]
-        except ImportError as e:
-            # Tool definitions failed to load, continue without read-only tools
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to load read-only tools for supervisor: {e}")
-            read_only_tools = None
+            from . import search as _search, fs as _fs  # noqa: F401
+            # Filter provided tools (if any) that match read-only names
+            try:
+                candidate_tools = getattr(self, "_available_tools", None)
+            except Exception:
+                candidate_tools = None
+            if candidate_tools:
+                read_only_tools = [
+                    tool for tool in candidate_tools if tool.get_name() in ("grep_search", "read_file", "list_files")
+                ]
+            else:
+                read_only_tools = []
+        except Exception:
+            read_only_tools = []
         
         messages = [Message(role="system", content=supervisor_prompt)]
         

@@ -33,7 +33,7 @@ class HardwareInfo(Tool):
 
     async def run(self, **kwargs) -> ToolResult:
         try:
-            args = self.validate_args(kwargs)
+            self.validate_args(kwargs)
 
             info: Dict[str, Any] = {}
             # OS / Platform
@@ -64,12 +64,12 @@ class HardwareInfo(Tool):
                 try:
                     out = subprocess.run(["/usr/bin/vm_stat"], capture_output=True, text=True)
                     if out.returncode == 0:
-                        pages_line = next((l for l in out.stdout.splitlines() if "Pages free" in l), None)
-                        page_size_line = next((l for l in out.stdout.splitlines() if "page size of" in l), None)
+                        _pages_line = next((line for line in out.stdout.splitlines() if "Pages free" in line), None)
+                        page_size_line = next((line for line in out.stdout.splitlines() if "page size of" in line), None)
                         if page_size_line:
-                            page_size = int(page_size_line.split("page size of")[-1].strip().split()[0])
+                            _page_size = int(page_size_line.split("page size of")[-1].strip().split()[0])
                         else:
-                            page_size = 4096
+                            _page_size = 4096  # default page size
                         # vm_stat doesn't give total pages; fallback to system_profiler
                         sp = subprocess.run(["/usr/sbin/sysctl", "hw.memsize"], capture_output=True, text=True)
                         if sp.returncode == 0 and ":" in sp.stdout:
@@ -92,7 +92,7 @@ class HardwareInfo(Tool):
                     ]
                     res = subprocess.run(q, capture_output=True, text=True)
                     if res.returncode == 0:
-                        lines = [l.strip() for l in res.stdout.splitlines() if l.strip()]
+                        lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
                         gpus = []
                         for line in lines:
                             parts = [p.strip() for p in line.split(",")]
@@ -114,9 +114,9 @@ class HardwareInfo(Tool):
                         ], capture_output=True, text=True)
                         if sp.returncode == 0:
                             models = []
-                            for l in sp.stdout.splitlines():
-                                if "Chipset Model:" in l or "Chipset Model" in l:
-                                    models.append(l.split(":", 1)[-1].strip())
+                            for raw_line in sp.stdout.splitlines():
+                                if "Chipset Model:" in raw_line or "Chipset Model" in raw_line:
+                                    models.append(raw_line.split(":", 1)[-1].strip())
                             if models:
                                 gpu_info["apple_displays"] = models
             except Exception:

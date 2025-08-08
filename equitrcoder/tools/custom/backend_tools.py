@@ -3,9 +3,7 @@ Backend development tools for API testing, database operations, and server manag
 """
 
 import subprocess
-import json
 import requests
-from pathlib import Path
 from typing import Type, Dict, Any, Optional
 from pydantic import BaseModel, Field
 

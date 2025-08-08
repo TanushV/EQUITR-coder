@@ -1,6 +1,4 @@
-import asyncio
 import json
-
 import pytest
 
 from equitrcoder.core.clean_orchestrator import CleanOrchestrator

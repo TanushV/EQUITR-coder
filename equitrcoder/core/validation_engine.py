@@ -17,12 +17,12 @@ Features:
 import logging
 import os
 # import json  # Unused
-import yaml
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Type, Callable
+# import yaml  # Unused
+# from pathlib import Path  # Unused
+from typing import Any, Dict, List, Optional, Type, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-import jsonschema
+# import jsonschema  # Unused
 from jsonschema import validate, ValidationError as JsonSchemaValidationError
 import threading
 # from abc import ABC, abstractmethod  # Unused

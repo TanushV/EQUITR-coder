@@ -1,8 +1,6 @@
 # equitrcoder/modes/single_agent_mode.py
 
-import yaml
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
@@ -118,11 +116,11 @@ class SingleAgentMode:
                 tool_calls = agent_result.get("tool_calls", [])
                 ask_supervisor_calls = [tc for tc in tool_calls if tc.get("tool_name") == "ask_supervisor"]
                 
-                print(f"   Communication Stats:")
+                print("   Communication Stats:")
                 print(f"     ask_supervisor calls: {len(ask_supervisor_calls)}")
                 
                 if len(ask_supervisor_calls) == 0:
-                    print(f"   ⚠️  WARNING: Agent made NO supervisor consultations for this group!")
+                    print("   ⚠️  WARNING: Agent made NO supervisor consultations for this group!")
                 
                 if not agent_result.get("success"):
                     print(f"❌ Agent encountered issues with group {group_to_run.group_id} but will continue (no 'failed' status)")

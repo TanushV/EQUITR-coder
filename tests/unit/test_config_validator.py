@@ -14,7 +14,6 @@ import tempfile
 import yaml
 import pytest
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from equitrcoder.core.config_validator import (
     ConfigurationValidator,

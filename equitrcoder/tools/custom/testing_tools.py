@@ -4,8 +4,7 @@ Testing tools for QA engineers and developers.
 
 import subprocess
 import json
-from pathlib import Path
-from typing import Type, Dict, Any
+from typing import Type
 from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult

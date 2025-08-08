@@ -12,7 +12,6 @@ Tests the performance monitoring system including:
 
 import pytest
 import time
-import threading
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
@@ -28,7 +27,6 @@ from equitrcoder.core.performance_monitor import (
     monitor_performance,
     profile_performance,
     get_performance_report,
-    optimize_memory
 )
 
 

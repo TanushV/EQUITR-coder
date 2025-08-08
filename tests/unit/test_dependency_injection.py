@@ -12,14 +12,12 @@ Tests the dependency injection system including:
 
 import pytest
 from abc import ABC, abstractmethod
-from unittest.mock import MagicMock
 
 from equitrcoder.core.dependency_injection import (
     DependencyInjectionContainer,
     ServiceLifetime,
     ServiceDescriptor,
     DependencyScope,
-    DependencyResolutionError,
     CircularDependencyError,
     ServiceNotRegisteredError,
     injectable,

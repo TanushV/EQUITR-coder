@@ -1,11 +1,13 @@
 # equitrcoder/tools/builtin/todo.py
 
+from __future__ import annotations
+
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import List, Optional, Type
 from pydantic import BaseModel, Field
-import uuid
 
 # --- NEW DATA STRUCTURES ---
 # This defines the new, hierarchical structure for your todo plans.
@@ -137,13 +139,13 @@ class TodoManager:
 
     def are_all_tasks_complete(self) -> bool:
         """Checks if the entire plan is finished."""
-        if not self.plan.task_groups: return False
+        if not self.plan.task_groups:
+            return False
         return all(g.status == 'completed' for g in self.plan.task_groups)
 
 # --- UPDATED TOOLS FOR THE NEW SYSTEM ---
 # These are the tools the agents will use to interact with the plan.
-
-from ..base import Tool, ToolResult
+from ..base import Tool, ToolResult  # noqa: E402
 
 class ListTaskGroups(Tool):
     def get_name(self) -> str: return "list_task_groups"

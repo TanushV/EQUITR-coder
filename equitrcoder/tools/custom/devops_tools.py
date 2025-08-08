@@ -3,10 +3,9 @@ DevOps tools for deployment, containerization, and infrastructure management.
 """
 
 import subprocess
-import json
 import yaml
 from pathlib import Path
-from typing import Type, Dict, Any, List
+from typing import Type, Dict
 from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
@@ -284,7 +283,7 @@ class CheckSystemResources(Tool):
                             if 'Cpu(s):' in line:
                                 resource_info['cpu'] = line.strip()
                                 break
-                except (subprocess.SubprocessError, OSError, Exception) as e:
+                except (subprocess.SubprocessError, OSError, Exception):
                     resource_info['cpu'] = "CPU information unavailable"
             
             # Get memory information
@@ -298,7 +297,7 @@ class CheckSystemResources(Tool):
                     )
                     if mem_result.returncode == 0:
                         resource_info['memory'] = mem_result.stdout
-                except (subprocess.SubprocessError, OSError, Exception) as e:
+                except (subprocess.SubprocessError, OSError, Exception):
                     resource_info['memory'] = "Memory information unavailable"
             
             # Get disk information
@@ -312,7 +311,7 @@ class CheckSystemResources(Tool):
                     )
                     if disk_result.returncode == 0:
                         resource_info['disk'] = disk_result.stdout
-                except (subprocess.SubprocessError, OSError, Exception) as e:
+                except (subprocess.SubprocessError, OSError, Exception):
                     resource_info['disk'] = "Disk information unavailable"
             
             return ToolResult(

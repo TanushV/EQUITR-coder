@@ -14,7 +14,6 @@ import pytest
 import os
 import tempfile
 # from typing import Dict, Any  # Unused
-from unittest.mock import patch
 
 from equitrcoder.core.validation_engine import (
     ValidationEngine,
@@ -30,9 +29,7 @@ from equitrcoder.core.validation_engine import (
     configure_validation_engine,
     validate_config,
     validate_input,
-    validate_file,
     validate_model,
-    validate_api_response,
     validate_inputs
 )
 from equitrcoder.core.standardized_error_handler import ErrorSeverity, ErrorCategory  # noqa: F401

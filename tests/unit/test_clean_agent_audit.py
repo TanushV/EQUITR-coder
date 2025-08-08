@@ -1,7 +1,6 @@
-import asyncio
 from typing import Any, Dict, List
-
 import pytest
+
 
 from equitrcoder.core.clean_agent import CleanAgent
 from equitrcoder.tools.base import Tool, ToolResult
@@ -63,7 +62,6 @@ async def test_clean_agent_audit_unconditional(monkeypatch):
         return Resp()
 
     # Patch both main and audit providers used by CleanAgent
-    from equitrcoder import core as _core
     from equitrcoder.providers import litellm as _litellm
 
     monkeypatch.setattr(_litellm.LiteLLMProvider, "chat", fake_chat, raising=True)

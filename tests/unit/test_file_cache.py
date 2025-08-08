@@ -17,7 +17,6 @@ import yaml
 import time
 import threading
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from equitrcoder.core.file_cache import (
     FileCache,
