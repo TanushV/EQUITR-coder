@@ -6,10 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    import litellm as _litellm  # Optional dependency, only required at runtime
-except Exception:  # pragma: no cover - optional import guard
-    _litellm = None
+import litellm
 
 
 @dataclass
@@ -80,10 +77,9 @@ class LiteLLMProvider:
         if api_base:
             self._setup_api_base(api_base)
 
-        # Configure LiteLLM settings if available
-        if _litellm is not None:
-            _litellm.drop_params = True  # Drop unsupported params instead of erroring
-            _litellm.set_verbose = False  # Reduce logging noise
+        # Configure LiteLLM settings
+        litellm.drop_params = True
+        litellm.set_verbose = False
 
         # Additional provider-specific settings
         self.provider_kwargs = kwargs
@@ -99,7 +95,6 @@ class LiteLLMProvider:
         self.min_request_interval = 2.0  # 2 seconds between requests
 
     def _setup_api_key(self, api_key: Optional[str] = None) -> None:
-        """Set up API key for the provider."""
         if self.provider == "moonshot":
             if api_key:
                 os.environ["MOONSHOT_API_KEY"] = api_key
@@ -201,12 +196,8 @@ class LiteLLMProvider:
         self.last_request_time = time.time()
 
     async def _make_completion_request(self, **params):
-        if _litellm is None:
-            raise ImportError(
-                "litellm is not installed. Install with `pip install litellm` or use the appropriate extras."
-            )
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: _litellm.completion(**params))
+        return await loop.run_in_executor(None, lambda: litellm.completion(**params))
 
     async def chat(
         self,
@@ -240,8 +231,8 @@ class LiteLLMProvider:
                 **kwargs,
             }
 
-            if tools and _litellm is not None:
-                supports_tools = _litellm.supports_function_calling(self.model)
+            if tools:
+                supports_tools = litellm.supports_function_calling(self.model)
                 if supports_tools:
                     functions: List[Dict[str, Any]] = []
                     for tool in tools:
@@ -265,7 +256,6 @@ class LiteLLMProvider:
 
             response = await self._exponential_backoff_retry(self._make_completion_request, **params)
 
-            # Extract response data
             choice = response.choices[0]
             message = choice.message
             content = getattr(message, "content", "") or ""
@@ -308,16 +298,12 @@ class LiteLLMProvider:
 
     async def embedding(self, text: Union[str, List[str]], model: Optional[str] = None, **kwargs) -> List[List[float]]:
         try:
-            if _litellm is None:
-                raise ImportError(
-                    "litellm is not installed. Install with `pip install litellm` or use the appropriate extras."
-                )
             embedding_model = model or self._get_embedding_model()
             if isinstance(text, str):
                 text = [text]
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: _litellm.embedding(model=embedding_model, input=text, **kwargs),
+                lambda: litellm.embedding(model=embedding_model, input=text, **kwargs),
             )
             embeddings: List[List[float]] = []
             for data in response.data:
