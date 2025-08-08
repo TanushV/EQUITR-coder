@@ -13,14 +13,13 @@ import os
 import tempfile
 import yaml
 import pytest
-from unittest.mock import patch, mock_open
-from pathlib import Path
+from unittest.mock import patch
+# from pathlib import Path  # Unused
 from datetime import timedelta
 
 from equitrcoder.core.unified_config import (
     UnifiedConfigManager, 
     ConfigurationData, 
-    ValidationResult,
     get_config_manager,
     get_config,
     set_config
@@ -379,7 +378,7 @@ class TestUnifiedConfigManager:
         manager._config_data.llm['provider'] = 'modified'
         
         # Second access should reload (cache expired)
-        value2 = manager.get('llm.provider')
+        _ = manager.get('llm.provider')
         
         # Note: This test is tricky because we're testing internal behavior
         # In practice, the cache would be cleared on config reload

@@ -12,7 +12,7 @@ Tests the error handling system including:
 import pytest
 import threading
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from equitrcoder.core.standardized_error_handler import (
     StandardizedErrorHandler,

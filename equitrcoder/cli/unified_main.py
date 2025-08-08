@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import sys
 
-from ..core.config import config_manager
 from ..modes.multi_agent_mode import (
     run_multi_agent_parallel,
 )
@@ -23,7 +22,7 @@ def create_parser() -> argparse.ArgumentParser:
         description="Modular AI coding assistant supporting single and multi-agent workflows",
     )
 
-    parser.add_argument("--version", action="version", version="equitrcoder 1.0.0")
+    parser.add_argument("--version", action="version", version="equitrcoder 2.0.1")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

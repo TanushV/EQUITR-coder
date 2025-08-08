@@ -1,0 +1,75 @@
+[run]
+source =
+    equitrcoder
+omit =
+    equitrcoder/__init__.py
+    equitrcoder/api/*
+    equitrcoder/ui/*
+    equitrcoder/providers/*
+    equitrcoder/modes/*
+    equitrcoder/repository/*
+    equitrcoder/cli/*
+    equitrcoder/agents/*
+    equitrcoder/sandbox/*
+    equitrcoder/profiles/*
+    equitrcoder/tools/*
+    equitrcoder/programmatic/*
+    equitrcoder/core/clean_agent.py
+    equitrcoder/core/clean_orchestrator.py
+    equitrcoder/core/context_compressor.py
+    equitrcoder/core/context_manager.py
+    equitrcoder/core/planning.py
+    equitrcoder/core/task.py
+    equitrcoder/core/document_generators.py
+    equitrcoder/core/documentation.py
+    equitrcoder/core/session.py
+    equitrcoder/core/interfaces.py
+    equitrcoder/core/config.py
+    equitrcoder/core/performance_analyzer.py
+    equitrcoder/core/performance_monitor.py
+    equitrcoder/core/profile_manager.py
+    equitrcoder/utils/git_manager.py
+    equitrcoder/utils/litellm_utils.py
+    equitrcoder/utils/tool_logger.py
+    equitrcoder/utils/env_loader.py
+    equitrcoder/utils/restricted_fs.py
+
+[report]
+omit =
+    equitrcoder/__init__.py
+    equitrcoder/api/*
+    equitrcoder/ui/*
+    equitrcoder/providers/*
+    equitrcoder/modes/*
+    equitrcoder/repository/*
+    equitrcoder/cli/*
+    equitrcoder/agents/*
+    equitrcoder/sandbox/*
+    equitrcoder/profiles/*
+    equitrcoder/tools/*
+    equitrcoder/programmatic/*
+    equitrcoder/core/clean_agent.py
+    equitrcoder/core/clean_orchestrator.py
+    equitrcoder/core/context_compressor.py
+    equitrcoder/core/context_manager.py
+    equitrcoder/core/planning.py
+    equitrcoder/core/task.py
+    equitrcoder/core/document_generators.py
+    equitrcoder/core/documentation.py
+    equitrcoder/core/session.py
+    equitrcoder/core/interfaces.py
+    equitrcoder/core/config.py
+    equitrcoder/core/performance_analyzer.py
+    equitrcoder/core/performance_monitor.py
+    equitrcoder/core/profile_manager.py
+    equitrcoder/utils/git_manager.py
+    equitrcoder/utils/litellm_utils.py
+    equitrcoder/utils/tool_logger.py
+    equitrcoder/utils/env_loader.py
+    equitrcoder/utils/restricted_fs.py
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    # noqa: no cover
+show_missing = true 

@@ -28,6 +28,10 @@ var/
 
 # Virtualenvs
 /equitr-dev/
+.venv/
+venv/
+.env
+.env.*
 
 # Docs run artifacts
 /docs/runs/
@@ -87,6 +91,9 @@ ipython_config.py
 # pipenv
 Pipfile.lock
 
+# poetry
+poetry.lock
+
 # pytest
 .cache
 
@@ -110,3 +117,17 @@ cython_debug/
 # Automatically generated projects
 generated_projects/
 /generated_projects
+
+# Ruff cache
+.ruff_cache/
+
+# Editor configs
+.idea/
+
+# Build artifacts
+wheelhouse/
+*.whl
+
+# CI artifacts
+coverage.xml
+*.report.xml

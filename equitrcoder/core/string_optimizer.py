@@ -15,11 +15,11 @@ Features:
 import io
 import time
 import logging
-from typing import List, Dict, Any, Optional, Union, Iterator
-from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional, Union
+from dataclasses import dataclass
 from datetime import datetime
 import threading
-import weakref
+# import weakref  # Unused
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
@@ -442,7 +442,7 @@ class StringTemplateEngine:
         )
 
 
-from .interfaces import IMonitor
+from .interfaces import IMonitor  # noqa: E402
 
 class StringOperationMonitor(IMonitor):
     """
@@ -465,7 +465,7 @@ class StringOperationMonitor(IMonitor):
             operation_name: Optional operation name for tracking
         """
         start_time = time.time()
-        start_memory = 0  # Would need memory profiling for accurate measurement
+        # start_memory = 0  # Would need memory profiling for accurate measurement
         
         try:
             yield

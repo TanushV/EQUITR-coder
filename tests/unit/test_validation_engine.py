@@ -13,8 +13,8 @@ Tests the validation system including:
 import pytest
 import os
 import tempfile
-from typing import Dict, Any
-from unittest.mock import patch, MagicMock
+# from typing import Dict, Any  # Unused
+from unittest.mock import patch
 
 from equitrcoder.core.validation_engine import (
     ValidationEngine,
@@ -35,7 +35,7 @@ from equitrcoder.core.validation_engine import (
     validate_api_response,
     validate_inputs
 )
-from equitrcoder.core.standardized_error_handler import ErrorSeverity, ErrorCategory
+from equitrcoder.core.standardized_error_handler import ErrorSeverity, ErrorCategory  # noqa: F401
 
 
 class TestValidationResult:

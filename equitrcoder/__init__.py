@@ -39,7 +39,7 @@ Quick Start:
     result = await coder.execute_task("Build an API", config)
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 # Core agent classes
 from .agents import BaseAgent

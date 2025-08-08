@@ -13,10 +13,10 @@ This module provides a centralized configuration management system that:
 import os
 import yaml
 import logging
-from typing import Any, Dict, List, Optional, Union
-from pathlib import Path
+from typing import Any, Dict, List, Optional
+# from pathlib import Path  # Unused
 from dataclasses import dataclass, field
-from functools import lru_cache
+# from functools import lru_cache  # Unused
 import threading
 from datetime import datetime, timedelta
 
@@ -65,7 +65,7 @@ class ConfigurationData:
     validation: Dict[str, Any] = field(default_factory=dict)
 
 
-from .interfaces import IConfigurable, Result
+from .interfaces import IConfigurable, Result  # noqa: E402
 
 class UnifiedConfigManager(IConfigurable):
     """

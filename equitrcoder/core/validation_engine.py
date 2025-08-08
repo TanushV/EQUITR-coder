@@ -16,7 +16,7 @@ Features:
 
 import logging
 import os
-import json
+# import json  # Unused
 import yaml
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Type, Callable
@@ -25,7 +25,7 @@ from enum import Enum
 import jsonschema
 from jsonschema import validate, ValidationError as JsonSchemaValidationError
 import threading
-from abc import ABC, abstractmethod
+# from abc import ABC, abstractmethod  # Unused
 
 from .interfaces import IValidator, Result
 from .standardized_error_handler import ErrorCategory, ErrorSeverity, create_contextual_exception
@@ -230,9 +230,9 @@ class ModelValidator(BaseValidator):
         
         # Check required fields
         required_fields = ['provider', 'model']
-        for field in required_fields:
-            if field not in model_config:
-                errors.append(f"Missing required field: {field}")
+        for field_name in required_fields:
+            if field_name not in model_config:
+                errors.append(f"Missing required field: {field_name}")
         
         if errors:
             return ValidationResult(

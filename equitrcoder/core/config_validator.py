@@ -13,7 +13,7 @@ from .unified_config import get_config_manager, ValidationResult
 logger = logging.getLogger(__name__)
 
 
-from .interfaces import IValidator, Result
+from .interfaces import IValidator, Result  # noqa: E402
 
 class ConfigurationValidator(IValidator[Dict[str, Any]]):
     """Validates configuration at application startup and provides hot-reloading"""
@@ -102,7 +102,6 @@ class ConfigurationValidator(IValidator[Dict[str, Any]]):
         Returns:
             List[str]: List of missing environment variables
         """
-        required_env_vars = []
         missing_vars = []
         
         # Check for API keys based on provider

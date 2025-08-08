@@ -13,7 +13,7 @@ Features:
 - Performance alerting and notifications
 """
 
-import os
+# import os  # Unused
 import sys
 import time
 import psutil
@@ -21,11 +21,11 @@ import threading
 import tracemalloc
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict, deque
 import logging
-import json
-import weakref
+# import json  # Unused
+# import weakref  # Unused
 from contextlib import contextmanager
 from functools import wraps
 import gc

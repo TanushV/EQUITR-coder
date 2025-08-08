@@ -31,24 +31,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          # Optional tools used in examples/tests
-          pip install coverage
 
       - name: Lint (ruff)
         run: |
-          python -m ruff --version || pip install ruff
           python -m ruff check .
 
       - name: Type check (mypy)
         run: |
-          python -m mypy --version || pip install mypy
           python -m mypy equitrcoder || true
 
       - name: Run unit & integration tests with coverage
         run: |
-          python -m coverage run -m pytest -q
-          python -m coverage report -m
-          python -m coverage xml
+          pytest -q
+          coverage xml
+
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
 
       - name: Build docs (sanity)
         if: ${{ always() }}

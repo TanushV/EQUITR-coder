@@ -1,9 +1,9 @@
 # equitrcoder/modes/multi_agent_mode.py
 
 import asyncio
-import yaml
+# import yaml  # Unused
 from datetime import datetime
-from pathlib import Path
+# from pathlib import Path  # Unused
 from typing import Any, Callable, Dict, List, Optional
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
@@ -125,7 +125,7 @@ class MultiAgentMode:
         allowed_tool_names = agent_config.get('allowed_tools', [])
         
         if group.specialization == 'default' or group.specialization is None:
-            print(f"   Using default agent configuration")
+            print("   Using default agent configuration")
         else:
             print(f"   Using profile: {group.specialization}")
 
@@ -189,7 +189,7 @@ class MultiAgentMode:
         ask_supervisor_calls = [tc for tc in tool_calls if tc.get("tool_name") == "ask_supervisor"]
         send_message_calls = [tc for tc in tool_calls if tc.get("tool_name") == "send_message"]
         
-        print(f"   Communication Stats:")
+        print("   Communication Stats:")
         print(f"     ask_supervisor calls: {len(ask_supervisor_calls)}")
         print(f"     send_message calls: {len(send_message_calls)}")
         

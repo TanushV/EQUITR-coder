@@ -88,7 +88,7 @@ class CleanAgent:
                 try:
                     # Use tiktoken to count tokens accurately
                     encoding = tiktoken.get_encoding("cl100k_base")
-                except (ImportError, AttributeError, Exception) as e:
+                except (ImportError, AttributeError, Exception):
                     # Fallback to rough estimation if tiktoken fails
                     encoding = None
                 
@@ -126,7 +126,7 @@ class CleanAgent:
                                     functions.append(match.group(0).strip())
                         
                         return functions[:5]  # Limit to 5 functions per file
-                    except (OSError, UnicodeDecodeError, Exception) as e:
+                    except (OSError, UnicodeDecodeError, Exception):
                         return []
                 
                 repo_map = []
@@ -275,7 +275,7 @@ class CleanAgent:
         try:
             # Use tiktoken to count tokens accurately
             encoding = tiktoken.get_encoding("cl100k_base")
-        except (ImportError, AttributeError, Exception) as e:
+        except (ImportError, AttributeError, Exception):
             # Fallback to rough estimation if tiktoken fails
             encoding = None
         
@@ -313,7 +313,7 @@ class CleanAgent:
                             functions.append(match.group(0).strip())
                 
                 return functions[:5]  # Limit to 5 functions per file
-            except (OSError, UnicodeDecodeError, Exception) as e:
+            except (OSError, UnicodeDecodeError, Exception):
                 return []
         
         repo_map = []
@@ -503,21 +503,19 @@ class CleanAgent:
     def _check_and_compress_context(self, messages: List[Message]) -> List[Message]:
         """Check if context is >75% full and compress if needed, preserving MANDATORY context."""
         try:
-            import litellm
-            from litellm import get_max_tokens
             import tiktoken
             
-            # Get model max tokens
+            # Get model max tokens (fallback to 4096 if get_max_tokens unavailable)
             try:
+                from litellm import get_max_tokens
                 model_max_tokens = get_max_tokens(self.model)
-            except (ImportError, AttributeError, Exception) as e:
-                # Fallback for unknown models
+            except Exception:
                 model_max_tokens = 4096
             
             # Count current tokens
             try:
                 encoding = tiktoken.get_encoding("cl100k_base")
-            except (ImportError, AttributeError, Exception) as e:
+            except Exception:
                 # Fallback to rough estimation
                 encoding = None
             
@@ -586,7 +584,7 @@ class CleanAgent:
                 new_total_tokens = mandatory_tokens + new_conversation_tokens
                 new_usage_percentage = new_total_tokens / model_max_tokens
                 
-                print(f"   After compression:")
+                print("   After compression:")
                 print(f"     Mandatory context: {mandatory_tokens} tokens (preserved)")
                 print(f"     Conversation: {new_conversation_tokens} tokens (compressed)")
                 print(f"     Total: {new_total_tokens}/{model_max_tokens} ({new_usage_percentage:.1%})")
@@ -674,7 +672,7 @@ class CleanAgent:
                 print(f"   Usage: {getattr(response, 'usage', {})}")
                 
                 if response.content:
-                    print(f"   Content:")
+                    print("   Content:")
                     # Log full content with proper formatting
                     content_lines = response.content.split('\n')
                     for line in content_lines[:10]:  # Show first 10 lines
@@ -883,7 +881,7 @@ class CleanAgent:
                     if tool_name == "audit_results":
                         payload = resp.tool.arguments or {}
                         audit_passed = payload.get("passed", False)
-                        reasons = payload.get("reasons", "")
+                        _ = payload.get("reasons", "")
                         extra_tasks = payload.get("additional_tasks", [])
                         content = json.dumps(payload)
                         if self.on_audit_callback:

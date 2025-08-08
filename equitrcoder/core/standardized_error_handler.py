@@ -16,13 +16,13 @@ Features:
 import logging
 import traceback
 import threading
-from typing import Any, Dict, List, Optional, Type, Union, Callable
+from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from collections import deque
-import inspect
-import sys
+# import inspect  # Unused
+# import sys  # Unused
 
 logger = logging.getLogger(__name__)
 
@@ -565,7 +565,7 @@ def handle_errors(category: Optional[ErrorCategory] = None,
                         pass
                 
                 # Handle the error
-                handled_error = handle_error(e, context, category=category, severity=severity)
+                _ = handle_error(e, context, category=category, severity=severity)
                 
                 # Re-raise the original exception
                 raise e

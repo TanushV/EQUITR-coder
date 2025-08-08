@@ -13,15 +13,15 @@ Features:
 """
 
 import os
-import time
+# import time  # Unused
 import hashlib
 import threading
-from typing import Any, Dict, Optional, Tuple, Union, Callable
+from typing import Any, Dict, Optional, Union, Callable
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
-import weakref
+# import weakref  # Unused
 import json
 import yaml
 
@@ -74,7 +74,7 @@ class CacheStats:
         return 100.0 - self.hit_rate
 
 
-from .interfaces import ICache
+from .interfaces import ICache  # noqa: E402
 
 class FileCache(ICache[Any]):
     """
@@ -293,7 +293,7 @@ class FileCache(ICache[Any]):
             # Get file stats
             stat = os.stat(file_path)
             file_size = stat.st_size
-            modification_time = stat.st_mtime
+            # modification_time = stat.st_mtime
             
             # Determine parser
             if parser:
