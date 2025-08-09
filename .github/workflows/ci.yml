@@ -48,8 +48,9 @@ jobs:
       - name: Upload coverage XML
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-xml
+          name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
+          overwrite: true
 
       - name: Build docs (sanity)
         if: ${{ always() }}
@@ -80,6 +81,7 @@ jobs:
         with:
           name: dist
           path: dist/*
+          overwrite: true
       # Optional: publish to PyPI when secrets available
       - name: Publish to PyPI
         if: ${{ env.PYPI_TOKEN != '' }}
