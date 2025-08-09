@@ -113,6 +113,9 @@ class ConfigManager:
         # Override with environment variables
         config_data = self._apply_env_overrides(config_data)
 
+        # Normalize any special values (e.g., session.max_context: "auto")
+        config_data = self._normalize_config(config_data)
+
         return Config(**config_data)
 
     # Back-compatibility alias used in older modules / UI code
@@ -158,6 +161,33 @@ class ConfigManager:
                 if key in ["budget"]:
                     value = float(value)
                 config_data[section][key] = value
+
+        return config_data
+
+    def _normalize_config(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize special string values into concrete types expected by models."""
+        session_cfg: Dict[str, Any] = config_data.get("session", {}) or {}
+        max_ctx_value: Any = session_cfg.get("max_context")
+
+        if isinstance(max_ctx_value, str) and max_ctx_value.lower() == "auto":
+            # Default large character-based context window suitable for code
+            resolved_max_context = 100000
+
+            # Optionally derive from limits.context_max_tokens or llm.max_tokens if available
+            try:
+                limits_cfg = config_data.get("limits", {}) or {}
+                candidate_tokens = limits_cfg.get("context_max_tokens") or config_data.get("llm", {}).get("max_tokens")
+                if isinstance(candidate_tokens, (int, float)) and candidate_tokens > 0:
+                    # Convert tokens to characters using a conservative multiplier
+                    estimated_chars = int(candidate_tokens * 8)
+                    # Keep within a reasonable range
+                    resolved_max_context = max(16000, min(estimated_chars, 100000))
+            except Exception:
+                # Fall back to default if any issue occurs
+                resolved_max_context = 100000
+
+            session_cfg["max_context"] = int(resolved_max_context)
+            config_data["session"] = session_cfg
 
         return config_data
 
@@ -233,7 +263,7 @@ class ConfigManager:
         return config
 
     def remove_model_config(self, config: Config, name: str) -> Config:
-        """Remove a model configuration."""
+        """Remove a new model configuration."""
         if name in config.llm.models:
             del config.llm.models[name]
             # Switch to default if removing active model
