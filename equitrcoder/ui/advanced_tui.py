@@ -30,6 +30,7 @@ from textual.widgets import (
     ListView,
     RichLog,
     Static,
+    Footer,
 )
 
 try:
@@ -58,7 +59,7 @@ class TodoSidebar(Static):
         self.todos: List[Dict[str, Any]] = []
 
     def compose(self) -> ComposeResult:
-        with Vertical():
+        with Vertical(classes="sidebar-pad"):
             yield Label("📋 Todo Progress", classes="sidebar-title")
             yield Container(id="todo-list")
 
@@ -209,37 +210,45 @@ class StatusBar(Static):
                 classes="status-item",
             )
 
+    def _safe_update(self, selector: str, text: str) -> None:
+        """Safely update a label if present (ignore if not yet mounted)."""
+        try:
+            self.query_one(selector).update(text)
+        except Exception:
+            # Widget not mounted yet or selector not present; ignore
+            pass
+
     def watch_mode(self, mode: str):
         """Update mode display."""
-        self.query_one("#status-mode").update(f"Mode: {mode}")
+        self._safe_update("#status-mode", f"Mode: {mode}")
 
     def watch_models(self, models: str):
         """Update models display."""
-        self.query_one("#status-models").update(f"Models: {models}")
+        self._safe_update("#status-models", f"Models: {models}")
 
     def watch_profiles(self, profiles: str):
-        self.query_one("#status-profiles").update(f"Profiles: {profiles}")
+        self._safe_update("#status-profiles", f"Profiles: {profiles}")
 
     def watch_pricing(self, pricing: str):
-        self.query_one("#status-pricing").update(f"Prices: {pricing}")
+        self._safe_update("#status-pricing", f"Prices: {pricing}")
 
     def watch_stage(self, stage: str):
         """Update stage display."""
-        self.query_one("#status-stage").update(f"Stage: {stage}")
+        self._safe_update("#status-stage", f"Stage: {stage}")
 
     def watch_agent_count(self, count: int):
         """Update agent count display."""
-        self.query_one("#status-agents").update(f"Agents: {count}")
+        self._safe_update("#status-agents", f"Agents: {count}")
 
     def watch_current_cost(self, cost: float):
         """Update cost display."""
-        self.query_one("#status-cost").update(f"Cost: ${cost:.4f}/${self.max_cost:.2f}")
+        self._safe_update("#status-cost", f"Cost: ${cost:.4f}/${self.max_cost:.2f}")
 
     def update_cost_limit(self, max_cost: float):
         """Update the maximum cost limit."""
         self.max_cost = max_cost
-        self.query_one("#status-cost").update(
-            f"Cost: ${self.current_cost:.4f}/${max_cost:.2f}"
+        self._safe_update(
+            "#status-cost", f"Cost: ${self.current_cost:.4f}/${max_cost:.2f}"
         )
 
 
@@ -247,7 +256,7 @@ class TaskInputPanel(Static):
     """Panel for task input and configuration."""
 
     def compose(self) -> ComposeResult:
-        with Vertical():
+        with Vertical(classes="panel-pad"):
             yield Label("Task Input", classes="panel-title")
             yield Input(placeholder="Enter your task description...", id="task-input")
             yield Input(placeholder="Comma-separated dataset paths (optional)", id="datasets-input")
@@ -267,7 +276,7 @@ class AgentPanelGrid(Static):
         self.agent_windows: Dict[str, ChatWindow] = {}
 
     def compose(self) -> ComposeResult:
-        with Horizontal():
+        with Horizontal(classes="main-pad"):
             for agent_id, window in self.agent_windows.items():
                 yield window
 
@@ -295,7 +304,7 @@ class AgentsSidebar(Static):
         self.agents: List[str] = []
 
     def compose(self) -> ComposeResult:
-        with Vertical():
+        with Vertical(classes="sidebar-pad"):
             yield Label("👥 Running Agents", classes="sidebar-title")
             yield Container(id="agents-list")
 
@@ -326,115 +335,176 @@ class EquitrTUI(App):
     """Main TUI application for EQUITR Coder."""
 
     CSS = """
+    /* Global look (black background, white text) */
+    Screen {
+        background: #000000;
+        color: #ffffff;
+    }
+
+    Header {
+        background: #000000;
+        color: #ffffff;
+        border-bottom: solid #444444;
+    }
+
+    Footer {
+        background: #000000;
+        color: #ffffff;
+        border-top: solid #444444;
+    }
+
+    RichLog {
+        background: #000000;
+        color: #ffffff;
+        border: none #000000;
+    }
+
+    Input {
+        background: #000000;
+        color: #ffffff;
+        border: solid #666666;
+    }
+
+    Button {
+        background: #111111;
+        color: #ffffff;
+        border: solid #666666;
+    }
+
     .sidebar {
         width: 25%;
-        background: $surface;
-        border-right: solid $accent;
+        background: #000000;
+        color: #ffffff;
+        border-right: solid #444444;
     }
-    
+
     .rightbar {
         width: 20%;
-        background: $surface;
-        border-left: solid $accent;
+        background: #000000;
+        color: #ffffff;
+        border-left: solid #444444;
     }
-    
+
     .main-content {
         width: 55%;
+        background: #000000;
+        color: #ffffff;
     }
-    
+
+    .sidebar-pad {
+        padding: 1;
+    }
+
+    .panel-pad {
+        padding: 1;
+    }
+
+    .main-pad {
+        padding: 1;
+    }
+
     .sidebar-title {
-        background: $accent;
-        color: $text;
+        background: #111111;
+        color: #ffffff;
         padding: 1;
         text-align: center;
-        font-weight: bold;
+        text-style: bold;
+        border: solid #444444;
     }
-    
+
     .panel-title {
-        background: $primary;
-        color: $text;
+        background: #111111;
+        color: #ffffff;
         padding: 1;
         text-align: center;
-        font-weight: bold;
+        text-style: bold;
+        border: solid #444444;
     }
-    
+
     .todo-item {
         padding: 0 1;
         margin: 1 0;
-        border: thin $accent;
-        border-radius: 4;
+        border: solid #666666;
+        color: #ffffff;
+        background: #000000;
     }
-    
+
     .todo-red {
-        background: $error 20%;
-        color: $error;
+        color: #ffffff;
     }
-    
+
     .todo-yellow {
-        background: $warning 20%;
-        color: $warning;
+        color: #ffffff;
     }
-    
+
     .todo-green {
-        background: $success 20%;
-        color: $success;
+        color: #ffffff;
     }
-    
+
     .todo-empty {
-        color: $text-muted;
+        color: #cccccc;
         text-align: center;
         padding: 2;
     }
-    
+
     .status-item {
         padding: 0 2;
-        background: $surface-dark;
-        color: $text;
-        border-right: solid $accent;
+        background: #111111;
+        color: #ffffff;
+        border-right: solid #444444;
+        text-style: bold;
     }
-    
+
     #task-input {
         margin: 1 0;
-        border: thin $primary;
+        border: solid #666666;
     }
-    
+
     StatusBar {
         height: 1;
-        background: $surface;
-        border-bottom: solid $accent;
+        background: #000000;
+        border-bottom: solid #444444;
+        color: #ffffff;
     }
-    
+
     TodoSidebar {
-        border-right: solid $accent;
+        border-right: solid #444444;
     }
-    
+
     TaskInputPanel {
         height: 8;
-        border-bottom: solid $accent;
-        background: $surface-light;
+        border-bottom: solid #444444;
+        background: #000000;
+        color: #ffffff;
     }
-    
+
     AgentPanelGrid {
-        border: solid $accent;
+        border: solid #444444;
         layout: horizontal;
+        background: #000000;
+        color: #ffffff;
     }
-    
+
     .agent-window {
         width: 1fr;
-        border-right: solid $accent 50%;
+        border-right: solid #333333;
+        background: #000000;
+        color: #ffffff;
     }
-    
+
     .model-suggestions {
-        background: $surface;
-        border: thin $accent;
+        background: #000000;
+        color: #ffffff;
+        border: solid #444444;
         max-height: 20;
         overflow: auto;
     }
-    
+
     ModelSuggestion {
         padding: 1;
-        background: $boost;
-        hover-background: $primary 20%;
+        background: #111111;
+        color: #ffffff;
+        border: solid #444444;
     }
     """
 
@@ -462,13 +532,11 @@ class EquitrTUI(App):
         self.available_models: Dict[str, List[str]] = self.get_available_models()
         self.active_agent_names: List[str] = []
 
-        # Set initial status
-        self.status_bar.mode = mode
-        self.status_bar.stage = "ready"
+        # Do not set status labels here; wait until after mount
 
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
-        yield Header()
+        yield Header(show_clock=True)
         yield self.status_bar
 
         with Horizontal():
@@ -488,6 +556,8 @@ class EquitrTUI(App):
                     yield Button("Cancel", variant="warning", id="btn-model-cancel")
 
             yield self.agents_sidebar
+
+        yield Footer()
 
     async def on_mount(self):
         """Initialize TUI after mounting."""
@@ -510,6 +580,10 @@ class EquitrTUI(App):
             self.status_bar.models = "Supervisor + Workers"
             self.status_bar.agent_count = 3
             self.status_bar.profiles = ", ".join(self.selected_profiles or ["default"]) or "default"
+
+        # Now it is safe to set initial status labels
+        self.status_bar.mode = self.mode
+        self.status_bar.stage = "ready"
 
         # Set up callbacks
         self.coder.on_task_start = self.on_task_start
