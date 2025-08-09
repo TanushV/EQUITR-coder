@@ -65,6 +65,7 @@ from .programmatic import (
 
 # Tools
 from .tools.base import Tool, ToolResult
+from typing import Optional, List
 from .tools.discovery import discover_tools
 
 # Git Management
@@ -107,7 +108,9 @@ __all__ = [
 
 
 def create_single_agent(
-    max_cost: float = None, max_iterations: int = None, tools: list = None
+    max_cost: Optional[float] = None,
+    max_iterations: Optional[int] = None,
+    tools: Optional[List[Tool]] = None,
 ) -> BaseAgent:
     """
     Convenience function to create a single agent with common settings.
@@ -137,8 +140,8 @@ def create_single_agent(
 async def run_task_single_agent(
     task_description: str,
     agent_model: str = "moonshot/kimi-k2-0711-preview",
-    max_cost: float = None,
-    max_iterations: int = None,
+    max_cost: Optional[float] = None,
+    max_iterations: Optional[int] = None,
 ):
     """
     Convenience function to run a single agent task using clean architecture.
@@ -165,7 +168,7 @@ async def run_task_multi_agent(
     task_description: str,
     num_agents: int = 2,
     agent_model: str = "moonshot/kimi-k2-0711-preview",
-    max_cost_per_agent: float = None,
+    max_cost_per_agent: Optional[float] = None,
 ):
     """
     Convenience function to run a multi-agent task using clean architecture.

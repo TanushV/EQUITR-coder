@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import pathspec
 
@@ -11,7 +11,7 @@ from ..core.unified_config import get_config
 class RepositoryIndexer:
     """Indexes repository files and provides context for the LLM."""
 
-    def __init__(self, repo_path: str = ".", ignore_patterns: List[str] = None):
+    def __init__(self, repo_path: str = ".", ignore_patterns: Optional[List[str]] = None):
         self.repo_path = Path(repo_path).resolve()
         self.ignore_patterns = ignore_patterns or []
         self.analyzer = RepositoryAnalyzer(repo_path)
@@ -45,9 +45,9 @@ class RepositoryIndexer:
         rel_path = path.relative_to(self.repo_path)
         return self.spec.match_file(str(rel_path))
 
-    def get_file_tree(self) -> Dict:
+    def get_file_tree(self) -> Dict[str, Any]:
         """Generate a file tree structure."""
-        tree = {}
+        tree: Dict[str, Any] = {}
 
         for root, dirs, files in os.walk(self.repo_path):
             root_path = Path(root)
@@ -106,7 +106,7 @@ class RepositoryIndexer:
             "jsconfig.json",
         ]
 
-        important_files = []
+        important_files: List[str] = []
 
         for pattern in important_patterns:
             for file_path in self.repo_path.glob(pattern):
@@ -116,9 +116,9 @@ class RepositoryIndexer:
 
         return sorted(important_files)
 
-    def get_file_summary(self, max_files: int = 50) -> List[Dict]:
+    def get_file_summary(self, max_files: int = 50) -> List[Dict[str, Any]]:
         """Get a summary of files in the repository."""
-        files_info = []
+        files_info: List[Dict[str, Any]] = []
         count = 0
 
         for root, dirs, files in os.walk(self.repo_path):
@@ -245,7 +245,7 @@ class RepositoryIndexer:
         except (OSError, PermissionError):
             return False
 
-    async def get_context(self, query: str = None) -> str:
+    async def get_context(self, query: Optional[str] = None) -> str:
         """Get repository context for the given query."""
         return await self.get_repository_context()
 
@@ -261,7 +261,7 @@ class RepositoryIndexer:
         self.get_file_summary()
 
         # Build context string
-        context_parts = []
+        context_parts: List[str] = []
 
         # Project overview
         context_parts.append("# Repository Analysis")
@@ -311,13 +311,13 @@ class RepositoryIndexer:
         return "\n".join(context_parts)
 
     def _format_tree(
-        self, tree: Dict, prefix: str = "", max_depth: int = 3, current_depth: int = 0
+        self, tree: Dict[str, Any], prefix: str = "", max_depth: int = 3, current_depth: int = 0
     ) -> str:
         """Format file tree as a string with limited depth."""
         if current_depth >= max_depth:
             return ""
 
-        lines = []
+        lines: List[str] = []
         items = sorted(tree.items())
 
         for i, (name, subtree) in enumerate(items):

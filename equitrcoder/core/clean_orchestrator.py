@@ -57,12 +57,12 @@ class CleanOrchestrator:
     ) -> Dict[str, Any]:
         """Creates requirements, design, and a structured todo plan."""
         try:
-            project_path = Path(project_path)
+            project_root = Path(project_path)
             if not task_name:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 task_name = f"task_{timestamp}"
             
-            docs_dir = project_path / "docs" / task_name
+            docs_dir = project_root / "docs" / task_name
             docs_dir.mkdir(parents=True, exist_ok=True)
             print(f"📁 Creating documentation in: {docs_dir}")
             

@@ -33,8 +33,11 @@ class Task(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     def update_status(
-        self, new_status: str, result: Optional[str] = None, error: Optional[str] = None
-    ):
+        self,
+        new_status: Literal["todo", "in_progress", "done", "failed"],
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> None:
         """Update task status and timestamps."""
         self.status = new_status
         self.updated_at = datetime.now()
@@ -85,7 +88,7 @@ class TaskList(BaseModel):
     def update_task_status(
         self,
         task_id: str,
-        status: str,
+        status: Literal["todo", "in_progress", "done", "failed"],
         result: Optional[str] = None,
         error: Optional[str] = None,
     ) -> bool:

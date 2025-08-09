@@ -6,9 +6,10 @@ consistent patterns across similar functionality.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TypeVar, Generic
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, TypeVar, Generic, Callable, Awaitable
+from dataclasses import dataclass, field
 from enum import Enum
+import inspect
 
 T = TypeVar('T')
 
@@ -28,7 +29,7 @@ class Result(Generic[T]):
     success: bool
     data: Optional[T] = None
     error: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         if self.metadata is None:
@@ -44,8 +45,8 @@ class IGenerator(ABC, Generic[T]):
         pass
     
     @abstractmethod
-    async def generate_interactive(self, *args, **kwargs) -> T:
-        """Generate content through interactive process"""
+    async def generate_interactive(self, *args, **kwargs) -> Any:
+        """Generate content through interactive process (return type may vary by implementation)"""
         pass
 
 
@@ -210,12 +211,12 @@ class IEventEmitter(ABC):
         pass
     
     @abstractmethod
-    def on(self, event: str, handler: callable) -> None:
+    def on(self, event: str, handler: Callable[..., Any]) -> None:
         """Register event handler"""
         pass
     
     @abstractmethod
-    def off(self, event: str, handler: callable) -> None:
+    def off(self, event: str, handler: Callable[..., Any]) -> None:
         """Unregister event handler"""
         pass
 
@@ -248,7 +249,7 @@ class IFactory(ABC, Generic[T]):
         pass
     
     @abstractmethod
-    def register(self, type_name: str, creator: callable) -> None:
+    def register(self, type_name: str, creator: Callable[..., T]) -> None:
         """Register a creator function for a type"""
         pass
     
@@ -351,18 +352,20 @@ class BaseValidator(IValidator[T]):
     """Base validator with common validation patterns"""
     
     def __init__(self):
-        self.rules: List[callable] = []
+        self.rules: List[Callable[[Any], bool]] = []
     
     def validate(self, item: T) -> Result[bool]:
         """Validate item against all rules"""
-        errors = []
+        errors: List[str] = []
         
         for rule in self.rules:
             try:
                 if not rule(item):
-                    errors.append(f"Validation rule failed: {rule.__name__}")
+                    rule_name = getattr(rule, "__name__", repr(rule))
+                    errors.append(f"Validation rule failed: {rule_name}")
             except Exception as e:
-                errors.append(f"Validation error in {rule.__name__}: {str(e)}")
+                rule_name = getattr(rule, "__name__", repr(rule))
+                errors.append(f"Validation error in {rule_name}: {str(e)}")
         
         if errors:
             return Result(success=False, error="; ".join(errors))
@@ -371,9 +374,9 @@ class BaseValidator(IValidator[T]):
     
     def get_validation_rules(self) -> List[str]:
         """Get list of validation rule names"""
-        return [rule.__name__ for rule in self.rules]
+        return [getattr(rule, "__name__", repr(rule)) for rule in self.rules]
     
-    def add_rule(self, rule: callable) -> None:
+    def add_rule(self, rule: Callable[[Any], bool]) -> None:
         """Add a validation rule"""
         self.rules.append(rule)
 
@@ -382,12 +385,12 @@ class BaseProcessor(IProcessor[T]):
     """Base processor with common processing patterns"""
     
     def __init__(self):
-        self.processors: List[callable] = []
+        self.processors: List[Callable[[Any], Any]] = []
     
     async def process(self, input_data: T) -> Result[T]:
         """Process data through all processors"""
         try:
-            result = input_data
+            result: Any = input_data
             for processor in self.processors:
                 result = await self._apply_processor(processor, result)
             return Result(success=True, data=result)
@@ -398,18 +401,18 @@ class BaseProcessor(IProcessor[T]):
         """Check if this processor can handle the input"""
         return True  # Override in subclasses
     
-    def add_processor(self, processor: callable) -> None:
+    def add_processor(self, processor: Callable[[Any], Any]) -> None:
         """Add a processing step"""
         self.processors.append(processor)
     
-    async def _apply_processor(self, processor: callable, data: T) -> T:
+    async def _apply_processor(self, processor: Callable[[Any], Any], data: T) -> T:
         """Apply a single processor"""
-        if hasattr(processor, '__call__'):
-            if hasattr(processor, '__await__'):
-                return await processor(data)
-            else:
-                return processor(data)
-        return data
+        result = processor(data)
+        if inspect.isawaitable(result):
+            from typing import cast
+            return cast(T, await result)
+        from typing import cast
+        return cast(T, result)
 
 
 class BaseConfigurable(IConfigurable):

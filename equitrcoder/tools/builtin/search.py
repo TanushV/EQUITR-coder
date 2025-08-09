@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Any, Type
 
 from ddgs import DDGS
 from pydantic import BaseModel, Field
@@ -25,7 +25,7 @@ class WebSearch(Tool):
 
     async def run(self, **kwargs) -> ToolResult:
         try:
-            args = self.validate_args(kwargs)
+            args: Any = self.validate_args(kwargs)
 
             with DDGS() as ddgs:
                 results = list(

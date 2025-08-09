@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from . import communication
-from . import fs
-from . import git
-from . import git_auto
-from . import search
-from . import shell
-from . import todo
+# Avoid eager importing of submodules that may have optional dependencies.
+# Submodules can be imported directly, e.g.,
+#   from equitrcoder.tools.builtin.grep_search import GrepSearch
 
 __all__ = [
     "communication",

@@ -7,8 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..providers.litellm import LiteLLMProvider
-from ..providers.openrouter import Message
+from ..providers.litellm import LiteLLMProvider, Message
 from .unified_config import get_config
 
 
@@ -118,7 +117,7 @@ Ask your first clarifying question.""".format(
         except Exception as e:
             return f"Error getting AI response: {str(e)}. Please provide your input."
 
-    async def generate_planning_documents(self) -> Dict[str, str]:
+    async def generate_planning_documents(self) -> Dict[str, Any]:
         """Generate requirements, design docs, and todo list from conversation"""
         if not self.conversation_complete():
             return {}

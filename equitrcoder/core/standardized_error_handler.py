@@ -264,8 +264,8 @@ class StandardizedErrorHandler:
             total_errors = len(self._error_history)
             
             # Category breakdown
-            category_counts = {}
-            severity_counts = {}
+            category_counts: Dict[str, int] = {}
+            severity_counts: Dict[str, int] = {}
             
             for error in self._error_history:
                 category_counts[error.category.value] = category_counts.get(error.category.value, 0) + 1

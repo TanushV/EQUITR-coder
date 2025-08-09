@@ -24,7 +24,7 @@ class CleanAgent:
         agent_id: str,
         model: str,
         tools: List[Tool],
-        context: Dict[str, Any] = None,
+        context: Optional[Dict[str, Any]] = None,
         session_manager: Optional[SessionManagerV2] = None,
         max_cost: Optional[float] = None,
         max_iterations: Optional[int] = None,
@@ -47,8 +47,8 @@ class CleanAgent:
         # Runtime state
         self.provider = LiteLLMProvider(model=model)
         self.audit_provider = (
-            LiteLLMProvider(model=audit_model)
-            if audit_model != model
+            LiteLLMProvider(model=audit_model or model)
+            if (audit_model and audit_model != model)
             else self.provider
         )
         self.messages: List[Dict[str, Any]] = []
@@ -408,7 +408,7 @@ class CleanAgent:
         
         return compressed_context
 
-    def add_message(self, role: str, content: str, metadata: Dict[str, Any] = None):
+    def add_message(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a message to the conversation history."""
         message = {
             "role": role,
@@ -874,12 +874,14 @@ class CleanAgent:
             max_iter = 20
             for _ in range(max_iter):
                 resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [
-                    {"name": "audit_results", "description": "Final audit verdict"}
+                    {"type": "function", "function": {"name": "audit_results", "description": "Final audit verdict", "parameters": {"type": "object"}}}
                 ])
-                if resp.tool:
-                    tool_name = resp.tool.name
+                if resp.tool_calls:
+                    # Expecting at most one tool call per iteration
+                    tc = resp.tool_calls[0]
+                    tool_name = tc.function.get("name", "")
                     if tool_name == "audit_results":
-                        payload = resp.tool.arguments or {}
+                        payload = json.loads(tc.function.get("arguments", "{}"))
                         audit_passed = payload.get("passed", False)
                         _ = payload.get("reasons", "")
                         extra_tasks = payload.get("additional_tasks", [])
@@ -897,7 +899,8 @@ class CleanAgent:
                         }
                     # execute read tool
                     if tool_name in self.tools:
-                        result = await self.tools[tool_name].run(**resp.tool.arguments)
+                        tool_args = json.loads(tc.function.get("arguments", "{}"))
+                        result = await self.tools[tool_name].run(**tool_args)
                         messages.append(Message(role="tool", name=tool_name, content=result.json()))
                         continue
                 # non-tool message

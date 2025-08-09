@@ -8,7 +8,7 @@ important information.
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from ..providers.openrouter import Message  # shared pydantic model
 from .context_manager import ContextManager
@@ -18,7 +18,7 @@ from .unified_config import get_config
 class ContextCompressor:
     """Compresses long message histories into a single summary message."""
 
-    def __init__(self, provider, max_summary_tokens: int = None):
+    def __init__(self, provider, max_summary_tokens: Optional[int] = None):
         self.provider = provider
         #   We reuse token-counting logic from ContextManager just for convenience
         context_max_tokens = get_config('limits.context_max_tokens', 100000)

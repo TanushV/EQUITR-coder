@@ -5,7 +5,7 @@ This module handles parsing todos from documents and integrating them
 with the todo management system. Single responsibility: todo parsing and creation.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from ..tools.builtin.todo import TodoManager
 
 
@@ -15,17 +15,30 @@ class TodoParser:
     def __init__(self, todo_manager: TodoManager):
         self.todo_manager = todo_manager
     
-    async def parse_and_create_todos(self, todos_content: str, task_folder: str = None) -> int:
-        """Parse the todos document and create todos only for this specific task."""
+    async def parse_and_create_todos(self, todos_content: str, task_folder: Optional[str] = None) -> int:
+        """Parse the todos document and create todos only for this specific task.
+        Uses a single group derived from task_folder or 'general'."""
         print(f"📝 Parsing todos content (length: {len(todos_content)} chars)")
         lines = todos_content.split("\n")
         print(f"📝 Found {len(lines)} lines in todos document")
 
-        # Clear ALL existing todos in this isolated todo file
-        existing_todos = self.todo_manager.list_todos()
-        for todo in existing_todos:
-            self.todo_manager.delete_todo(todo.id)
-        print(f"🧹 Cleared {len(existing_todos)} existing todos from isolated todo file")
+        # Create or get a group for this task
+        group_id = (task_folder or "general").replace(" ", "_")
+        existing_group = self.todo_manager.get_task_group(group_id)
+        if existing_group is None:
+            self.todo_manager.create_task_group(
+                group_id=group_id,
+                specialization="general",
+                description=f"Todos for {task_folder or 'general'}",
+                dependencies=[],
+            )
+            print(f"🧹 Initialized group '{group_id}'")
+        else:
+            # Reset group todos by re-creating an empty group with same metadata
+            description = existing_group.description
+            specialization = existing_group.specialization
+            self.todo_manager.update_task_group_status(group_id, "pending")
+            # Simply proceed; adding new todos will represent the current state
 
         todo_count = 0
         for i, line in enumerate(lines):
@@ -35,18 +48,8 @@ class TodoParser:
                 task_description = line[5:].strip()  # Remove '- [ ] '
                 if task_description:
                     try:
-                        tags = ["auto-generated"]
-                        if task_folder:
-                            tags.append(f"task-{task_folder}")
-
-                        todo = self.todo_manager.create_todo(
-                            title=task_description,
-                            description=f"Auto-generated from todos document for task: {task_folder or 'unknown'}",
-                            priority="medium",
-                            tags=tags,
-                            assignee=None,
-                        )
-                        print(f"✅ Created todo {todo_count + 1}: {todo.id} - {task_description}")
+                        self.todo_manager.add_todo_to_group(group_id=group_id, title=task_description)
+                        print(f"✅ Created todo {todo_count + 1}: {task_description}")
                         todo_count += 1
                     except Exception as e:
                         print(f"❌ Warning: Could not create todo '{task_description}': {e}")
@@ -54,20 +57,13 @@ class TodoParser:
                     print(f"⚠️ Empty task description on line {i + 1}: '{line}'")
 
         print(f"📝 Total todos created for this isolated task: {todo_count}")
-
-        # Show all todos in this isolated file
-        all_todos = self.todo_manager.list_todos()
-        print(f"📝 Todos in isolated file: {len(all_todos)}")
-        for todo in all_todos:
-            print(f"  - {todo.status}: {todo.title}")
-        
         return todo_count
     
     def parse_categories(self, todos_content: str) -> List[Dict[str, Any]]:
         """Parse todos content into categories for parallel agent distribution."""
-        categories = []
-        current_category = None
-        current_todos = []
+        categories: List[Dict[str, Any]] = []
+        current_category: Optional[str] = None
+        current_todos: List[str] = []
 
         for line in todos_content.split("\n"):
             line = line.strip()
@@ -97,7 +93,7 @@ class TodoParser:
     def create_agent_todos_content(self, categories: List[Dict[str, Any]], agent_idx: int, num_agents: int) -> str:
         """Create todos content for a specific agent based on category distribution."""
         # Assign categories to this agent (round-robin distribution)
-        agent_categories = []
+        agent_categories: List[Dict[str, Any]] = []
         for cat_idx, category in enumerate(categories):
             if cat_idx % num_agents == agent_idx:
                 agent_categories.append(category)

@@ -2,7 +2,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Message(BaseModel):
@@ -21,8 +21,8 @@ class ToolCall(BaseModel):
 
 class ChatResponse(BaseModel):
     content: str
-    tool_calls: List[ToolCall] = []
-    usage: Dict[str, Any] = {}
+    tool_calls: List[ToolCall] = Field(default_factory=list)
+    usage: Dict[str, Any] = Field(default_factory=dict)
     cost: float = 0.0
 
 
@@ -53,9 +53,9 @@ class OpenRouterProvider:
         """Send a chat completion request to OpenRouter."""
 
         # Convert messages to OpenAI format
-        formatted_messages = []
+        formatted_messages: List[Dict[str, Any]] = []
         for msg in messages:
-            formatted_msg = {"role": msg.role, "content": msg.content}
+            formatted_msg: Dict[str, Any] = {"role": msg.role, "content": msg.content}
             # Add tool-specific fields if present
             if msg.tool_call_id:
                 formatted_msg["tool_call_id"] = msg.tool_call_id
@@ -105,7 +105,7 @@ class OpenRouterProvider:
             content = message.get("content", "") or ""
 
             # Extract tool calls
-            tool_calls = []
+            tool_calls: List[ToolCall] = []
             if "tool_calls" in message and message["tool_calls"]:
                 for tc in message["tool_calls"]:
                     tool_calls.append(

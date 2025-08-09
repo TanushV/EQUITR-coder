@@ -8,7 +8,9 @@ try:
     __all__ = ["start_server"]
 except ImportError:
     # FastAPI not available
-    def start_server(*args, **kwargs):
+    from typing import Any
+
+    def start_server(host: str = "localhost", port: int = 8000) -> Any:
         raise ImportError(
             "API server requires FastAPI. Install with: pip install equitrcoder[api]"
         )

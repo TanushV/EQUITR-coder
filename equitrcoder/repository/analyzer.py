@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
 
 class RepositoryAnalyzer:
@@ -10,9 +10,9 @@ class RepositoryAnalyzer:
     def __init__(self, repo_path: str = "."):
         self.repo_path = Path(repo_path).resolve()
 
-    def analyze(self) -> Dict[str, any]:
+    def analyze(self) -> Dict[str, Any]:
         """Perform comprehensive repository analysis."""
-        analysis = {
+        analysis: Dict[str, Any] = {
             "languages": self._detect_languages(),
             "frameworks": self._detect_frameworks(),
             "project_type": self._determine_project_type(),
@@ -26,7 +26,7 @@ class RepositoryAnalyzer:
 
     def _detect_languages(self) -> Dict[str, int]:
         """Detect programming languages by file extensions."""
-        language_map = {
+        language_map: Dict[str, str] = {
             ".py": "Python",
             ".js": "JavaScript",
             ".ts": "TypeScript",
@@ -70,7 +70,7 @@ class RepositoryAnalyzer:
             ".jl": "Julia",
         }
 
-        language_counts = {}
+        language_counts: Dict[str, int] = {}
 
         for file_path in self.repo_path.rglob("*"):
             if file_path.is_file():
@@ -83,10 +83,10 @@ class RepositoryAnalyzer:
 
     def _detect_frameworks(self) -> List[str]:
         """Detect frameworks and libraries."""
-        frameworks = set()
+        frameworks: Set[str] = set()
 
         # Check for package files
-        package_indicators = {
+        package_indicators: Dict[str, Any] = {
             "package.json": self._analyze_package_json,
             "requirements.txt": self._analyze_requirements_txt,
             "Pipfile": self._analyze_pipfile,
@@ -106,7 +106,7 @@ class RepositoryAnalyzer:
                 frameworks.update(detected)
 
         # Check for config files that indicate frameworks
-        config_indicators = {
+        config_indicators: Dict[str, str] = {
             "next.config.js": "Next.js",
             "nuxt.config.js": "Nuxt.js",
             "vue.config.js": "Vue.js",
@@ -131,7 +131,7 @@ class RepositoryAnalyzer:
 
     def _analyze_package_json(self, file_path: Path) -> Set[str]:
         """Analyze package.json for frameworks."""
-        frameworks = set()
+        frameworks: Set[str] = set()
 
         try:
             with open(file_path) as f:
@@ -139,9 +139,9 @@ class RepositoryAnalyzer:
 
             dependencies = data.get("dependencies", {})
             dev_dependencies = data.get("devDependencies", {})
-            all_deps = {**dependencies, **dev_dependencies}
+            all_deps: Dict[str, Any] = {**dependencies, **dev_dependencies}
 
-            framework_indicators = {
+            framework_indicators: Dict[str, str] = {
                 "react": "React",
                 "vue": "Vue.js",
                 "angular": "Angular",
@@ -178,13 +178,13 @@ class RepositoryAnalyzer:
 
     def _analyze_requirements_txt(self, file_path: Path) -> Set[str]:
         """Analyze requirements.txt for Python frameworks."""
-        frameworks = set()
+        frameworks: Set[str] = set()
 
         try:
             with open(file_path) as f:
                 content = f.read().lower()
 
-            framework_indicators = {
+            framework_indicators: Dict[str, str] = {
                 "django": "Django",
                 "flask": "Flask",
                 "fastapi": "FastAPI",
@@ -230,7 +230,7 @@ class RepositoryAnalyzer:
 
     def _analyze_pyproject_toml(self, file_path: Path) -> Set[str]:
         """Analyze pyproject.toml for Python frameworks."""
-        frameworks = set()
+        frameworks: Set[str] = set()
 
         try:
             with open(file_path) as f:
@@ -250,7 +250,7 @@ class RepositoryAnalyzer:
 
     def _analyze_cargo_toml(self, file_path: Path) -> Set[str]:
         """Analyze Cargo.toml for Rust frameworks."""
-        frameworks = {"Rust"}
+        frameworks: Set[str] = {"Rust"}
 
         try:
             with open(file_path) as f:
@@ -272,7 +272,7 @@ class RepositoryAnalyzer:
 
     def _analyze_go_mod(self, file_path: Path) -> Set[str]:
         """Analyze go.mod for Go frameworks."""
-        frameworks = {"Go"}
+        frameworks: Set[str] = {"Go"}
 
         try:
             with open(file_path) as f:
@@ -292,7 +292,7 @@ class RepositoryAnalyzer:
 
     def _analyze_pom_xml(self, file_path: Path) -> Set[str]:
         """Analyze pom.xml for Java frameworks."""
-        frameworks = {"Maven", "Java"}
+        frameworks: Set[str] = {"Maven", "Java"}
 
         try:
             with open(file_path) as f:
@@ -312,18 +312,18 @@ class RepositoryAnalyzer:
 
     def _analyze_gradle(self, file_path: Path) -> Set[str]:
         """Analyze build.gradle for Java/Android frameworks."""
-        frameworks = {"Gradle"}
+        frameworks: Set[str] = {"Gradle"}
         return frameworks
 
     def _analyze_composer_json(self, file_path: Path) -> Set[str]:
         """Analyze composer.json for PHP frameworks."""
-        frameworks = {"Composer", "PHP"}
+        frameworks: Set[str] = {"Composer", "PHP"}
 
         try:
             with open(file_path) as f:
                 data = json.load(f)
 
-            dependencies = data.get("require", {})
+            dependencies: Dict[str, Any] = data.get("require", {})
 
             if "laravel/framework" in dependencies:
                 frameworks.add("Laravel")
@@ -337,7 +337,7 @@ class RepositoryAnalyzer:
 
     def _analyze_gemfile(self, file_path: Path) -> Set[str]:
         """Analyze Gemfile for Ruby frameworks."""
-        frameworks = {"Ruby", "Bundler"}
+        frameworks: Set[str] = {"Ruby", "Bundler"}
 
         try:
             with open(file_path) as f:
@@ -382,16 +382,16 @@ class RepositoryAnalyzer:
         else:
             return "Unknown"
 
-    def _analyze_structure(self) -> Dict[str, any]:
+    def _analyze_structure(self) -> Dict[str, Any]:
         """Analyze repository structure."""
-        structure = {
+        structure: Dict[str, Any] = {
             "total_files": 0,
             "total_directories": 0,
             "max_depth": 0,
             "common_directories": [],
         }
 
-        common_dirs = set()
+        common_dirs: Set[str] = set()
         max_depth = 0
 
         for root, dirs, files in os.walk(self.repo_path):
@@ -412,10 +412,10 @@ class RepositoryAnalyzer:
 
     def _analyze_dependencies(self) -> Dict[str, List[str]]:
         """Analyze project dependencies."""
-        dependencies = {}
+        dependencies: Dict[str, List[str]] = {}
 
         # Package managers and their files
-        dep_files = {
+        dep_files: Dict[str, str] = {
             "npm": "package.json",
             "pip": "requirements.txt",
             "poetry": "pyproject.toml",
@@ -450,7 +450,7 @@ class RepositoryAnalyzer:
             ".env*",
         ]
 
-        config_files = []
+        config_files: List[str] = []
 
         for pattern in config_patterns:
             for file_path in self.repo_path.glob(pattern):
@@ -461,7 +461,7 @@ class RepositoryAnalyzer:
 
     def _find_entry_points(self) -> List[str]:
         """Find likely entry points for the application."""
-        entry_points = []
+        entry_points: List[str] = []
 
         common_entry_files = [
             "main.py",

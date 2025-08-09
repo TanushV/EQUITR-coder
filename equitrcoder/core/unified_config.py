@@ -73,7 +73,7 @@ class UnifiedConfigManager(IConfigurable):
     and provides a single point of access with caching and validation.
     """
     
-    _instance = None
+    _instance: Optional["UnifiedConfigManager"] = None
     _lock = threading.Lock()
     
     def __new__(cls, config_path: Optional[str] = None):
@@ -90,8 +90,8 @@ class UnifiedConfigManager(IConfigurable):
             
         self._initialized = True
         self.config_path = config_path or self._get_default_config_path()
-        self._cache = {}
-        self._cache_timestamps = {}
+        self._cache: Dict[str, Any] = {}
+        self._cache_timestamps: Dict[str, datetime] = {}
         self._cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
         self._schema = self._load_schema()
         self._config_data: Optional[ConfigurationData] = None
@@ -150,6 +150,7 @@ class UnifiedConfigManager(IConfigurable):
         """Load and return the complete configuration"""
         if self._config_data is None:
             self.reload_config()
+        assert self._config_data is not None
         return self._config_data
     
     def reload_config(self) -> None:
@@ -162,7 +163,7 @@ class UnifiedConfigManager(IConfigurable):
                 'prompts': 'system_prompt.yaml'
             }
             
-            configs = {}
+            configs: Dict[str, Any] = {}
             for name, filename in config_files.items():
                 file_path = os.path.join(self.config_path, filename)
                 if os.path.exists(file_path):
@@ -217,7 +218,7 @@ class UnifiedConfigManager(IConfigurable):
     
     def _extract_limits(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Extract limit-related configuration into a separate section"""
-        limits = {}
+        limits: Dict[str, Any] = {}
         
         # Extract from various sections
         if 'llm' in config:
@@ -268,7 +269,7 @@ class UnifiedConfigManager(IConfigurable):
     
     def _apply_env_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to configuration"""
-        env_mappings = {
+        env_mappings: Dict[str, List[str]] = {
             'EQUITR_LLM_MODEL': ['llm', 'model'],
             'EQUITR_LLM_PROVIDER': ['llm', 'provider'],
             'EQUITR_LLM_API_BASE': ['llm', 'api_base'],
@@ -287,7 +288,7 @@ class UnifiedConfigManager(IConfigurable):
             env_value = os.getenv(env_var)
             if env_value is not None:
                 # Navigate to the correct nested dictionary
-                current = config
+                current: Any = config
                 for key in config_path[:-1]:
                     if key not in current:
                         current[key] = {}
@@ -323,7 +324,7 @@ class UnifiedConfigManager(IConfigurable):
         
         # Navigate through the configuration using dot notation
         keys = key.split('.')
-        current = self._config_data.__dict__
+        current: Any = self._config_data.__dict__ if self._config_data is not None else {}
         
         try:
             for k in keys:
@@ -347,7 +348,7 @@ class UnifiedConfigManager(IConfigurable):
             self.load_config()
         
         keys = key.split('.')
-        current = self._config_data.__dict__
+        current = self._config_data.__dict__ if self._config_data is not None else {}
         
         # Navigate to the parent of the target key
         for k in keys[:-1]:
@@ -359,15 +360,15 @@ class UnifiedConfigManager(IConfigurable):
         current[keys[-1]] = value
         
         # Clear relevant cache entries
-        cache_keys_to_clear = [k for k in self._cache.keys() if k.startswith(f"get_{key}")]
+        cache_keys_to_clear = [k for k in list(self._cache.keys()) if k.startswith(f"get_{key}")]
         for cache_key in cache_keys_to_clear:
             self._cache.pop(cache_key, None)
             self._cache_timestamps.pop(cache_key, None)
     
     def validate_schema(self, config: Dict[str, Any]) -> ValidationResult:
         """Validate configuration against schema"""
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         try:
             for section_name, section_schema in self._schema.items():
@@ -436,11 +437,12 @@ class UnifiedConfigManager(IConfigurable):
         """Get cached configuration data"""
         if self._config_data is None:
             self.load_config()
+        assert self._config_data is not None
         return self._config_data
     
     def merge_configs(self, *configs: Dict[str, Any]) -> Dict[str, Any]:
         """Merge multiple configuration dictionaries"""
-        result = {}
+        result: Dict[str, Any] = {}
         
         for config in configs:
             if not config:
@@ -503,6 +505,8 @@ class UnifiedConfigManager(IConfigurable):
                 )
             
             # Apply the configuration by updating internal state
+            if self._config_data is None:
+                self._config_data = self._get_fallback_config()
             for key, value in config.items():
                 if hasattr(self._config_data, key):
                     setattr(self._config_data, key, value)
@@ -520,6 +524,7 @@ class UnifiedConfigManager(IConfigurable):
         """Get current configuration (IConfigurable interface)"""
         if self._config_data is None:
             self.load_config()
+        assert self._config_data is not None
         
         return {
             'llm': self._config_data.llm,
@@ -553,7 +558,7 @@ class UnifiedConfigManager(IConfigurable):
 
 
 # Global configuration instance
-_config_manager = None
+_config_manager: Optional[UnifiedConfigManager] = None
 
 def get_config_manager(config_path: Optional[str] = None) -> UnifiedConfigManager:
     """Get the global configuration manager instance"""

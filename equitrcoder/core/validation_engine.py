@@ -78,8 +78,8 @@ class BaseValidator(IValidator[Any]):
     
     def validate(self, item: Any) -> Result[bool]:
         """Validate an item and return result with details"""
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         for rule in self.rules:
             try:
@@ -175,8 +175,8 @@ class FileValidator(BaseValidator):
         Returns:
             ValidationResult
         """
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         if not os.path.exists(file_path):
             errors.append(f"File does not exist: {file_path}")
@@ -225,8 +225,8 @@ class ModelValidator(BaseValidator):
         Returns:
             ValidationResult
         """
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         # Check required fields
         required_fields = ['provider', 'model']
@@ -290,8 +290,8 @@ class APIValidator(BaseValidator):
         Returns:
             ValidationResult
         """
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         # Basic response validation
         if not isinstance(response, dict):
@@ -413,8 +413,8 @@ class ValidationEngine:
             )
         else:
             # Generic configuration validation
-            errors = []
-            warnings = []
+            errors: List[str] = []
+            warnings: List[str] = []
             
             # Check for common configuration issues
             if not isinstance(config, dict):
@@ -431,8 +431,8 @@ class ValidationEngine:
                 validation_type=ValidationType.SCHEMA
             )
     
-    def validate_input_parameters(self, parameters: Dict[str, Any], required_params: List[str] = None, 
-                                 param_types: Dict[str, Type] = None) -> ValidationResult:
+    def validate_input_parameters(self, parameters: Dict[str, Any], required_params: Optional[List[str]] = None, 
+                                 param_types: Optional[Dict[str, Type]] = None) -> ValidationResult:
         """
         Validate input parameters at entry points
         
@@ -444,8 +444,8 @@ class ValidationEngine:
         Returns:
             ValidationResult
         """
-        errors = []
-        warnings = []
+        errors: List[str] = []
+        warnings: List[str] = []
         
         required_params = required_params or []
         param_types = param_types or {}
@@ -492,7 +492,7 @@ class ValidationEngine:
                     return validator.validate_file_permissions(file_path, required_permissions)
         
         # Fallback validation
-        errors = []
+        errors: List[str] = []
         if not os.path.exists(file_path):
             errors.append(f"File does not exist: {file_path}")
         
@@ -522,7 +522,7 @@ class ValidationEngine:
                     return validator.validate_model_config(model_config)
         
         # Fallback validation
-        errors = []
+        errors: List[str] = []
         if 'model' not in model_config:
             errors.append("Model configuration must include 'model' field")
         
@@ -557,7 +557,7 @@ class ValidationEngine:
                     return validator.validate_api_response(response, expected_schema)
         
         # Fallback validation
-        errors = []
+        errors: List[str] = []
         if not isinstance(response, dict):
             errors.append("API response must be a dictionary")
         
@@ -652,8 +652,8 @@ def validate_config(config: Dict[str, Any], schema_name: Optional[str] = None) -
     return engine.validate_configuration(config, schema_name)
 
 
-def validate_input(parameters: Dict[str, Any], required_params: List[str] = None, 
-                  param_types: Dict[str, Type] = None) -> ValidationResult:
+def validate_input(parameters: Dict[str, Any], required_params: Optional[List[str]] = None, 
+                  param_types: Optional[Dict[str, Type]] = None) -> ValidationResult:
     """Validate input parameters using global engine"""
     engine = get_validation_engine()
     return engine.validate_input_parameters(parameters, required_params, param_types)
@@ -678,7 +678,7 @@ def validate_api_response(response: Dict[str, Any], schema_name: Optional[str] =
 
 
 # Decorator for automatic input validation
-def validate_inputs(required_params: List[str] = None, param_types: Dict[str, Type] = None):
+def validate_inputs(required_params: Optional[List[str]] = None, param_types: Optional[Dict[str, Type]] = None):
     """
     Decorator for automatic input parameter validation
     

@@ -34,7 +34,7 @@ class ContextManager:
             return messages
 
         # Always keep system prompt and first user message
-        result = []
+        result: List[Message] = []
         total_tokens = self.count_tokens(system_prompt)
 
         # Keep the last message (most recent)

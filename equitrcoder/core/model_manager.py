@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 
 from ..providers.litellm import LiteLLMProvider
 from .unified_config import get_config
+from ..providers.litellm import Message
 
 
 @dataclass
@@ -161,7 +162,7 @@ class ModelManager:
             try:
                 provider_instance = LiteLLMProvider(model=model)
                 await provider_instance.chat(
-                    messages=[{"role": "user", "content": "Test"}], 
+                    messages=[Message(role="user", content="Test")],
                     max_tokens=get_config('limits.test_max_tokens', 1)
                 )
                 availability_status = "verified"

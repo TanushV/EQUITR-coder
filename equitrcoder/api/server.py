@@ -6,23 +6,17 @@ from typing import Any, Dict, List, Optional
 
 try:
     import uvicorn
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI as _FastAPI, HTTPException as _HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-
     HAS_FASTAPI = True
-except ImportError:
+except Exception:  # pragma: no cover - import guard for mypy
     HAS_FASTAPI = False
-    FastAPI = None
-    HTTPException = None
 
 from pydantic import BaseModel
 
 from ..agents.base_agent import BaseAgent
-from ..orchestrators.multi_agent_orchestrator import (
-    MultiAgentOrchestrator,
-    WorkerConfig,
-)
-from ..orchestrators.single_orchestrator import SingleAgentOrchestrator
+# Import orchestrators lazily inside functions to avoid mypy errors when optional
+# modules are not present in minimal environments.
 from ..tools.discovery import discover_tools
 
 
@@ -47,14 +41,14 @@ class MultiTaskRequest(BaseModel):
     max_cost: Optional[float] = 10.0
 
 
-def create_app() -> FastAPI:
+def create_app() -> Any:
     """Create FastAPI application."""
     if not HAS_FASTAPI:
         raise ImportError(
             "FastAPI not available. Install with: pip install equitrcoder[api]"
         )
 
-    app = FastAPI(
+    app = _FastAPI(
         title="EQUITR Coder API",
         description="API for the EQUITR Coder multi-agent system",
         version="1.0.0",
@@ -121,6 +115,9 @@ def create_app() -> FastAPI:
             for tool in tools:
                 agent.add_tool(tool)
 
+            # Import orchestrator lazily
+            from ..orchestrators.single_orchestrator import SingleAgentOrchestrator  # type: ignore[import-not-found]
+
             # Create orchestrator
             orchestrator = SingleAgentOrchestrator(
                 agent=agent,
@@ -135,14 +132,19 @@ def create_app() -> FastAPI:
 
             return result
 
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:  # pragma: no cover - runtime error mapping
+            raise _HTTPException(status_code=500, detail=str(e))
 
     @app.post("/multi/create")
     async def create_multi_orchestrator(workers: List[WorkerRequest]):
         """Create a multi-agent orchestrator."""
         try:
             orchestrator_id = f"orchestrator_{len(orchestrators)}"
+
+            from ..orchestrators.multi_agent_orchestrator import (  # type: ignore[import-not-found]
+                MultiAgentOrchestrator,
+                WorkerConfig,
+            )
 
             orchestrator = MultiAgentOrchestrator(
                 max_concurrent_workers=len(workers),
@@ -168,20 +170,20 @@ def create_app() -> FastAPI:
                 "workers": len(workers),
             }
 
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:  # pragma: no cover - runtime error mapping
+            raise _HTTPException(status_code=500, detail=str(e))
 
     @app.post("/multi/{orchestrator_id}/execute")
     async def execute_multi_task(orchestrator_id: str, request: MultiTaskRequest):
         """Execute a multi-agent coordination task."""
         if orchestrator_id not in orchestrators:
-            raise HTTPException(status_code=404, detail="Orchestrator not found")
+            raise _HTTPException(status_code=404, detail="Orchestrator not found")
 
         try:
             orchestrator = orchestrators[orchestrator_id]
 
             # Create worker tasks
-            worker_tasks = []
+            worker_tasks: List[Dict[str, Any]] = []
             for i, worker_req in enumerate(request.workers):
                 worker_tasks.append(
                     {
@@ -199,14 +201,14 @@ def create_app() -> FastAPI:
 
             return result
 
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:  # pragma: no cover - runtime error mapping
+            raise _HTTPException(status_code=500, detail=str(e))
 
     @app.get("/multi/{orchestrator_id}/status")
     async def get_orchestrator_status(orchestrator_id: str):
         """Get orchestrator status."""
         if orchestrator_id not in orchestrators:
-            raise HTTPException(status_code=404, detail="Orchestrator not found")
+            raise _HTTPException(status_code=404, detail="Orchestrator not found")
 
         orchestrator = orchestrators[orchestrator_id]
         return orchestrator.get_orchestrator_status()
@@ -215,7 +217,7 @@ def create_app() -> FastAPI:
     async def delete_orchestrator(orchestrator_id: str):
         """Delete an orchestrator."""
         if orchestrator_id not in orchestrators:
-            raise HTTPException(status_code=404, detail="Orchestrator not found")
+            raise _HTTPException(status_code=404, detail="Orchestrator not found")
 
         orchestrator = orchestrators[orchestrator_id]
         await orchestrator.shutdown()
@@ -237,5 +239,5 @@ def start_server(host: str = "localhost", port: int = 8000):
 
     try:
         uvicorn.run(app, host=host, port=port)
-    except KeyboardInterrupt:
-        print("\n👋 Server stopped")
+    except KeyboardInterrupt:  # pragma: no cover - CLI convenience
+        print("\n Server stopped")

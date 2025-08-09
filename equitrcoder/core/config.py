@@ -153,7 +153,7 @@ class ConfigManager:
             if env_var in os.environ:
                 if section not in config_data:
                     config_data[section] = {}
-                value = os.environ[env_var]
+                value: Any = os.environ[env_var]
                 # Convert numeric values
                 if key in ["budget"]:
                     value = float(value)

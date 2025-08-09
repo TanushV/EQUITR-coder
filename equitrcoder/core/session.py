@@ -214,6 +214,7 @@ class SessionManagerV2:
         """Add a message to the current session."""
         if self.current_session is None:
             self.create_session()
+        assert self.current_session is not None
 
         self.current_session.messages.append(message)
         self.save_session(self.current_session)
@@ -306,10 +307,11 @@ class SessionManagerV2:
             self.save_session(self.current_session)
 
     # New methods for v1.1 features
-    def add_task(self, description: str, files: List[str] = None) -> str:
+    def add_task(self, description: str, files: Optional[List[str]] = None) -> str:
         """Add a task to the current session's checklist."""
         if self.current_session is None:
             self.create_session()
+        assert self.current_session is not None
 
         task_id = str(uuid.uuid4())[:8]
         now = datetime.now()
@@ -349,6 +351,7 @@ class SessionManagerV2:
         """Update the cost and token count for the current session."""
         if self.current_session is None:
             self.create_session()
+        assert self.current_session is not None
 
         self.current_session.cost += additional_cost
         self.current_session.total_tokens += additional_tokens
@@ -358,6 +361,7 @@ class SessionManagerV2:
         """Increment the iteration count for the current session."""
         if self.current_session is None:
             self.create_session()
+        assert self.current_session is not None
 
         self.current_session.iteration_count += 1
         self.save_session(self.current_session)

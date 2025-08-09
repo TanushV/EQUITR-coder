@@ -19,7 +19,7 @@ import time
 import psutil
 import threading
 import tracemalloc
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, TypedDict, cast
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import defaultdict, deque
@@ -300,7 +300,14 @@ class PerformanceProfiler:
     
     def identify_bottlenecks(self, threshold_ms: float = 1000) -> List[Dict[str, Any]]:
         """Identify performance bottlenecks"""
-        bottlenecks = []
+        class BottleneckInfo(TypedDict):
+            operation_name: str
+            avg_duration_ms: float
+            max_duration_ms: float
+            sample_count: int
+            severity: str
+
+        bottlenecks: List[BottleneckInfo] = []
         
         with self._lock:
             for operation_name, profiles in self._profiles.items():
@@ -321,7 +328,7 @@ class PerformanceProfiler:
         
         # Sort by average duration (worst first)
         bottlenecks.sort(key=lambda x: x['avg_duration_ms'], reverse=True)
-        return bottlenecks
+        return cast(List[Dict[str, Any]], bottlenecks)
     
     def _get_memory_usage(self) -> Tuple[float, float]:
         """Get current memory usage"""
@@ -369,11 +376,10 @@ class PerformanceOptimizationEngine:
                 PerformanceReporter, 
                 RegressionDetector
             )
-            
-            self.alert_manager = AlertManager(alert_thresholds)
-            self.baseline_manager = BaselineManager()
-            self.performance_reporter = PerformanceReporter()
-            self.regression_detector = RegressionDetector()
+            self.alert_manager: Optional[Any] = AlertManager(alert_thresholds)
+            self.baseline_manager: Optional[Any] = BaselineManager()
+            self.performance_reporter: Optional[Any] = PerformanceReporter()
+            self.regression_detector: Optional[Any] = RegressionDetector()
         except ImportError:
             # Fallback to integrated components if analyzer module not available
             self.alert_manager = None
@@ -403,11 +409,11 @@ class PerformanceOptimizationEngine:
             yield
             return
         
-        with self.performance_profiler.profile_operation(operation_name, custom_metrics) as profiler:
+        with self.performance_profiler.profile_operation(operation_name, custom_metrics) as profiler:  # type: ignore[union-attr]
             yield profiler
         
         # Get the latest metrics and check for alerts
-        latest_metrics = self.performance_profiler._profiles[operation_name][-1]
+        latest_metrics = self.performance_profiler._profiles[operation_name][-1]  # type: ignore[union-attr]
         self._check_alerts(latest_metrics)
         self._update_baseline(latest_metrics)
         
@@ -441,11 +447,11 @@ class PerformanceOptimizationEngine:
     def detect_regressions(self, operation_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """Detect performance regressions"""
         with self._lock:
-            if self.regression_detector and self.baseline_manager:
+            if self.regression_detector is not None and self.baseline_manager is not None:
                 # Use SRP components
-                baselines = self.baseline_manager.get_all_baselines()
+                baselines = cast(Any, self.baseline_manager).get_all_baselines()
                 recent_metrics = list(self._metrics_history)
-                srp_result = self.regression_detector.detect_regressions(baselines, recent_metrics, operation_name)
+                srp_result = cast(Any, self.regression_detector).detect_regressions(baselines, recent_metrics, operation_name)
                 # Fallback if SRP has no data or finds nothing
                 if srp_result:
                     return srp_result
@@ -457,7 +463,7 @@ class PerformanceOptimizationEngine:
     
     def get_performance_report(self) -> Dict[str, Any]:
         """Generate comprehensive performance report"""
-        report = {
+        report: Dict[str, Any] = {
             'timestamp': datetime.now().isoformat(),
             'system_info': self._get_system_info(),
             'memory_info': self._get_memory_info(),
@@ -469,7 +475,7 @@ class PerformanceOptimizationEngine:
         }
         
         # Get operation statistics
-        if self.performance_profiler:
+        if self.performance_profiler is not None:
             report['operation_stats'] = self.performance_profiler.get_all_stats()
             report['bottlenecks'] = self.performance_profiler.identify_bottlenecks()
         

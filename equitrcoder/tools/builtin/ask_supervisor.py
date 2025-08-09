@@ -69,8 +69,9 @@ class AskSupervisor(Tool):
         if args.include_repo_tree:
             try:
                 indexer = RepositoryIndexer()
-                tree = indexer.get_tree_structure()
-                context_parts.append(f"Repository Structure:\n{tree}")
+                tree = indexer.get_file_tree()
+                tree_str = indexer._format_tree(tree)  # best-effort formatting
+                context_parts.append(f"Repository Structure:\n{tree_str}")
             except Exception as e:
                 context_parts.append(f"Could not get repository structure: {e}")
         
@@ -136,7 +137,7 @@ Respond with specific, practical advice that the agent can immediately act upon.
         
         # Supervisor reasoning loop
         max_iterations = 5
-        for iteration in range(max_iterations):
+        for _ in range(max_iterations):
             try:
                 response = await self.provider.chat(
                     messages=messages,

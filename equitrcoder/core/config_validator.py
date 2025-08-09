@@ -196,7 +196,7 @@ class ConfigurationValidator(IValidator[Dict[str, Any]]):
         Returns:
             Dict[str, Any]: Comprehensive validation results
         """
-        results = {
+        results: Dict[str, Any] = {
             'overall_valid': True,
             'schema_validation': None,
             'environment_issues': [],

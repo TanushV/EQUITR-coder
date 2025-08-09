@@ -42,7 +42,7 @@ class ServiceDescriptor:
     factory: Optional[Callable] = None
     instance: Optional[Any] = None
     lifetime: ServiceLifetime = ServiceLifetime.TRANSIENT
-    dependencies: List[Type] = None
+    dependencies: Optional[List[Type]] = None
     
     def __post_init__(self):
         if self.dependencies is None:
@@ -79,7 +79,7 @@ class DependencyInjectionContainer:
         # Register the container itself
         self.register_instance(DependencyInjectionContainer, self)
     
-    def register_singleton(self, service_type: Type[T], implementation_type: Type[T] = None) -> 'DependencyInjectionContainer':
+    def register_singleton(self, service_type: Type[T], implementation_type: Optional[Type[T]] = None) -> 'DependencyInjectionContainer':
         """
         Register a service as singleton (single instance for the lifetime of the container)
         
@@ -92,7 +92,7 @@ class DependencyInjectionContainer:
         """
         return self._register_service(service_type, implementation_type, ServiceLifetime.SINGLETON)
     
-    def register_transient(self, service_type: Type[T], implementation_type: Type[T] = None) -> 'DependencyInjectionContainer':
+    def register_transient(self, service_type: Type[T], implementation_type: Optional[Type[T]] = None) -> 'DependencyInjectionContainer':
         """
         Register a service as transient (new instance every time)
         
@@ -105,7 +105,7 @@ class DependencyInjectionContainer:
         """
         return self._register_service(service_type, implementation_type, ServiceLifetime.TRANSIENT)
     
-    def register_scoped(self, service_type: Type[T], implementation_type: Type[T] = None) -> 'DependencyInjectionContainer':
+    def register_scoped(self, service_type: Type[T], implementation_type: Optional[Type[T]] = None) -> 'DependencyInjectionContainer':
         """
         Register a service as scoped (single instance per scope)
         
@@ -235,7 +235,7 @@ class DependencyInjectionContainer:
             self._scoped_instances.clear()
             logger.debug("Cleared scoped instances")
     
-    def _register_service(self, service_type: Type[T], implementation_type: Type[T], 
+    def _register_service(self, service_type: Type[T], implementation_type: Optional[Type[T]], 
                          lifetime: ServiceLifetime) -> 'DependencyInjectionContainer':
         """Internal method to register a service"""
         if implementation_type is None:
@@ -305,7 +305,7 @@ class DependencyInjectionContainer:
         if descriptor.implementation_type:
             # Resolve constructor dependencies
             constructor_args = []
-            for dep_type in descriptor.dependencies:
+            for dep_type in (descriptor.dependencies or []):
                 dep_instance = self._resolve_service(dep_type)
                 constructor_args.append(dep_instance)
             
@@ -475,12 +475,12 @@ def reset_container() -> None:
 
 
 # Convenience functions
-def register_singleton(service_type: Type[T], implementation_type: Type[T] = None) -> DependencyInjectionContainer:
+def register_singleton(service_type: Type[T], implementation_type: Optional[Type[T]] = None) -> DependencyInjectionContainer:
     """Register a singleton service in the global container"""
     return get_container().register_singleton(service_type, implementation_type)
 
 
-def register_transient(service_type: Type[T], implementation_type: Type[T] = None) -> DependencyInjectionContainer:
+def register_transient(service_type: Type[T], implementation_type: Optional[Type[T]] = None) -> DependencyInjectionContainer:
     """Register a transient service in the global container"""
     return get_container().register_transient(service_type, implementation_type)
 
