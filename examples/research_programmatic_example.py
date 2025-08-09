@@ -15,8 +15,8 @@ async def main():
         description=TASK_NAME,
         max_workers=3,
         max_cost=12.0,
-        supervisor_model="moonshot/kimi-k2-0711-preview",
-        worker_model="moonshot/kimi-k2-0711-preview",
+        supervisor_model="gpt-5",
+        worker_model="gpt-5-mini",
         team=["ml_researcher", "data_engineer", "experiment_runner"],
         research_context={
             "datasets": [

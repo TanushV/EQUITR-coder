@@ -35,8 +35,6 @@ class TodoParser:
             print(f"🧹 Initialized group '{group_id}'")
         else:
             # Reset group todos by re-creating an empty group with same metadata
-            description = existing_group.description
-            specialization = existing_group.specialization
             self.todo_manager.update_task_group_status(group_id, "pending")
             # Simply proceed; adding new todos will represent the current state
 

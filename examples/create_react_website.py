@@ -47,7 +47,7 @@ async def main() -> None:
         description=TASK_NAME,
         max_cost=get_config("limits.max_cost", 8.0),
         max_iterations=get_config("limits.max_iterations", 40),
-        model=get_config("llm.model", "moonshot/kimi-k2-0711-preview"),
+        model=get_config("llm.model", "gpt-5-mini"),
         auto_commit=True,
     )
 

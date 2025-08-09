@@ -35,8 +35,8 @@ TASK_DESCRIPTION = (
 
 NUM_AGENTS = get_config('limits.max_workers', 5)
 MAX_COST_USD = get_config('limits.max_cost', 30.0)  # Increased for multiple agents
-SUPERVISOR_MODEL = get_config('orchestrator.supervisor_model', "moonshot/kimi-k2-0711-preview")
-WORKER_MODEL = get_config('orchestrator.worker_model', "moonshot/kimi-k2-0711-preview")
+SUPERVISOR_MODEL = get_config('orchestrator.supervisor_model', "gpt-5")
+WORKER_MODEL = get_config('orchestrator.worker_model', "gpt-5-mini")
 
 # Specialized team profiles for Mario game development
 TEAM_PROFILES = [

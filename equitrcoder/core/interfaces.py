@@ -6,7 +6,7 @@ consistent patterns across similar functionality.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TypeVar, Generic, Callable, Awaitable
+from typing import Any, Dict, List, Optional, TypeVar, Generic, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import inspect
