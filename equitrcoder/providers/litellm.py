@@ -45,7 +45,7 @@ class LiteLLMProvider:
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         temperature: float = 0.1,
-        max_tokens: int = 4000,
+        max_tokens: Optional[int] = None,
         **kwargs,
     ):
         """Initialize LiteLLM provider.
@@ -226,7 +226,15 @@ class LiteLLMProvider:
                 "model": self.model,
                 "messages": formatted_messages,
                 "temperature": temperature or self.temperature,
-                "max_tokens": max_tokens or self.max_tokens,
+                # Token parameter handling: avoid sending unsupported keys by default
+                # Only include token limits when explicitly requested
+                requested_tokens = max_tokens if max_tokens is not None else self.max_tokens
+                if requested_tokens is not None:
+                    # Some newer models require 'max_completion_tokens' instead of 'max_tokens'
+                    if self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1"):
+                        params["max_completion_tokens"] = requested_tokens
+                    else:
+                        params["max_tokens"] = requested_tokens
                 **self.provider_kwargs,
                 **kwargs,
             }
