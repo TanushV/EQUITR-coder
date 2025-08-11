@@ -81,6 +81,8 @@ async def main() -> None:
     project_dir.mkdir(parents=True, exist_ok=True)
 
     configure_logging(project_dir / "logs")
+    # Ensure all tools run inside the project directory
+    os.chdir(str(project_dir))
 
     coder = EquitrCoder(repo_path=str(project_dir), git_enabled=True, mode="multi")
 

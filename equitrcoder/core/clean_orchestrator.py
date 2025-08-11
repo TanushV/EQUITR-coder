@@ -131,8 +131,13 @@ class CleanOrchestrator:
             team_details = []
             for profile_name in team:
                 try:
-                    profile = self.profile_manager.get_profile(profile_name)
-                    team_details.append(f"- Profile: {profile_name}\n  Name: {profile['name']}\n  Description: {profile['description']}")
+                    if profile_name == 'default':
+                        # Render default agent from default config
+                        default_cfg = self.profile_manager.get_default_agent_config()
+                        team_details.append(f"- Profile: default\n  Name: {default_cfg['name']}\n  Description: {default_cfg['description']}")
+                    else:
+                        profile = self.profile_manager.get_profile(profile_name)
+                        team_details.append(f"- Profile: {profile_name}\n  Name: {profile['name']}\n  Description: {profile['description']}")
                 except ValueError:
                     # Silently ignore if a profile is not found, or handle as an error
                     print(f"Warning: Profile '{profile_name}' not found and will be ignored.")
@@ -141,6 +146,9 @@ class CleanOrchestrator:
                 team_prompt_injection = (
                     "You must delegate tasks to the following team of specialists. Assign each Task Group to the most appropriate specialist by setting the `specialization` field to their profile name (e.g., `backend_dev`).\n\n"
                     "Available Team:\n" + "\n".join(team_details) + "\n\n"
+                    "Assignment policy:\n"
+                    "- Prefer assigning each Task Group to the most relevant specialist.\n"
+                    "- Use 'default' only when no clear specialist applies. Do NOT over-assign to 'default'.\n\n"
                 )
 
         # STAGE 1: Create Task Groups

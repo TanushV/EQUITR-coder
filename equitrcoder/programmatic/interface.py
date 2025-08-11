@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from ..core.config import config_manager
 from ..modes.single_agent_mode import run_single_agent_mode
-from ..modes.multi_agent_mode import run_multi_agent_parallel
+from ..modes.multi_agent_mode import run_multi_agent_parallel, run_multi_agent_sequential
 from ..modes.researcher_mode import run_researcher_mode
 from ..utils.git_manager import GitManager
 from ..core.session import SessionManagerV2
@@ -35,6 +35,7 @@ class MultiAgentTaskConfiguration:
     worker_model: Optional[str] = None
     auto_commit: bool = True
     team: Optional[List[str]] = None
+    run_parallel: bool = True
 
 
 @dataclass
@@ -202,7 +203,12 @@ class EquitrCoder:
 
             elif isinstance(config, MultiAgentTaskConfiguration):
                 supervisor_model = config.supervisor_model or "gpt-4o-mini"
-                result_data = await run_multi_agent_parallel(
+                runner = run_multi_agent_parallel if config.run_parallel else run_multi_agent_sequential
+                # Ensure 'default' profile is always part of the team for planning
+                effective_team = list(config.team) if config.team else []
+                if 'default' not in effective_team:
+                    effective_team.append('default')
+                result_data = await runner(
                     task_description=task_description,
                     num_agents=config.max_workers,
                     agent_model=config.worker_model or "moonshot/kimi-k2-0711-preview",
@@ -212,10 +218,14 @@ class EquitrCoder:
                     max_cost_per_agent=config.max_cost / max(1, config.max_workers),
                     max_iterations_per_agent=config.max_iterations,
                     auto_commit=config.auto_commit,
-                    team=config.team,
+                    team=effective_team,
                 )
             elif isinstance(config, ResearchTaskConfiguration):
                 supervisor_model = config.supervisor_model or "moonshot/kimi-k2-0711-preview"
+                # Ensure 'default' profile is always part of the team for planning
+                effective_team = list(config.team) if config.team else []
+                if 'default' not in effective_team:
+                    effective_team.append('default')
                 result_data = await run_researcher_mode(
                     task_description=task_description,
                     num_agents=config.max_workers,
@@ -226,7 +236,7 @@ class EquitrCoder:
                     max_cost_per_agent=config.max_cost / max(1, config.max_workers),
                     max_iterations_per_agent=config.max_iterations,
                     auto_commit=config.auto_commit,
-                    team=config.team,
+                    team=effective_team,
                     research_context=config.research_context,
                 )
             else:

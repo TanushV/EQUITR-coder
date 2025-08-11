@@ -9,5 +9,5 @@
 - ASK_SUPERVISOR_GUIDE.md: Supervisor communication patterns
 
 Notes:
-- The TUI is advanced-only (`textual`-based). Use `equitrcoder tui --mode single|multi|research`.
+- The TUI is advanced-only (`textual`-based). Use `equitrcoder tui` (no flags). Startup screen handles models and mode.
 - Researcher mode is ML-focused and produces `research_plan.yaml`, `experiments.yaml`, and `research_report.md`. 

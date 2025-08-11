@@ -34,15 +34,16 @@ export OPENROUTER_API_KEY=...
 
 - Launch TUI:
   ```bash
-equitrcoder tui --mode single   # or multi, research
+equitrcoder tui
   ```
+- Startup screen: pick Supervisor, Worker, Mode, and enter your first task
+- Chat commands (slash-only):
+  - `/set supervisor <model>`
+  - `/set worker <model>`
+  - `/set mode <single|multi-parallel|multi-seq|research>`
 - Keys:
-  - Enter: execute task in current mode (requires task in input field)
-  - m: open model selector
+  - Enter: submit
   - Ctrl+C: exit
-- Research mode fields:
-  - Datasets: comma-separated paths
-  - Experiments: `name:command; name:command; ...`
 
 Troubleshooting:
 - If you see a Textual widget error, ensure `textual` and `rich` are installed.

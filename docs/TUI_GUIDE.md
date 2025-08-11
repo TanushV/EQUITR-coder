@@ -8,58 +8,38 @@ The advanced TUI provides an interactive interface for running single, multi-age
 
 ## Launch
 
-- Single: `equitrcoder tui --mode single`
-- Multi: `equitrcoder tui --mode multi`
-- Research (ML): `equitrcoder tui --mode research`
+- Default: `equitrcoder tui` (no flags needed)
+- Startup screen lets you select Supervisor, Worker, Mode, and enter the first task
+- You can switch modes and models in chat via `/set mode <mode>`, `/set supervisor <model>`, `/set worker <model>`
 
 ## Layout
 
+- Top: Header showing time, Supervisor, Worker, Mode, and Session Cost
 - Left: Todo Progress
-- Center: Task input, agent logs, model selector, status messages
+- Center: Chat history and agent logs
 - Right: Running agents
-- Bottom: Status bar (mode, models, profiles, stage, agents, cost)
+- Bottom: Slash-command input (`/>`)
 
-## Inputs (Research Mode)
+## Startup Screen
 
-- Datasets: comma-separated paths
-- Experiments: semicolon-separated `name:command` pairs (e.g., `baseline:python train.py; aug:python train.py --augment`)
+- Supervisor model: dropdown (populated via LiteLLM `get_valid_models(check_provider_endpoint=True)`)
+- Worker model: dropdown (same list)
+- Mode: `single`, `multi-parallel`, `multi-seq`, `research`
+- First Task: text box; pressing Enter or clicking Start transitions to the main TUI
 
-## Simulated Screens
-
-### Startup
+### Model Changes in Chat
 ```
-🖥️ EQUITR Coder - Advanced TUI
-Mode: single | Models: Not set | Profiles: default | Stage: ready | Agents: 1 | Cost: $0.0000/$5.00
-
-[Task Input]
-> Enter your task description...
-[Datasets] (research mode)
-[Experiments] (research mode)
-[Execute Single] [Execute Multi] [Execute Research] [Clear]
-```
-
-### Model Selection (press 'm')
-```
-Select Models
-Supervisor model: moonshot/kimi-k2-0711-preview
-Worker model: moonshot/kimi-k2-0711-preview
-[Confirm] [Cancel]
+/set supervisor moonshot/kimi-k2-0711-preview
+/set worker moonshot/kimi-k2-0711-preview
+/set mode multi-parallel
 ```
 
 ### Execution Logs
 ```
 [USER] Create a minimal Mario-style platformer using Pygame
-[INFO] Starting multi mode task
-[INFO] Iteration 1 | Current Cost: $0.1234
+[INFO] Starting multi-parallel mode task
+[INFO] Iteration 1 | Session Cost: $0.1234
 [TOOL] list_task_groups ✓
 [TOOL] update_todo_status ✓
 [SUCCESS] Task completed successfully! Cost: $1.2345, Time: 120.5s
 ```
-
-### Research Mode Completion
-```
-[INFO] Experiments complete, generating supervisor report
-[SUCCESS] Researcher mode completed successfully!
-Report: docs/task_20250101_120000/research_report.md
-Cost: $3.2100
-``` 

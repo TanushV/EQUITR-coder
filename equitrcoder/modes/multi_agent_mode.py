@@ -116,18 +116,19 @@ class MultiAgentMode:
                 print(f"Warning: Failed to change back to original directory: {e}")
     
     async def _execute_task_group(self, group, docs_result, callbacks):
-        agent_id = f"{group.specialization}_agent_{group.group_id}"
+        specialization = group.specialization or 'default'
+        agent_id = f"{specialization}_agent_{group.group_id}"
         await global_message_pool.register_agent(agent_id)
 
         # --- Profile-based Agent Configuration ---
         # Use the new ProfileManager method that handles both default and profile agents
-        agent_config = self.profile_manager.get_agent_config(group.specialization)
+        agent_config = self.profile_manager.get_agent_config(specialization)
         allowed_tool_names = agent_config.get('allowed_tools', [])
         
-        if group.specialization == 'default' or group.specialization is None:
+        if specialization == 'default':
             print("   Using default agent configuration")
         else:
-            print(f"   Using profile: {group.specialization}")
+            print(f"   Using profile: {specialization}")
 
         # Filter tools based on the agent configuration
         all_available_tools = discover_tools()

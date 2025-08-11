@@ -34,6 +34,14 @@ class RunCommand(Tool):
         try:
             args = self.validate_args(kwargs)
 
+            # Enforce sandbox: disallow attempts to cd outside CWD
+            cwd = Path.cwd().resolve()
+            disallowed_patterns = [" cd /", " cd ~", " cd ..", "cd ../", "cd ../../", "cd /..", "cd ~/"]
+            cmd_lower = args.command.lower()
+            for pat in disallowed_patterns:
+                if pat in cmd_lower:
+                    return ToolResult(success=False, error="Changing directories outside project is not allowed")
+
             # Security check - block dangerous commands
             dangerous_commands = [
                 "rm -rf /",
@@ -72,10 +80,10 @@ class RunCommand(Tool):
             process = await asyncio.create_subprocess_exec(
                 "/bin/bash",
                 "-c",
-                command,
+                f"set -euo pipefail; {command}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=os.getcwd(),
+                cwd=str(Path.cwd().resolve()),
             )
 
             try:
@@ -128,10 +136,10 @@ class RunCommand(Tool):
                 process = await asyncio.create_subprocess_exec(
                     "/bin/bash",
                     "-c",
-                    full_command,
+                    f"set -euo pipefail; {full_command}",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=os.getcwd(),
+                    cwd=str(Path.cwd().resolve()),
                 )
 
                 try:

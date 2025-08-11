@@ -25,13 +25,15 @@ class CreateFile(Tool):
         try:
             args = self.validate_args(kwargs)
 
-            file_path = Path(args.path)
+            # Resolve path relative to current working directory
+            cwd = Path.cwd().resolve()
+            file_path = (cwd / args.path).resolve()
 
             # Security check - prevent path traversal
-            if ".." in str(file_path) or str(file_path).startswith("/"):
+            if not str(file_path).startswith(str(cwd)):
                 return ToolResult(
                     success=False,
-                    error="Path traversal not allowed. Use relative paths only.",
+                    error="Path outside project directory is not allowed.",
                 )
 
             # Create parent directories if they don't exist
@@ -67,13 +69,14 @@ class ReadFile(Tool):
         try:
             args = self.validate_args(kwargs)
 
-            file_path = Path(args.path)
+            cwd = Path.cwd().resolve()
+            file_path = (cwd / args.path).resolve()
 
             # Security check
-            if ".." in str(file_path) or str(file_path).startswith("/"):
+            if not str(file_path).startswith(str(cwd)):
                 return ToolResult(
                     success=False,
-                    error="Path traversal not allowed. Use relative paths only.",
+                    error="Path outside project directory is not allowed.",
                 )
 
             if not file_path.exists():
@@ -112,13 +115,14 @@ class EditFile(Tool):
         try:
             args = self.validate_args(kwargs)
 
-            file_path = Path(args.path)
+            cwd = Path.cwd().resolve()
+            file_path = (cwd / args.path).resolve()
 
             # Security check
-            if ".." in str(file_path) or str(file_path).startswith("/"):
+            if not str(file_path).startswith(str(cwd)):
                 return ToolResult(
                     success=False,
-                    error="Path traversal not allowed. Use relative paths only.",
+                    error="Path outside project directory is not allowed.",
                 )
 
             if not file_path.exists():
@@ -165,13 +169,14 @@ class ListFiles(Tool):
         try:
             args = self.validate_args(kwargs)
 
-            dir_path = Path(args.path)
+            cwd = Path.cwd().resolve()
+            dir_path = (cwd / args.path).resolve()
 
             # Security check
-            if ".." in str(dir_path) or str(dir_path).startswith("/"):
+            if not str(dir_path).startswith(str(cwd)):
                 return ToolResult(
                     success=False,
-                    error="Path traversal not allowed. Use relative paths only.",
+                    error="Path outside project directory is not allowed.",
                 )
 
             if not dir_path.exists():

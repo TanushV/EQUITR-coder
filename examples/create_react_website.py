@@ -11,6 +11,7 @@ interactive features. It demonstrates the standardized pattern:
 import asyncio
 import os
 from pathlib import Path
+from datetime import datetime
 
 from equitrcoder.programmatic import EquitrCoder, TaskConfiguration
 from equitrcoder.core.unified_config import get_config
@@ -35,9 +36,12 @@ async def main() -> None:
         print("⚠️  No API keys found. Set OPENAI_API_KEY, MOONSHOT_API_KEY, or ANTHROPIC_API_KEY.")
         return
 
-    # Project directory
-    project_dir = Path("generated_projects/dog_hat_store").resolve()
+    # Project directory (unique per run)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    project_dir = Path(f"generated_projects/dog_hat_store_{ts}").resolve()
+    # Ensure all file ops happen inside project folder
     project_dir.mkdir(parents=True, exist_ok=True)
+    os.chdir(str(project_dir))
 
     # Create coder
     coder = EquitrCoder(repo_path=str(project_dir), git_enabled=True)

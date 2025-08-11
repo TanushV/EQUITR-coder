@@ -10,6 +10,112 @@ Features:
 """
 
 import os
+import shlex
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+try:
+    from litellm import get_valid_models
+except ImportError:
+    def get_valid_models(*args, **kwargs):
+        return []
+
+from ..core.unified_config import get_config
+
+from rich.syntax import Syntax
+from rich.text import Text
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.events import Key
+from textual.reactive import reactive
+from textual.widgets import (
+    Button,
+    Header,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    RichLog,
+    Static,
+    Footer,
+    Select,
+)
+
+class StartupScreen(Static):
+    """Initial startup screen with model selection and welcome message."""
+
+    def __init__(self, available_models: List[str], **kwargs):
+        super().__init__(**kwargs)
+        self.available_models = available_models
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="startup-container"):
+            yield Label("🤖 EQUITR Coder - Multi-Agent AI Assistant", classes="startup-title")
+            yield Label("Select your models to get started:", classes="startup-subtitle")
+            
+            with Horizontal(classes="model-selectors"):
+                with Vertical():
+                    yield Label("Supervisor Model:", classes="model-label")
+                    yield Select(
+                        options=[(model, model) for model in self.available_models],
+                        value=self.available_models[0] if self.available_models else None,
+                        id="supervisor-select"
+                    )
+                with Vertical():
+                    yield Label("Worker Model:", classes="model-label")
+                    yield Select(
+                        options=[(model, model) for model in self.available_models],
+                        value=self.available_models[0] if self.available_models else None,
+                        id="worker-select"
+                    )
+                with Vertical():
+                    yield Label("Mode:", classes="model-label")
+                    yield Select(
+                        options=[
+                            ("Single Agent", "single"),
+                            ("Multi-Agent Parallel", "multi-parallel"),
+                            ("Multi-Agent Sequential", "multi-seq"),
+                            ("Research Mode", "research")
+                        ],
+                        value="single",
+                        id="mode-select"
+                    )
+            
+            yield Label("Type your first task below to begin:", classes="startup-instruction")
+            yield Input(placeholder="Describe what you want to build...", id="startup-input")
+            yield Button("Start Coding", variant="primary", id="btn-start")
+
+class MainScreen(Static):
+    """Main TUI screen with sidebars and chat."""
+    
+    def __init__(self, todo_sidebar, agent_grid, agents_sidebar, command_bar, **kwargs):
+        super().__init__(**kwargs)
+        self.todo_sidebar = todo_sidebar
+        self.agent_grid = agent_grid
+        self.agents_sidebar = agents_sidebar
+        self.command_bar = command_bar
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            yield self.todo_sidebar
+            with Vertical(classes="main-content"):
+                yield self.agent_grid
+            yield self.agents_sidebar
+        yield self.command_bar
+
+"""
+Advanced TUI for EQUITR Coder using Textual
+
+Features:
+- Bottom status bar showing mode, models, stage, agents, and current cost
+- Left sidebar with todo list progress
+- Center chat window with live agent outputs
+- Window splitting for parallel agents
+- Real-time updates and proper event handling
+"""
+
+import os
+import shlex
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -253,19 +359,17 @@ class StatusBar(Static):
 
 
 class TaskInputPanel(Static):
-    """Panel for task input and configuration."""
+    """Removed - using startup screen instead."""
+    pass
+
+
+class CommandBar(Static):
+    """Bottom command bar with a single always-visible input for slash-commands."""
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="panel-pad"):
-            yield Label("Task Input", classes="panel-title")
-            yield Input(placeholder="Enter your task description...", id="task-input")
-            yield Input(placeholder="Comma-separated dataset paths (optional)", id="datasets-input")
-            yield Input(placeholder="Experiments (name:command; name:command; ...)", id="experiments-input")
-            with Horizontal():
-                yield Button("Execute Single", variant="primary", id="btn-single")
-                yield Button("Execute Multi", variant="success", id="btn-multi")
-                yield Button("Execute Research", variant="success", id="btn-research")
-                yield Button("Clear", variant="warning", id="btn-clear")
+        with Horizontal(classes="commandbar-pad"):
+            yield Label("/>", classes="commandbar-prompt")
+            yield Input(placeholder="Type /help for commands...", id="command-input")
 
 
 class AgentPanelGrid(Static):
@@ -310,13 +414,17 @@ class AgentsSidebar(Static):
 
     def update_agents(self, agents: List[str]):
         self.agents = agents
-        container = self.query_one("#agents-list")
-        container.remove_children()
-        if not agents:
-            container.mount(Label("No active agents", classes="todo-empty"))
-            return
-        for name in agents:
-            container.mount(Label(f"• {name}"))
+        try:
+            container = self.query_one("#agents-list")
+            container.remove_children()
+            if not agents:
+                container.mount(Label("No active agents", classes="todo-empty"))
+                return
+            for name in agents:
+                container.mount(Label(f"• {name}"))
+        except Exception:
+            # Component not mounted yet, ignore
+            pass
 
 
 class ModelSuggestion(ListItem):
@@ -371,22 +479,76 @@ class EquitrTUI(App):
         border: solid #666666;
     }
 
+    /* Utility */
+    .hidden { display: none; }
+
+    /* Startup screen */
+    .startup-container {
+        align: center top;
+        width: 100%;
+        height: 1fr;
+        background: #000000;
+        color: #ffffff;
+        padding: 1 2;
+        border: solid #444444;
+    }
+    .startup-title {
+        text-align: center;
+        text-style: bold;
+        color: #00ff00;
+        margin: 1 0;
+        height: 3;
+    }
+    .startup-subtitle, .startup-instruction {
+        text-align: center;
+        margin: 1 0;
+        color: #cccccc;
+        height: 2;
+    }
+    .model-selectors {
+        width: 100%;
+        height: 6;
+        margin: 1 0;
+        layout: horizontal;
+    }
+    .model-label {
+        text-align: center;
+        margin: 0 0 1 0;
+        color: #ffffff;
+        height: 1;
+    }
+    .model-selectors > Vertical {
+        width: 1fr;
+        margin: 0 1;
+        height: 1fr;
+    }
+    #startup-input {
+        width: 100%;
+        margin: 1 0;
+        height: 3;
+    }
+    #btn-start {
+        width: 100%;
+        margin: 1 0;
+        height: 3;
+    }
+
     .sidebar {
-        width: 25%;
+        width: 20%;
         background: #000000;
         color: #ffffff;
         border-right: solid #444444;
     }
 
     .rightbar {
-        width: 20%;
+        width: 15%;
         background: #000000;
         color: #ffffff;
         border-left: solid #444444;
     }
 
     .main-content {
-        width: 55%;
+        width: 65%;
         background: #000000;
         color: #ffffff;
     }
@@ -472,13 +634,14 @@ class EquitrTUI(App):
     }
 
     TaskInputPanel {
-        height: 8;
+        height: 2;
         border-bottom: solid #444444;
         background: #000000;
         color: #ffffff;
     }
 
     AgentPanelGrid {
+        height: 1fr;
         border: solid #444444;
         layout: horizontal;
         background: #000000;
@@ -506,10 +669,54 @@ class EquitrTUI(App):
         color: #ffffff;
         border: solid #444444;
     }
+
+    /* Bottom command bar */
+    CommandBar {
+        dock: bottom;
+        height: 1;
+        border-top: solid #444444;
+        background: #000000;
+        color: #ffffff;
+    }
+    .commandbar-pad { padding: 0; }
+    .commandbar-prompt { width: 3; text-align: center; color: #888888; }
+    #command-input { width: 1fr; }
+
+    /* Status bar should be visible */
+    StatusBar {
+        height: 1;
+        dock: top;
+    }
+
+    /* Header should be visible */
+    Header {
+        height: 1;
+        dock: top;
+    }
     """
 
     TITLE = "EQUITR Coder - Advanced TUI"
     SUB_TITLE = "Multi-Agent AI Coding Assistant"
+    BINDINGS = [
+        ("h", "show_help", "Help"),
+    ]
+
+    COMMANDS_HELP = (
+        "Commands:\n"
+        "  /help                               Show this help\n"
+        "  /mode [single|multi-parallel|multi-seq|research]  Switch mode (multi-parallel is default)\n"
+        "  /models                             Open model selector\n"
+        "  /set supervisor <model>             Set supervisor model\n"
+        "  /set worker <model>                 Set worker model\n"
+        "  /set mode <mode>                    Set execution mode\n"
+        "  /run <task description>             Execute a task in current mode\n"
+        "  /status                             Show current status\n"
+        "  /agents                             List active agents\n"
+        "  /profiles list                      List available profiles\n"
+        "  /profiles select <name>             Select a profile (multi/research)\n"
+        "  /clear                              Clear chat windows\n"
+        "  /quit                               Exit the TUI\n"
+    )
 
     def __init__(self, mode: str = "single", **kwargs):
         super().__init__(**kwargs)
@@ -521,69 +728,74 @@ class EquitrTUI(App):
         self.supervisor_model: Optional[str] = None
         self.worker_model: Optional[str] = None
         self.selected_profiles: List[str] = []
+        self.model_selected: bool = False
+        self.multi_run_parallel: bool = True
+        self.startup_mode: bool = True
+        self.available_models: List[str] = []
+        self.active_agent_names: List[str] = []
+        self.command_bar = CommandBar()
+        self.startup_screen: Optional[StartupScreen] = None
+        self.main_screen: Optional[MainScreen] = None
+        self.custom_header: Optional[Static] = None
+        self.session_cost: float = 0.0
 
         # Initialize components
         self.todo_sidebar = TodoSidebar(classes="sidebar")
-        self.status_bar = StatusBar()
-        self.task_input = TaskInputPanel()
         self.agent_grid = AgentPanelGrid()
         self.agents_sidebar = AgentsSidebar(classes="rightbar")
-        self.model_suggestions = ListView(classes="model-suggestions hidden")
-        self.available_models: Dict[str, List[str]] = self.get_available_models()
+        self.command_bar = CommandBar()
         self.active_agent_names: List[str] = []
+        self.startup_screen: Optional[StartupScreen] = None
+        self.main_screen: Optional[MainScreen] = None
+        self.custom_header: Optional[Static] = None
 
         # Do not set status labels here; wait until after mount
 
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
-        yield Header(show_clock=True)
-        yield self.status_bar
+        # Custom header with time and models
+        self.custom_header = Static(classes="custom-header")
+        yield self.custom_header
 
-        with Horizontal():
-            yield self.todo_sidebar
-
-            with Vertical(classes="main-content"):
-                yield self.task_input
-                yield self.agent_grid
-                with Container(id="model-selector", classes="hidden"):
-                    yield Label("Select Models", classes="panel-title")
-                    yield Input(
-                        placeholder="Supervisor model...", id="supervisor-input"
-                    )
-                    yield Input(placeholder="Worker model...", id="worker-input")
-                    yield self.model_suggestions
-                    yield Button("Confirm", variant="primary", id="btn-model-confirm")
-                    yield Button("Cancel", variant="warning", id="btn-model-cancel")
-
-            yield self.agents_sidebar
-
-        yield Footer()
+        # Container for switching between startup and main screens
+        yield Container(id="screen-container", classes="screen-container")
 
     async def on_mount(self):
         """Initialize TUI after mounting."""
+        # Get available models from litellm
+        try:
+            self.available_models = get_valid_models(check_provider_endpoint=True)
+            if not self.available_models:
+                # Fallback to common models if API detection fails
+                self.available_models = [
+                    "gpt-4", "gpt-3.5-turbo", "claude-3-sonnet", "claude-3-haiku",
+                    "moonshot/kimi-k2-0711-preview"
+                ]
+        except Exception:
+            self.available_models = [
+                "gpt-4", "gpt-3.5-turbo", "claude-3-sonnet", "claude-3-haiku",
+                "moonshot/kimi-k2-0711-preview"
+            ]
+
+        # Show startup screen initially
+        await self.show_startup_screen()
+        
+        # Update header with current time
+        self.update_header()
+        self.set_interval(1.0, self.update_header)  # Update every second
+
         # Initialize main agent window
         self.agent_grid.add_agent_window("main")
         self.active_agent_names = ["Main Agent"]
-        self.agents_sidebar.update_agents(self.active_agent_names)
-
+        
         # Load todos
         await self.update_todos()
 
         # Initialize coder
         if self.mode == "single":
             self.coder = create_single_agent_coder()
-            self.status_bar.models = "Default Single Model"
-            self.status_bar.agent_count = 1
-            self.status_bar.profiles = "default"
         else:
             self.coder = create_multi_agent_coder()
-            self.status_bar.models = "Supervisor + Workers"
-            self.status_bar.agent_count = 3
-            self.status_bar.profiles = ", ".join(self.selected_profiles or ["default"]) or "default"
-
-        # Now it is safe to set initial status labels
-        self.status_bar.mode = self.mode
-        self.status_bar.stage = "ready"
 
         # Set up callbacks
         self.coder.on_task_start = self.on_task_start
@@ -592,152 +804,220 @@ class EquitrTUI(App):
         self.coder.on_message = self.on_message
         self.coder.on_iteration = self.on_iteration
 
-    def update_pricing_display(self):
-        """Compute and update pricing string from selected models."""
-        parts = []
-        if self.supervisor_model:
-            sup = self.supervisor_model
-            c = model_manager.cost_cache.get(sup) or {"prompt": 0.0, "completion": 0.0}
-            avg = (c.get("prompt", 0.0) + c.get("completion", 0.0)) / 2.0
-            parts.append(f"sup ${avg:.4f}/1K")
-        if self.worker_model:
-            w = self.worker_model
-            c = model_manager.cost_cache.get(w) or {"prompt": 0.0, "completion": 0.0}
-            avg = (c.get("prompt", 0.0) + c.get("completion", 0.0)) / 2.0
-            parts.append(f"wrk ${avg:.4f}/1K")
-        self.status_bar.pricing = ", ".join(parts) if parts else "$0.0000/1K"
+    def action_show_help(self) -> None:
+        self.show_help()
 
-    def get_available_models(self) -> Dict[str, List[str]]:
-        """Detect available providers and their models using environment variables and Litellm."""
-        models = {}
+    def show_help(self) -> None:
+        main_window = self.agent_grid.get_agent_window("main")
+        if main_window:
+            main_window.add_status_update(self.COMMANDS_HELP, "info")
 
-        # OpenAI
-        if os.getenv("OPENAI_API_KEY"):
-            models["openai"] = ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"]
-
-        # Anthropic
-        if os.getenv("ANTHROPIC_API_KEY"):
-            models["anthropic"] = ["claude-3-sonnet", "claude-3-haiku", "claude-2"]
-
-        # Azure
-        if os.getenv("AZURE_API_KEY"):
-            models["azure"] = ["azure/gpt-4", "azure/gpt-3.5-turbo"]
-
-        # AWS Sagemaker/Bedrock
-        if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
-            # Use Litellm to get supported models (example; expand as needed)
-            models["aws"] = [
-                f"sagemaker/{m}"
-                for m in [
-                    "jumpstart-dft-meta-textgeneration-llama-2-7b",
-                    "bedrock/anthropic.claude-v2",
-                ]
-            ]
-
-        # Add more providers based on env vars (e.g., COHERE_API_KEY, etc.)
-        if os.getenv("COHERE_API_KEY"):
-            models["cohere"] = ["command-nightly"]
-
-        # Flatten for easier searching
-        all_models = []
-        for provider, model_list in models.items():
-            for model in model_list:
-                all_models.append((model, provider))
-
-        return {"all": sorted(all_models), "by_provider": models}
-
-    def select_model(self):
-        """Show model selector with dynamic suggestions for both models."""
-        selector = self.query_one("#model-selector")
-        selector.remove_class("hidden")
-
-        supervisor_input = self.query_one("#supervisor-input", Input)
-        self.query_one("#worker-input", Input)
-        supervisor_input.focus()
-
-        # Initial update
-        self.update_model_suggestions("")
-
-    def update_model_suggestions(self, query: str):
-        """Update the list of model suggestions based on user input."""
-        self.model_suggestions.clear()
-
-        matched = [
-            (model, provider)
-            for model, provider in self.available_models["all"]
-            if query.lower() in model.lower() or query.lower() in provider.lower()
-        ]
-
-        if not matched:
-            self.model_suggestions.mount(
-                Label("No matching models found", classes="todo-empty")
-            )
+    def set_mode(self, mode: str) -> None:
+        normalized = mode.lower()
+        if normalized in ("single",):
+            self.mode = "single"
+        elif normalized in ("multi", "multi-parallel", "multi_parallel", "parallel"):
+            self.mode = "multi"
+            self.multi_run_parallel = True
+        elif normalized in ("multi-seq", "multi_sequential", "sequential", "multi-sequential"):
+            self.mode = "multi"
+            self.multi_run_parallel = False
+        elif normalized in ("research",):
+            self.mode = "research"
+        else:
+            main_window = self.agent_grid.get_agent_window("main")
+            if main_window:
+                main_window.add_status_update(f"Unknown mode: {mode}", "error")
             return
+        self.status_bar.mode = self.mode if self.mode != "multi" else ("multi-seq" if not self.multi_run_parallel else "multi-parallel")
+        main_window = self.agent_grid.get_agent_window("main")
+        if main_window:
+            mode_label = self.status_bar.mode
+            main_window.add_status_update(f"Mode set to {mode_label}. Use /run <task description> to execute.", "info")
+        try:
+            self.query_one("#command-input", Input).focus()
+        except Exception:
+            pass
 
-        for model, provider in matched[:10]:  # Limit to top 10 suggestions
-            self.model_suggestions.mount(ModelSuggestion(model, provider))
+    async def execute_command(self, line: str) -> None:
+        line = line.strip()
+        main_window = self.agent_grid.get_agent_window("main")
+        if not line:
+            return
+        if not line.startswith("/"):
+            if main_window:
+                main_window.add_status_update("Use /help to see available commands.", "warning")
+            return
+        try:
+            parts = shlex.split(line[1:])
+        except Exception:
+            parts = line[1:].split()
+        if not parts:
+            self.show_help()
+            return
+        cmd = parts[0].lower()
+        args = parts[1:]
 
-        self.model_suggestions.add_class("visible")
-
-    async def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle changes in the model input fields."""
-        if event.input.id in ["supervisor-input", "worker-input"]:
-            self.update_model_suggestions(event.value)
-
-    async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        """Auto-select highlighted suggestion into the focused input."""
-        if event.item and isinstance(event.item, ModelSuggestion):
-            if self.query_one("#supervisor-input").has_focus:
-                self.query_one("#supervisor-input", Input).value = event.item.model_name
-            elif self.query_one("#worker-input").has_focus:
-                self.query_one("#worker-input", Input).value = event.item.model_name
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        if event.button.id == "btn-single":
-            await self.execute_task("single")
-        elif event.button.id == "btn-multi":
-            await self.execute_task("multi")
-        elif event.button.id == "btn-research":
-            await self.execute_task("research")
-        elif event.button.id == "btn-clear":
-            await self.clear_chat()
-        elif event.button.id == "btn-model-confirm":
-            supervisor_input = self.query_one("#supervisor-input", Input).value.strip()
-            worker_input = self.query_one("#worker-input", Input).value.strip()
-            if supervisor_input:
-                self.supervisor_model = supervisor_input
-            if worker_input:
-                self.worker_model = worker_input
+        if cmd in ("help", "h"):
+            self.show_help()
+            return
+        if cmd == "mode":
+            if not args:
+                self.show_help()
+                return
+            self.set_mode(args[0].lower())
+            return
+        if cmd == "models":
+            self.select_model()
+            return
+        if cmd == "set" and args:
+            if args[0] in ("supervisor", "sup") and len(args) >= 2:
+                model = " ".join(args[1:])
+                self.supervisor_model = model
+                self.model_selected = True
+            elif args[0] in ("worker", "wrk") and len(args) >= 2:
+                model = " ".join(args[1:])
+                self.worker_model = model
+                self.model_selected = True
+            elif args[0] in ("mode", "m") and len(args) >= 2:
+                new_mode = args[1].lower()
+                self.set_mode(new_mode)
+                return
+            else:
+                if main_window:
+                    main_window.add_status_update("Usage: /set supervisor <model> | /set worker <model> | /set mode <mode>", "warning")
+                return
             models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
             self.status_bar.models = models_display
             self.update_pricing_display()
-            main_window = self.agent_grid.get_agent_window("main")
-            main_window.add_status_update(f"Models set: {models_display}", "success")
-            self.hide_model_selector()
-        elif event.button.id == "btn-model-cancel":
-            self.hide_model_selector()
+            if main_window:
+                main_window.add_status_update(f"Models updated: Supervisor={self.supervisor_model}, Worker={self.worker_model}", "success")
+            try:
+                self.query_one("#command-input", Input).focus()
+            except Exception:
+                pass
+            return
+        if cmd == "run":
+            if not args:
+                if main_window:
+                    main_window.add_status_update("Usage: /run <task description>", "warning")
+                return
+            if not self.model_selected:
+                if main_window:
+                    main_window.add_status_update("Select models first with /models or /set", "warning")
+                self.select_model()
+                return
+            task_text = " ".join(args)
+            await self.execute_task(self.mode, task_text)
+            return
+        if cmd == "status":
+            status = (
+                f"Mode: {self.mode} | Supervisor: {self.supervisor_model or 'Not set'} | "
+                f"Worker: {self.worker_model or 'Not set'} | Profiles: {', '.join(self.selected_profiles) or 'default'}"
+            )
+            if main_window:
+                main_window.add_status_update(status, "info")
+            return
+        if cmd == "agents":
+            if main_window:
+                main_window.add_status_update(f"Agents: {', '.join(self.active_agent_names) or 'None'}", "info")
+            return
+        if cmd == "profiles":
+            if not args:
+                self.show_help()
+                return
+            sub = args[0]
+            if sub == "list":
+                cfg = config_manager.load_config()
+                if main_window:
+                    main_window.add_status_update(f"Profiles: {', '.join(cfg.profiles.available)}", "info")
+                return
+            if sub == "select" and len(args) >= 2:
+                name = args[1]
+                self.selected_profiles = [name]
+                self.status_bar.profiles = name
+                if main_window:
+                    main_window.add_status_update(f"Profile selected: {name}", "success")
+                return
+            self.show_help()
+            return
+        if cmd == "clear":
+            await self.clear_chat()
+            return
+        if cmd in ("quit", "exit"):
+            self.exit()
+            return
+        # Unknown command
+        if main_window:
+            main_window.add_status_update(f"Unknown command: {cmd}. Use /help.", "error")
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "btn-start":
+            # Get selected models
+            try:
+                supervisor_select = self.query_one("#supervisor-select", Select)
+                worker_select = self.query_one("#worker-select", Select)
+                mode_select = self.query_one("#mode-select", Select)
+                startup_input = self.query_one("#startup-input", Input)
+                
+                self.supervisor_model = supervisor_select.value
+                self.worker_model = worker_select.value
+                
+                # Set mode based on selection
+                selected_mode = mode_select.value
+                self.set_mode(selected_mode)
+                
+                self.model_selected = True
+                
+                first_task = startup_input.value.strip()
+                if not first_task:
+                    return
+                
+                # Switch to main screen
+                await self.show_main_screen()
+                
+                # Execute the first task
+                await self.execute_task(self.mode, first_task)
+                
+            except Exception as e:
+                print(f"Error starting: {e}")
 
     async def on_key(self, event: Key) -> None:
         """Handle key presses."""
         if event.key == "ctrl+c":
             await self.quit()
         elif event.key == "enter":
-            task_input = self.query_one("#task-input", Input)
-            if task_input.value and not self.task_running:
-                await self.execute_task(self.mode)
-        elif event.key == "m" and not self.task_running:  # Example: 'm' for model
-            self.select_model()
+            if self.startup_mode:
+                # Handle startup screen enter
+                try:
+                    btn_start = self.query_one("#btn-start", Button)
+                    await self.on_button_pressed(Button.Pressed(btn_start))
+                except Exception:
+                    pass
+            else:
+                # Handle main screen enter
+                try:
+                    cmd_input = self.query_one("#command-input", Input)
+                    line = cmd_input.value.strip()
+                    cmd_input.value = ""
+                    await self.execute_command(line)
+                except Exception:
+                    pass
 
-    async def execute_task(self, mode: str):
+    async def execute_task(self, mode: str, task_text: Optional[str] = None):
         """Execute a task using the specified mode."""
         if self.task_running:
             return
+        if not self.model_selected:
+            main_window = self.agent_grid.get_agent_window("main")
+            if main_window:
+                main_window.add_status_update("Select models first with /models or /set", "warning")
+            self.select_model()
+            return
 
-        task_input = self.query_one("#task-input", Input)
-        datasets_input = self.query_one("#datasets-input", Input)
-        experiments_input = self.query_one("#experiments-input", Input)
-        task_description = task_input.value.strip()
+        # Use provided task_text or fallback to whatever is in the command input (if any)
+        task_description = (task_text or "").strip()
 
         if not task_description:
             main_window = self.agent_grid.get_agent_window("main")
@@ -751,9 +1031,6 @@ class EquitrTUI(App):
         self.status_bar.stage = "executing"
 
         try:
-            # Clear input
-            task_input.value = ""
-
             # Add user message to main window
             main_window = self.agent_grid.get_agent_window("main")
             main_window.add_message("user", task_description)
@@ -765,6 +1042,7 @@ class EquitrTUI(App):
                     max_cost=get_config('limits.max_cost', 5.0),
                     max_iterations=get_config('limits.max_iterations', 20),
                     auto_commit=True,
+                    model=self.supervisor_model or self.worker_model,
                 )
                 self.status_bar.update_cost_limit(5.0)
                 self.status_bar.agent_count = 1
@@ -777,6 +1055,7 @@ class EquitrTUI(App):
                     supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
                     worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
                     auto_commit=True,
+                    run_parallel=self.multi_run_parallel,
                 )
                 self.status_bar.update_cost_limit(15.0)
                 # Add worker windows for multi-agent mode (equal split)
@@ -808,27 +1087,6 @@ class EquitrTUI(App):
             self.agents_sidebar.update_agents(self.active_agent_names)
 
             # Execute task
-            # For research mode, synthesize a non-interactive research_context from inputs
-            if mode == "research":
-                datasets_raw = datasets_input.value.strip()
-                experiments_raw = experiments_input.value.strip()
-                datasets = []
-                if datasets_raw:
-                    for p in [s.strip() for s in datasets_raw.split(",") if s.strip()]:
-                        datasets.append({"path": p, "description": ""})
-                experiments = []
-                if experiments_raw:
-                    # parse name:command; name:command
-                    for part in [s.strip() for s in experiments_raw.split(";") if s.strip()]:
-                        if ":" in part:
-                            name, cmd = part.split(":", 1)
-                            experiments.append({"name": name.strip(), "command": cmd.strip()})
-                        else:
-                            experiments.append({"name": f"exp_{len(experiments)+1}", "command": part})
-                # We call researcher mode indirectly via EquitrCoder; embed context by temporarily monkey-patching
-                # the programmatic call through config (EquitrCoder passes through to mode).
-                # We use a private attr on config to pass through.
-                setattr(config, "research_context", {"datasets": datasets, "experiments": experiments})
             result = await self.coder.execute_task(task_description, config)
 
             # Show result
@@ -873,7 +1131,11 @@ class EquitrTUI(App):
                 groups.append(group_entry)
             self.todo_sidebar.update_todos(groups)
         except Exception:
-            self.todo_sidebar.update_todos([])
+            try:
+                self.todo_sidebar.update_todos([])
+            except Exception:
+                # Component not mounted yet, ignore
+                pass
 
     # Callback methods
     def on_task_start(self, description: str, mode: str):
@@ -883,7 +1145,7 @@ class EquitrTUI(App):
 
     def on_task_complete(self, result: ExecutionResult):
         """Called when a task completes."""
-        self.status_bar.current_cost = result.cost
+        self.session_cost += result.cost
         main_window = self.agent_grid.get_agent_window("main")
 
         if result.success:
@@ -893,10 +1155,10 @@ class EquitrTUI(App):
 
     def on_iteration(self, iteration: int, cost: float):
         """Called on each iteration to update live cost."""
-        self.status_bar.current_cost = cost
+        self.session_cost += cost
         main_window = self.agent_grid.get_agent_window("main")
         main_window.add_status_update(
-            f"Iteration {iteration} | Current Cost: ${cost:.4f}", "info"
+            f"Iteration {iteration} | Session Cost: ${self.session_cost:.4f}", "info"
         )
 
     def on_tool_call(self, tool_data: Dict[str, Any]):
@@ -929,11 +1191,72 @@ class EquitrTUI(App):
         if self.coder:
             await self.coder.cleanup()
 
-    def hide_model_selector(self):
-        selector = self.query_one("#model-selector")
-        selector.add_class("hidden")
-        self.model_suggestions.clear()
-        self.model_suggestions.add_class("hidden")
+    def update_header(self) -> None:
+        """Update header with current time and models."""
+        current_time = datetime.now().strftime("%H:%M:%S")
+        supervisor_text = f"Supervisor: {self.supervisor_model or 'Not set'}"
+        worker_text = f"Worker: {self.worker_model or 'Not set'}"
+        mode_text = f"Mode: {self.mode}"
+        cost_text = f"Session Cost: ${self.session_cost:.4f}"
+        
+        header_text = f"⏰ {current_time} | {supervisor_text} | {worker_text} | {mode_text} | {cost_text}"
+        
+        if self.custom_header:
+            try:
+                self.custom_header.update(header_text)
+            except Exception:
+                pass
+
+    async def show_startup_screen(self) -> None:
+        """Show the startup screen with model selection."""
+        container = self.query_one("#screen-container")
+        container.remove_children()
+        
+        self.startup_screen = StartupScreen(self.available_models)
+        container.mount(self.startup_screen)
+        
+        # Focus the startup input
+        try:
+            self.query_one("#startup-input", Input).focus()
+        except Exception:
+            pass
+
+    async def show_main_screen(self) -> None:
+        """Show the main TUI screen."""
+        container = self.query_one("#screen-container")
+        container.remove_children()
+        
+        self.main_screen = MainScreen(
+            self.todo_sidebar, self.agent_grid, self.agents_sidebar, self.command_bar
+        )
+        container.mount(self.main_screen)
+        
+        # Add welcome messages
+        main_window = self.agent_grid.get_agent_window("main")
+        if main_window:
+            main_window.add_status_update("All actions are via slash-commands in the bottom input. Type /help or press 'h' for a command list.", "info")
+        
+        # Update agents sidebar now that it's mounted
+        self.agents_sidebar.update_agents(self.active_agent_names)
+        
+        # Focus bottom command input
+        try:
+            self.query_one("#command-input", Input).focus()
+        except Exception:
+            pass
+        
+        self.startup_mode = False
+
+    def select_model(self) -> None:
+        """Show model selection info since we use startup screen."""
+        main_window = self.agent_grid.get_agent_window("main")
+        if main_window:
+            main_window.add_status_update(f"Current setup: Mode={self.mode}, Supervisor={self.supervisor_model}, Worker={self.worker_model}. Use /set to change.", "info")
+            main_window.add_status_update("Available models: " + ", ".join(self.available_models[:10]) + ("..." if len(self.available_models) > 10 else ""), "info")
+
+    def update_pricing_display(self) -> None:
+        """Update pricing info (shown in header now)."""
+        self.update_header()
 
 
 def launch_advanced_tui(mode: str = "single") -> int:
