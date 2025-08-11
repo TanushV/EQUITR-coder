@@ -120,8 +120,8 @@ if __name__ == "__main__":
         description=TASK_NAME,
         max_workers=3,
         max_cost=12.0,
-        supervisor_model="openai/gpt-4o",
-        worker_model="openai/gpt-4o-mini",
+        supervisor_model="gpt-5",
+        worker_model="gpt-5-mini",
         team=["ml_researcher", "data_engineer", "experiment_runner"],
         research_context={
             "datasets": [

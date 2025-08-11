@@ -6,7 +6,13 @@ from .unified_config import get_config_manager
 
 class ProfileManager:
     def __init__(self, profiles_dir: str = 'equitrcoder/profiles'):
-        self.profiles_dir = profiles_dir
+        # Resolve profiles_dir relative to package root if a relative path was provided
+        from pathlib import Path as _Path
+        base_dir = _Path(__file__).resolve().parent.parent  # equitrcoder/
+        p = _Path(profiles_dir)
+        if not p.is_absolute():
+            p = (base_dir / (profiles_dir.replace('equitrcoder/', ''))).resolve()
+        self.profiles_dir = str(p)
         self.profiles = self._load_profiles()
         self.profiles_config = self._load_profiles_config()
         self.system_prompt_config = self._load_system_prompt_config()
