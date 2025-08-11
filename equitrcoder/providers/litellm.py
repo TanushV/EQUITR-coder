@@ -225,10 +225,14 @@ class LiteLLMProvider:
             params: Dict[str, Any] = {
                 "model": self.model,
                 "messages": formatted_messages,
-                "temperature": temperature or self.temperature,
                 **self.provider_kwargs,
                 **kwargs,
             }
+            # Only include temperature when supported; some Canary models accept default only
+            effective_temp = temperature if temperature is not None else self.temperature
+            if effective_temp is not None:
+                if not (self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1")):
+                    params["temperature"] = effective_temp
             # Token parameter handling: avoid sending unsupported keys by default
             # Only include token limits when explicitly requested
             requested_tokens = max_tokens if max_tokens is not None else self.max_tokens
