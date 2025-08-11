@@ -226,18 +226,18 @@ class LiteLLMProvider:
                 "model": self.model,
                 "messages": formatted_messages,
                 "temperature": temperature or self.temperature,
-                # Token parameter handling: avoid sending unsupported keys by default
-                # Only include token limits when explicitly requested
-                requested_tokens = max_tokens if max_tokens is not None else self.max_tokens
-                if requested_tokens is not None:
-                    # Some newer models require 'max_completion_tokens' instead of 'max_tokens'
-                    if self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1"):
-                        params["max_completion_tokens"] = requested_tokens
-                    else:
-                        params["max_tokens"] = requested_tokens
                 **self.provider_kwargs,
                 **kwargs,
             }
+            # Token parameter handling: avoid sending unsupported keys by default
+            # Only include token limits when explicitly requested
+            requested_tokens = max_tokens if max_tokens is not None else self.max_tokens
+            if requested_tokens is not None:
+                # Some newer models require 'max_completion_tokens' instead of 'max_tokens'
+                if self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1"):
+                    params["max_completion_tokens"] = requested_tokens
+                else:
+                    params["max_tokens"] = requested_tokens
 
             if tools:
                 supports_tools = litellm.supports_function_calling(self.model)
