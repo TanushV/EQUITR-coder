@@ -103,48 +103,14 @@ class MainScreen(Static):
             yield self.agents_sidebar
         yield self.command_bar
 
-"""
-Advanced TUI for EQUITR Coder using Textual
-
-Features:
-- Bottom status bar showing mode, models, stage, agents, and current cost
-- Left sidebar with todo list progress
-- Center chat window with live agent outputs
-- Window splitting for parallel agents
-- Real-time updates and proper event handling
-"""
-
-import os
-import shlex
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from ..core.unified_config import get_config
-
-from rich.syntax import Syntax
-from rich.text import Text
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.events import Key
-from textual.reactive import reactive
-from textual.widgets import (
-    Button,
-    Header,
-    Input,
-    Label,
-    ListItem,
-    ListView,
-    RichLog,
-    Static,
-    Footer,
-)
 
 try:
     TEXTUAL_AVAILABLE = True
 except ImportError:
     TEXTUAL_AVAILABLE = False
 
-from ..core.config import config_manager
+from ..core.unified_config import get_config_manager as _get_cm
+config_manager = _get_cm()
 from ..programmatic import (
     EquitrCoder,
     ExecutionResult,

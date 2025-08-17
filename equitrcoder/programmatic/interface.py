@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, Union, List, Dict, Any
 from pathlib import Path
 from datetime import datetime
-from ..core.config import config_manager
+from ..core.unified_config import get_config_manager
 from ..modes.single_agent_mode import run_single_agent_mode
 from ..modes.multi_agent_mode import run_multi_agent_parallel, run_multi_agent_sequential
 from ..modes.researcher_mode import run_researcher_mode
@@ -80,9 +80,14 @@ class EquitrCoder:
         self.max_workers = max_workers
         self.supervisor_model = supervisor_model
         self.worker_model = worker_model
-        self.config = config_manager.load_config()
-        # Fix: access pydantic model attributes, not dict
-        self.session_manager = SessionManagerV2(self.config.session.session_dir)
+        self.config = get_config_manager().get_cached_config()
+        # Resolve session dir from unified config dicts
+        try:
+            session_dir = self.config.session.get("session_dir") if isinstance(self.config.session, dict) else None
+        except Exception:
+            session_dir = None
+        session_dir = session_dir or "~/.EQUITR-coder/sessions"
+        self.session_manager = SessionManagerV2(session_dir)
         if self.git_enabled:
             self.git_manager = GitManager(str(self.repo_path))
             self.git_manager.ensure_repo_is_ready()

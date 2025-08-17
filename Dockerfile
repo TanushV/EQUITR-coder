@@ -4,15 +4,18 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install system deps (optional: git for tools)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Copy application code
+# Copy project
 COPY . .
+
+# Install package with API extras
+RUN pip install --no-cache-dir --upgrade pip \
+	&& pip install --no-cache-dir .[api]
 
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["python", "app.py"]
+# Run the API server by default
+CMD ["equitrcoder", "api", "--host", "0.0.0.0", "--port", "8000"]

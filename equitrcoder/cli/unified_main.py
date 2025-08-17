@@ -22,7 +22,8 @@ def create_parser() -> argparse.ArgumentParser:
         description="Modular AI coding assistant supporting single and multi-agent workflows",
     )
 
-    parser.add_argument("--version", action="version", version="equitrcoder 2.0.1")
+    from .. import __version__ as _VERSION
+    parser.add_argument("--version", action="version", version=f"equitrcoder {_VERSION}")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

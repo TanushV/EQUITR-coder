@@ -10,7 +10,7 @@ pip install equitrcoder
   ```
 - Optional extras:
   - API server: `pip install "equitrcoder[api]"`
-  - TUI (Textual+Rich): `pip install textual rich`
+  - TUI: `pip install "equitrcoder[tui]"`
 
 ## Configure API keys (env vars)
 

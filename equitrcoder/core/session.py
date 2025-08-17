@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel
 
-from ..providers.openrouter import Message
+from ..providers.litellm import Message
 
 
 class TaskItem(BaseModel):
@@ -56,8 +56,10 @@ class SessionManagerV2:
     def _start_periodic_save(self):
         """Start background task for periodic session saves."""
         try:
+            # Only create the task if a running loop exists to avoid creating an un-awaited coroutine
+            loop = asyncio.get_running_loop()
             if self._save_task is None or self._save_task.done():
-                self._save_task = asyncio.create_task(self._periodic_save_loop())
+                self._save_task = loop.create_task(self._periodic_save_loop())
         except RuntimeError:
             # No event loop running, skip background task
             pass

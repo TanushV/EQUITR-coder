@@ -40,6 +40,7 @@ limits:
   max_cost: 5.0
   max_workers: 3
   max_depth: 3
+  max_iterations: 50
   devops_timeout: 600  # 10 minutes for DevOps operations
   context_max_tokens: 4000
   summary_max_tokens: 1000
