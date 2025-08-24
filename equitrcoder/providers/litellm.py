@@ -243,6 +243,32 @@ class LiteLLMProvider:
                 else:
                     params["max_tokens"] = requested_tokens
 
+            # Enable reasoning/thinking when supported by the model
+            try:
+                supports_reason = hasattr(litellm, "supports_reasoning") and litellm.supports_reasoning(model=self.model)
+            except Exception:
+                supports_reason = False
+            if supports_reason:
+                # Default to medium effort; allow overrides via provider_kwargs or config
+                reasoning_effort = self.provider_kwargs.get("reasoning_effort")
+                try:
+                    from ..core.unified_config import get_config  # local import to avoid cycles
+                    reasoning_effort = reasoning_effort or get_config('llm.reasoning_effort', None)
+                    enable_thinking = get_config('llm.enable_thinking', True)
+                    budget_tokens = get_config('llm.reasoning_budget_tokens', 1024)
+                except Exception:
+                    enable_thinking = True
+                    budget_tokens = 1024
+                if not reasoning_effort:
+                    reasoning_effort = "medium"
+                params["reasoning_effort"] = reasoning_effort
+                if enable_thinking and "thinking" not in params:
+                    try:
+                        params["thinking"] = {"type": "enabled", "budget_tokens": int(budget_tokens)}
+                    except Exception:
+                        # Fallback silently if budget invalid
+                        params["thinking"] = {"type": "enabled"}
+
             if tools:
                 supports_tools = litellm.supports_function_calling(self.model)
                 if supports_tools:
