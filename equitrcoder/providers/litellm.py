@@ -337,23 +337,23 @@ class LiteLLMProvider:
 
     def _calculate_cost(self, usage: Dict[str, Any], model: str) -> float:
         try:
-            prompt_tokens = usage.get("prompt_tokens", 0)
-            completion_tokens = usage.get("completion_tokens", 0)
-            cost_per_1k_tokens = {
-                "openai/gpt-4": {"prompt": 0.03, "completion": 0.06},
-                "openai/gpt-3.5-turbo": {"prompt": 0.001, "completion": 0.002},
-                "anthropic/claude-3": {"prompt": 0.008, "completion": 0.024},
-                "anthropic/claude-3-haiku": {"prompt": 0.00025, "completion": 0.00125},
-                "openrouter/anthropic/claude-3-haiku": {
-                    "prompt": 0.00025,
-                    "completion": 0.00125,
-                },
-            }
-            default_rates = {"prompt": 0.001, "completion": 0.002}
-            rates = cost_per_1k_tokens.get(model, default_rates)
-            prompt_cost = (prompt_tokens / 1000) * rates["prompt"]
-            completion_cost = (completion_tokens / 1000) * rates["completion"]
-            return prompt_cost + completion_cost
+            # Prefer accurate pricing from litellm
+            prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
+            completion_tokens = int(usage.get("completion_tokens", 0) or 0)
+            # cost_per_token returns absolute USD cost for the given token counts
+            prompt_usd, completion_usd = (0.0, 0.0)
+            try:
+                if hasattr(litellm, "cost_per_token"):
+                    prompt_usd, completion_usd = litellm.cost_per_token(
+                        model=self.model,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                    )
+            except Exception:
+                # If litellm doesn't support this model, fall back to zero cost
+                prompt_usd, completion_usd = (0.0, 0.0)
+            total = float(prompt_usd or 0.0) + float(completion_usd or 0.0)
+            return total
         except Exception:
             return 0.0
 
