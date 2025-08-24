@@ -1,0 +1,6 @@
+datasets:
+- path: /Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/data
+  description: Synthetic data folder (to be generated)
+hardware:
+  note: Local CPU preferred
+created_at: '2025-08-24T01:57:48.623514'

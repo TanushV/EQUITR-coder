@@ -1,0 +1,7 @@
+{
+  "seed": 1, 
+  "data_dir": "/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/docs/task_20250824_014708/data", 
+  "test_size": 0.2, 
+  "model": "LinearRegression", 
+  "timestamp": "2025-08-24T07:03:44.923513Z"
+}

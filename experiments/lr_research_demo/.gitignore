@@ -1,0 +1,14 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+.env
+.venv
+venv/
+.mypy_cache/
+.pytest_cache/
+# IDEs & OS files
+.vscode/
+.idea/
+.DS_Store
+# EQUITR Coder session files
+.EQUITR_todos_*.json

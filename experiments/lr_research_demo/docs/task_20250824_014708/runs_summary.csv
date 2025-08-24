@@ -1,0 +1,6 @@
+run_id,seed,mse,r2,train_samples,val_samples,created,name,lr,regularization,epochs,data_dir,test_size,exit_code,artifacts_root
+1_20250824T073141Z,1,0.8883941555874327,0.6802751237600742,800,200,2025-08-24T07:31:42.278553Z,baseline,0.01,0.0,1,./data,0.2,0,/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts
+2_20250824T073142Z,2,1.0731289861455013,0.6218370949915389,800,200,2025-08-24T07:31:42.682891Z,lr_high,0.1,0.0,1,./data,0.2,0,/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts
+3_20250824T073142Z,3,1.0014710845112726,0.6226290832659591,800,200,2025-08-24T07:31:43.088757Z,reg_high,0.01,1.0,1,./data,0.2,0,/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts
+4_20250824T073143Z,4,0.9470773787130551,0.6731793227,800,200,2025-08-24T07:31:43.488312Z,more_epochs,0.01,0.0,5,./data,0.2,0,/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts
+5_20250824T073143Z,5,0.9704763042982681,0.5934408497665223,800,200,2025-08-24T07:31:43.893225Z,seed_variation,0.01,0.0,1,./data,0.2,0,/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts

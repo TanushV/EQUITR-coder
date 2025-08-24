@@ -1,0 +1,9 @@
+{
+  "task_dir": "/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/docs/task_20250824_014708",
+  "artifacts_root": "/Users/tanushvanarase/Documents/EQUITR-coder/experiments/lr_research_demo/artifacts",
+  "start_utc": "2025-08-24T07:31:41.620691Z",
+  "end_utc": "2025-08-24T07:31:43.945676Z",
+  "n_experiments": 5,
+  "user": "tanushvanarase",
+  "git_commit": "48d3423317440fc6baf967558c060ade2604de8d"
+}

@@ -851,16 +851,16 @@ class CleanAgent:
         try:
             if self.on_audit_callback:
                 self.on_audit_callback({"status": "starting", "model": self.audit_model})
-
+ 
             print(f"🔍 Running automatic audit with {self.audit_model}...")
             read_only_tools = [
                 self.tools[name] for name in ("read_file", "list_files", "grep_search", "git_status", "git_diff") if name in self.tools
             ]
             if not read_only_tools:
                 return {"success": False, "reason": "No audit tools available", "audit_passed": False}
-
+ 
             tool_schemas = [t.get_json_schema() for t in read_only_tools]
-
+ 
             system_prompt = (
                 "You are an independent code auditor. Explore the repository in depth using the provided read-only tools.\n\n"
                 "AUDIT LOOP INSTRUCTIONS:\n"
@@ -869,13 +869,27 @@ class CleanAgent:
                 "• Fail only if one or more todos have not been completed.\n"
                 "• Keep investigating until confident."
             )
-
+ 
             messages = [Message(role="system", content=system_prompt)]
             max_iter = 20
+            audit_results_tool = {
+                "type": "function",
+                "function": {
+                    "name": "audit_results",
+                    "description": "Final audit verdict",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "passed": {"type": "boolean"},
+                            "reasons": {"type": "string"},
+                            "additional_tasks": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["passed"],
+                    },
+                },
+            }
             for _ in range(max_iter):
-                resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [
-                    {"type": "function", "function": {"name": "audit_results", "description": "Final audit verdict", "parameters": {"type": "object"}}}
-                ])
+                resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [audit_results_tool])
                 if resp.tool_calls:
                     # Expecting at most one tool call per iteration
                     tc = resp.tool_calls[0]

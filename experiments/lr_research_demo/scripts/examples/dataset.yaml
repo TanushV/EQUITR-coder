@@ -1,0 +1,10 @@
+path: scripts/examples/tiny_sample.csv
+target_column: y
+split:
+  train: 0.7
+  val: 0.1
+  test: 0.2
+random_seed: 123
+numeric_columns: [f1, f2, f3]
+stratify: false
+artifacts_dir: scripts/examples/artifacts

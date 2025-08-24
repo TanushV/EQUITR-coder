@@ -1,0 +1,2 @@
+{"seed":1,"mse":0.8883941555874327,"r2":0.6802751237600742,"n_parameters":4,"train_samples":800,"val_samples":200,"created":"2025-08-24T07:09:12.378901Z"}
+{"seed":2,"mse":1.0731289861455013,"r2":0.6218370949915389,"n_parameters":4,"train_samples":800,"val_samples":200,"created":"2025-08-24T07:09:12.800391Z"}

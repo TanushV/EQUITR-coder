@@ -295,6 +295,15 @@ class RunExperiments(Tool):
             if not isinstance(experiments, list) or not experiments:
                 return ToolResult(success=False, error="No experiments defined in config")
 
+            # NEW: Global/local requirements for venv bootstrap
+            # Accept either a string or list under top-level 'requirements'
+            reqs_global: List[str] = []
+            top_reqs = cfg.get("requirements")
+            if isinstance(top_reqs, str):
+                reqs_global = [top_reqs]
+            elif isinstance(top_reqs, list):
+                reqs_global = [str(x) for x in top_reqs]
+
             results: List[Dict[str, Any]] = []
             all_passed = True
 
@@ -314,8 +323,50 @@ class RunExperiments(Tool):
                     continue
                 cwd = exp.get("cwd") or str(cfg_path.parent)
                 timeout = int(exp.get("timeout", 900))
+
+                # Per-experiment requirements (string or list), overrides + extends global
+                reqs_local: List[str] = []
+                exp_reqs = exp.get("requirements")
+                if isinstance(exp_reqs, str):
+                    reqs_local = [exp_reqs]
+                elif isinstance(exp_reqs, list):
+                    reqs_local = [str(x) for x in exp_reqs]
+
+                # If none specified, auto-detect requirements.txt in cwd
+                req_paths: List[Path] = []
+                req_candidates: List[str] = reqs_local + reqs_global
+                if not req_candidates:
+                    default_req = Path(cwd) / "requirements.txt"
+                    if default_req.exists():
+                        req_paths.append(default_req)
+                # Add any specified requirements, resolved relative to cwd if not absolute
+                for r in req_candidates:
+                    rp = Path(r)
+                    if not rp.is_absolute():
+                        rp = Path(cwd) / rp
+                    if rp.exists():
+                        req_paths.append(rp)
+
+                # Optional pre-commands (setup) before main command
+                pre_cmds: List[str] = []
+                if isinstance(exp.get("pre"), list):
+                    pre_cmds = [str(c) for c in exp.get("pre")]
+
+                # Build one-liner to ensure venv installs happen inside the same ephemeral session
+                install_snippets: List[str] = []
+                if use_venv and req_paths:
+                    for rp in req_paths:
+                        install_snippets.append(f"pip install -r '{rp}'")
+                # Compose the final command with pre + optional installs
+                segments: List[str] = []
+                segments.extend(pre_cmds)
+                if install_snippets:
+                    segments.extend(install_snippets)
+                segments.append(command)
+                combined = " && ".join(segments)
+
                 # Respect cwd by inlining cd; honor sandbox via use_venv
-                full_cmd = f"cd {cwd} && {command}"
+                full_cmd = f"cd {cwd} && {combined}"
                 tr = await runner.run(command=full_cmd, timeout=timeout, use_venv=use_venv)
                 rc = (tr.data or {}).get("return_code", 1) if tr.success else 1
                 stdout = (tr.data or {}).get("stdout", "") if tr.data else ""

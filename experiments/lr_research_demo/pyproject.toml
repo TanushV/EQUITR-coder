@@ -1,0 +1,36 @@
+[project]
+name = "lr_experiments"
+version = "0.1.0"
+description = "Deterministic linear-regression experiment runner"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [ { name = "EQUITR Coder" } ]
+
+dependencies = [
+  "numpy==1.26.4",
+  "pandas==2.2.2",
+  "scikit-learn==1.4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black==24.8.0",
+  "ruff==0.6.1",
+  "pytest==8.3.2",
+  "coverage==7.6.1",
+  "isort==5.12.0",
+  "flake8==6.1.0",
+  "mypy==1.8.1",
+  "pre-commit==3.4.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
