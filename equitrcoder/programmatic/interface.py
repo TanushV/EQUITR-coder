@@ -36,6 +36,7 @@ class MultiAgentTaskConfiguration:
     auto_commit: bool = True
     team: Optional[List[str]] = None
     run_parallel: bool = True
+    session_id: Optional[str] = None
 
 
 @dataclass
@@ -51,6 +52,7 @@ class ResearchTaskConfiguration:
     team: Optional[List[str]] = None
     # Optional pre-filled research context (for TUI to avoid interactive prompts)
     research_context: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = None
 
 
 @dataclass
@@ -224,6 +226,7 @@ class EquitrCoder:
                     max_iterations_per_agent=config.max_iterations,
                     auto_commit=config.auto_commit,
                     team=effective_team,
+                    session_id=config.session_id,
                 )
             elif isinstance(config, ResearchTaskConfiguration):
                 supervisor_model = config.supervisor_model or "moonshot/kimi-k2-0711-preview"
@@ -243,6 +246,7 @@ class EquitrCoder:
                     auto_commit=config.auto_commit,
                     team=effective_team,
                     research_context=config.research_context,
+                    session_id=config.session_id,
                 )
             else:
                 raise TypeError("Configuration must be TaskConfiguration or MultiAgentTaskConfiguration")

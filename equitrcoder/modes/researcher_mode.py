@@ -57,6 +57,7 @@ class ResearcherMode:
         callbacks: Optional[Dict[str, Callable]] = None,
         research_context: Optional[Dict[str, Any]] = None,
         task_name: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Main entry for researcher mode."""
         try:
@@ -125,7 +126,7 @@ class ResearcherMode:
                         f"\n--- EXECUTING PHASE {phase_num} ({len(runnable_groups)} task groups in parallel) ---"
                     )
 
-                    coros = [ma._execute_task_group(g, docs_result, callbacks) for g in runnable_groups]
+                    coros = [ma._execute_task_group(g, docs_result, callbacks, session_id=session_id) for g in runnable_groups]
                     phase_results = await asyncio.gather(*coros)
 
                     phase_cost = sum(r.get("cost", 0.0) for r in phase_results)
@@ -378,4 +379,4 @@ async def run_researcher_mode(**kwargs) -> Dict[str, Any]:
     }
 
     mode = ResearcherMode(**config)
-    return await mode.run(task_description=task_desc, project_path=project_path, callbacks=callbacks, research_context=kwargs.get("research_context"), task_name=kwargs.get("task_name")) 
+    return await mode.run(task_description=task_desc, project_path=project_path, callbacks=callbacks, research_context=kwargs.get("research_context"), task_name=kwargs.get("task_name"), session_id=kwargs.get("session_id")) 

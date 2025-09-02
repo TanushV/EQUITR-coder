@@ -37,7 +37,7 @@ class SingleAgentMode:
             'multi_agent_prompt': prompts.get('multi_agent_prompt', 'You are part of a team. Coordinate with other agents.')
         }
     
-    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, task_name: Optional[str] = None) -> Dict[str, Any]:
+    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, task_name: Optional[str] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             docs_result = await orchestrator.create_docs(task_description=task_description, project_path=project_path, task_name=task_name)
@@ -96,7 +96,7 @@ class SingleAgentMode:
                 print(f"   Dependencies: {group_to_run.dependencies}")
                 
                 start_time = datetime.now()
-                agent_result = await agent.run(group_task_desc)
+                agent_result = await agent.run(group_task_desc, session_id=session_id)
                 end_time = datetime.now()
                 
                 # Log detailed group completion with comprehensive metrics
@@ -158,4 +158,4 @@ async def run_single_agent_mode(**kwargs) -> Dict[str, Any]:
         **kwargs
     }
     mode = SingleAgentMode(**config)
-    return await mode.run(task_description=kwargs.get("task_description", ""), project_path=kwargs.get("project_path", "."), task_name=kwargs.get("task_name"))
+    return await mode.run(task_description=kwargs.get("task_description", ""), project_path=kwargs.get("project_path", "."), task_name=kwargs.get("task_name"), session_id=kwargs.get("session_id"))

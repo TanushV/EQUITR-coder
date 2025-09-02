@@ -47,7 +47,7 @@ class MultiAgentMode:
             'multi_agent_prompt': prompts.get('multi_agent_prompt', 'You are part of a team. Coordinate with other agents.')
         }
     
-    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None, task_name: Optional[str] = None) -> Dict[str, Any]:
+    async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None, task_name: Optional[str] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             docs_result = await orchestrator.create_docs(
@@ -81,7 +81,7 @@ class MultiAgentMode:
                 print(f"\n--- EXECUTING PHASE {phase_num} ({len(runnable_groups)} task groups in parallel) ---")
                 print(f"💰 Global cost so far: ${self.global_cost:.4f}")
                 
-                agent_coroutines = [self._execute_task_group(group, docs_result, callbacks) for group in runnable_groups]
+                agent_coroutines = [self._execute_task_group(group, docs_result, callbacks, session_id=session_id) for group in runnable_groups]
                 phase_results = await asyncio.gather(*agent_coroutines)
                 
                 # Calculate phase cost and add to global cost
@@ -115,7 +115,7 @@ class MultiAgentMode:
                 # Failed to change back to original directory, log but continue
                 print(f"Warning: Failed to change back to original directory: {e}")
     
-    async def _execute_task_group(self, group, docs_result, callbacks):
+    async def _execute_task_group(self, group, docs_result, callbacks, session_id: Optional[str] = None):
         specialization = group.specialization or 'default'
         agent_id = f"{specialization}_agent_{group.group_id}"
         await global_message_pool.register_agent(agent_id)
@@ -170,7 +170,7 @@ class MultiAgentMode:
         print(f"   Available Tools: {[tool.name for tool in agent_tools]}")
         
         start_time = datetime.now()
-        result = await agent.run(group_task_desc)
+        result = await agent.run(group_task_desc, session_id=session_id)
         end_time = datetime.now()
         
         # Log detailed agent completion with comprehensive metrics
@@ -213,15 +213,19 @@ async def run_multi_agent_sequential(**kwargs) -> Dict[str, Any]:
     task_desc = kwargs.pop("task_description", "")
     project_path = kwargs.pop("project_path", ".")
     team = kwargs.pop("team", None)
+    session_id = kwargs.pop("session_id", None)
+    task_name = kwargs.pop("task_name", None)
     config = {"run_parallel": False, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=kwargs.get("task_name"))
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=task_name, session_id=session_id)
 
 async def run_multi_agent_parallel(**kwargs) -> Dict[str, Any]:
     # Separate runtime-only args from constructor kwargs
     task_desc = kwargs.pop("task_description", "")
     project_path = kwargs.pop("project_path", ".")
     team = kwargs.pop("team", None)
+    session_id = kwargs.pop("session_id", None)
+    task_name = kwargs.pop("task_name", None)
     config = {"run_parallel": True, "auto_commit": True, **kwargs}
     mode = MultiAgentMode(**config)
-    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=kwargs.get("task_name"))
+    return await mode.run(task_description=task_desc, project_path=project_path, team=team, task_name=task_name, session_id=session_id)

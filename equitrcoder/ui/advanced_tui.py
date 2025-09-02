@@ -680,6 +680,11 @@ class EquitrTUI(App):
         "  /agents                             List active agents\n"
         "  /profiles list                      List available profiles\n"
         "  /profiles select <name>             Select a profile (multi/research)\n"
+        "  /session list                       List saved sessions\n"
+        "  /session current                    Show current session\n"
+        "  /session new [id]                   Start/use a new session id\n"
+        "  /session resume <id>                Resume an existing session id\n"
+        "  /session pause                      Mark current session paused and cancel running task\n"
         "  /clear                              Clear chat windows\n"
         "  /quit                               Exit the TUI\n"
     )
@@ -704,6 +709,10 @@ class EquitrTUI(App):
         self.main_screen: Optional[MainScreen] = None
         self.custom_header: Optional[Static] = None
         self.session_cost: float = 0.0
+        self.current_session_id: Optional[str] = None
+        self._task_handle: Optional[Any] = None
+        self._paused: bool = False
+        self.status_bar: StatusBar = StatusBar()
 
         # Initialize components
         self.todo_sidebar = TodoSidebar(classes="sidebar")
@@ -722,7 +731,9 @@ class EquitrTUI(App):
         # Custom header with time and models
         self.custom_header = Static(classes="custom-header")
         yield self.custom_header
-
+        # Status bar (docked via CSS)
+        yield self.status_bar
+        
         # Container for switching between startup and main screens
         yield Container(id="screen-container", classes="screen-container")
 
@@ -913,6 +924,82 @@ class EquitrTUI(App):
         if cmd in ("quit", "exit"):
             self.exit()
             return
+        if cmd == "session":
+            if not args:
+                self.show_help()
+                return
+            sub = args[0].lower()
+            if sub == "list":
+                try:
+                    sessions = self.coder.list_sessions() if self.coder else []
+                    if main_window:
+                        if not sessions:
+                            main_window.add_status_update("No sessions found", "info")
+                        else:
+                            lines = [f"{s['session_id']} | msgs={s['message_count']} | updated={s['updated_at']} | cost=${s.get('cost',0.0):.2f}" for s in sessions]
+                            main_window.add_status_update("Sessions:\n" + "\n".join(lines), "info")
+                except Exception as e:
+                    if main_window:
+                        main_window.add_status_update(f"Failed to list sessions: {e}", "error")
+                return
+            if sub == "current":
+                sid = self.current_session_id or "None"
+                if main_window:
+                    main_window.add_status_update(f"Current session: {sid}", "info")
+                return
+            if sub == "new":
+                import uuid
+                sid = args[1] if len(args) >= 2 else str(uuid.uuid4())[:8]
+                self.current_session_id = sid
+                try:
+                    # Ensure session exists
+                    if self.coder:
+                        sm = self.coder.session_manager
+                        sm.get_session_data(sid)
+                except Exception:
+                    pass
+                if main_window:
+                    main_window.add_status_update(f"Using new session: {sid}", "success")
+                return
+            if sub == "resume" and len(args) >= 2:
+                sid = args[1]
+                try:
+                    if self.coder and self.coder.session_manager.load_session(sid):
+                        self.current_session_id = sid
+                        # Mark unpaused
+                        sess = self.coder.session_manager.get_session_data(sid)
+                        sess.metadata["paused"] = False
+                        self.coder.session_manager.save_session(sess)
+                        if main_window:
+                            main_window.add_status_update(f"Resumed session: {sid}", "success")
+                    else:
+                        if main_window:
+                            main_window.add_status_update(f"Session not found: {sid}", "error")
+                except Exception as e:
+                    if main_window:
+                        main_window.add_status_update(f"Failed to resume session: {e}", "error")
+                return
+            if sub == "pause":
+                if not self.current_session_id:
+                    if main_window:
+                        main_window.add_status_update("No current session to pause. Use /session new or /session resume <id>.", "warning")
+                    return
+                try:
+                    if self._task_handle and not self._task_handle.done():
+                        self._task_handle.cancel()
+                    if self.coder:
+                        sess = self.coder.session_manager.get_session_data(self.current_session_id)
+                        sess.metadata["paused"] = True
+                        self.coder.session_manager.save_session(sess)
+                    self._paused = True
+                    if main_window:
+                        main_window.add_status_update(f"Paused session: {self.current_session_id}", "success")
+                except Exception as e:
+                    if main_window:
+                        main_window.add_status_update(f"Failed to pause: {e}", "error")
+                return
+            self.show_help()
+            return
         # Unknown command
         if main_window:
             main_window.add_status_update(f"Unknown command: {cmd}. Use /help.", "error")
@@ -982,9 +1069,7 @@ class EquitrTUI(App):
             self.select_model()
             return
 
-        # Use provided task_text or fallback to whatever is in the command input (if any)
         task_description = (task_text or "").strip()
-
         if not task_description:
             main_window = self.agent_grid.get_agent_window("main")
             main_window.add_status_update(
@@ -992,90 +1077,98 @@ class EquitrTUI(App):
             )
             return
 
-        self.task_running = True
-        self.current_task = task_description
-        self.status_bar.stage = "executing"
+        # Ensure we have a session id
+        if not self.current_session_id:
+            import uuid
+            self.current_session_id = str(uuid.uuid4())[:8]
+        self._paused = False
 
-        try:
-            # Add user message to main window
-            main_window = self.agent_grid.get_agent_window("main")
-            main_window.add_message("user", task_description)
+        async def _run():
+            self.task_running = True
+            self.current_task = task_description
+            self.status_bar.stage = "executing"
+            try:
+                main_window = self.agent_grid.get_agent_window("main")
+                main_window.add_message("user", task_description)
 
-            # Configure and execute task
-            if mode == "single":
-                config = TaskConfiguration(
-                    description=task_description,
-                    max_cost=get_config('limits.max_cost', 5.0),
-                    max_iterations=get_config('limits.max_iterations', 20),
-                    auto_commit=True,
-                    model=self.supervisor_model or self.worker_model,
-                )
-                self.status_bar.update_cost_limit(5.0)
-                self.status_bar.agent_count = 1
-                self.active_agent_names = ["Main Agent"]
-            elif mode == "multi":
-                config = MultiAgentTaskConfiguration(
-                    description=task_description,
-                    max_workers=get_config('limits.max_workers', 3),
-                    max_cost=get_config('limits.max_cost', 15.0),
-                    supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
-                    worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
-                    auto_commit=True,
-                    run_parallel=self.multi_run_parallel,
-                )
-                self.status_bar.update_cost_limit(15.0)
-                # Add worker windows for multi-agent mode (equal split)
-                self.active_agent_names = ["Supervisor"]
-                # Ensure at least 2 workers for demo split equal
-                workers = get_config('limits.max_workers', 3)
-                for i in range(workers):
-                    agent_id = f"worker_{i+1}"
-                    self.agent_grid.add_agent_window(agent_id)
-                    self.active_agent_names.append(f"Worker {i+1}")
-            else:  # research
-                from ..programmatic.interface import ResearchTaskConfiguration
-                config = ResearchTaskConfiguration(
-                    description=task_description,
-                    max_workers=get_config('limits.max_workers', 3),
-                    max_cost=get_config('limits.max_cost', 15.0),
-                    supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
-                    worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
-                    auto_commit=True,
-                    team=["ml_researcher", "data_engineer", "experiment_runner", "report_writer"],
-                )
-                self.status_bar.update_cost_limit(15.0)
-                self.active_agent_names = ["Supervisor"]
-                workers = get_config('limits.max_workers', 3)
-                for i in range(workers):
-                    agent_id = f"worker_{i+1}"
-                    self.agent_grid.add_agent_window(agent_id)
-                    self.active_agent_names.append(f"Worker {i+1}")
-            self.agents_sidebar.update_agents(self.active_agent_names)
-
-            # Execute task
-            result = await self.coder.execute_task(task_description, config)
-
-            # Show result
-            if result.success:
-                main_window.add_status_update(
-                    f"Task completed successfully! Cost: ${result.cost:.4f}, Time: {result.execution_time:.2f}s",
-                    "success",
-                )
-                if result.git_committed:
-                    main_window.add_status_update(
-                        f"Changes committed: {result.commit_hash}", "info"
+                # Configure and execute task
+                if mode == "single":
+                    config = TaskConfiguration(
+                        description=task_description,
+                        max_cost=get_config('limits.max_cost', 5.0),
+                        max_iterations=get_config('limits.max_iterations', 20),
+                        auto_commit=True,
+                        model=self.supervisor_model or self.worker_model,
+                        session_id=self.current_session_id,
                     )
-            else:
-                main_window.add_status_update(f"Task failed: {result.error}", "error")
+                    self.status_bar.update_cost_limit(5.0)
+                    self.status_bar.agent_count = 1
+                    self.active_agent_names = ["Main Agent"]
+                elif mode == "multi":
+                    config = MultiAgentTaskConfiguration(
+                        description=task_description,
+                        max_workers=get_config('limits.max_workers', 3),
+                        max_cost=get_config('limits.max_cost', 15.0),
+                        supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
+                        worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
+                        auto_commit=True,
+                        run_parallel=self.multi_run_parallel,
+                        session_id=self.current_session_id,
+                    )
+                    self.status_bar.update_cost_limit(15.0)
+                    self.active_agent_names = ["Supervisor"]
+                    workers = get_config('limits.max_workers', 3)
+                    for i in range(workers):
+                        agent_id = f"worker_{i+1}"
+                        self.agent_grid.add_agent_window(agent_id)
+                        self.active_agent_names.append(f"Worker {i+1}")
+                else:  # research
+                    from ..programmatic.interface import ResearchTaskConfiguration
+                    config = ResearchTaskConfiguration(
+                        description=task_description,
+                        max_workers=get_config('limits.max_workers', 3),
+                        max_cost=get_config('limits.max_cost', 15.0),
+                        supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
+                        worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
+                        auto_commit=True,
+                        team=["ml_researcher", "data_engineer", "experiment_runner"],
+                        session_id=self.current_session_id,
+                        research_context={},
+                    )
+                    self.status_bar.update_cost_limit(15.0)
+                    self.active_agent_names = ["Supervisor"]
+                    workers = get_config('limits.max_workers', 3)
+                    for i in range(workers):
+                        agent_id = f"worker_{i+1}"
+                        self.agent_grid.add_agent_window(agent_id)
+                        self.active_agent_names.append(f"Worker {i+1}")
+                self.agents_sidebar.update_agents(self.active_agent_names)
 
-        except Exception as e:
-            main_window = self.agent_grid.get_agent_window("main")
-            main_window.add_status_update(f"Execution error: {str(e)}", "error")
+                result = await self.coder.execute_task(task_description, config)
 
-        finally:
-            self.task_running = False
-            self.status_bar.stage = "ready"
-            await self.update_todos()
+                if result.success:
+                    main_window.add_status_update(
+                        f"Task completed successfully! Cost: ${result.cost:.4f}, Time: {result.execution_time:.2f}s",
+                        "success",
+                    )
+                    if result.git_committed:
+                        main_window.add_status_update(
+                            f"Changes committed: {result.commit_hash}", "info"
+                        )
+                else:
+                    main_window.add_status_update(f"Task failed: {result.error}", "error")
+            except Exception as e:
+                main_window = self.agent_grid.get_agent_window("main")
+                main_window.add_status_update(f"Execution error: {str(e)}", "error")
+            finally:
+                self.task_running = False
+                self.status_bar.stage = "ready"
+                await self.update_todos()
+
+        # Run in background so we can cancel on /session pause
+        import asyncio as _asyncio
+        self._task_handle = _asyncio.create_task(_run())
+        # Do not await here to keep UI responsive
 
     async def clear_chat(self):
         """Clear all chat windows."""
