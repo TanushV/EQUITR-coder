@@ -80,6 +80,18 @@ class StartupScreen(Static):
                         value="single",
                         id="mode-select"
                     )
+            # New session/task selection controls
+            yield Label("Previous tasks handling:", classes="model-label")
+            yield Select(
+                options=[
+                    ("Ignore previous tasks (start fresh)", "ignore"),
+                    ("Include selected previous tasks on top", "include"),
+                    ("Only work on selected previous tasks", "only"),
+                ],
+                value="ignore",
+                id="prev-task-mode"
+            )
+            yield Input(placeholder="Comma-separated task group IDs to include (optional)", id="prev-task-ids")
             
             yield Label("Type your first task below to begin:", classes="startup-instruction")
             yield Input(placeholder="Describe what you want to build...", id="startup-input")
@@ -685,6 +697,8 @@ class EquitrTUI(App):
         "  /session new [id]                   Start/use a new session id\n"
         "  /session resume <id>                Resume an existing session id\n"
         "  /session pause                      Mark current session paused and cancel running task\n"
+        "  /tasks mode [ignore|include|only]   Control handling of previous tasks\n"
+        "  /tasks select <groupIdsCsv>         Select task group IDs for include/only\n"
         "  /clear                              Clear chat windows\n"
         "  /quit                               Exit the TUI\n"
     )
@@ -713,6 +727,9 @@ class EquitrTUI(App):
         self._task_handle: Optional[Any] = None
         self._paused: bool = False
         self.status_bar: StatusBar = StatusBar()
+        self.project_root: Optional[str] = None
+        self.prev_task_mode: str = "ignore"
+        self.prev_task_ids: List[str] = []
 
         # Initialize components
         self.todo_sidebar = TodoSidebar(classes="sidebar")
@@ -733,7 +750,7 @@ class EquitrTUI(App):
         yield self.custom_header
         # Status bar (docked via CSS)
         yield self.status_bar
-        
+
         # Container for switching between startup and main screens
         yield Container(id="screen-container", classes="screen-container")
 
@@ -1000,6 +1017,29 @@ class EquitrTUI(App):
                 return
             self.show_help()
             return
+        if cmd == "tasks":
+            if not args:
+                self.show_help()
+                return
+            sub = args[0].lower()
+            if sub == "mode" and len(args) >= 2:
+                mode_val = args[1].lower()
+                if mode_val in ("ignore", "include", "only"):
+                    self.prev_task_mode = mode_val
+                    if main_window:
+                        main_window.add_status_update(f"Previous tasks mode set to: {mode_val}", "success")
+                else:
+                    if main_window:
+                        main_window.add_status_update("Usage: /tasks mode [ignore|include|only]", "warning")
+                return
+            if sub == "select" and len(args) >= 2:
+                ids_csv = args[1]
+                self.prev_task_ids = [x.strip() for x in ids_csv.split(',') if x.strip()]
+                if main_window:
+                    main_window.add_status_update(f"Selected task groups: {', '.join(self.prev_task_ids) if self.prev_task_ids else '(none)'}", "success")
+                return
+            self.show_help()
+            return
         # Unknown command
         if main_window:
             main_window.add_status_update(f"Unknown command: {cmd}. Use /help.", "error")
@@ -1013,6 +1053,8 @@ class EquitrTUI(App):
                 worker_select = self.query_one("#worker-select", Select)
                 mode_select = self.query_one("#mode-select", Select)
                 startup_input = self.query_one("#startup-input", Input)
+                prev_task_mode = self.query_one("#prev-task-mode", Select)
+                prev_ids_input = self.query_one("#prev-task-ids", Input)
                 
                 self.supervisor_model = supervisor_select.value
                 self.worker_model = worker_select.value
@@ -1022,6 +1064,8 @@ class EquitrTUI(App):
                 self.set_mode(selected_mode)
                 
                 self.model_selected = True
+                self.prev_task_mode = prev_task_mode.value or "ignore"
+                self.prev_task_ids = [x.strip() for x in (prev_ids_input.value or "").split(',') if x.strip()]
                 
                 first_task = startup_input.value.strip()
                 if not first_task:
@@ -1082,6 +1126,17 @@ class EquitrTUI(App):
             import uuid
             self.current_session_id = str(uuid.uuid4())[:8]
         self._paused = False
+
+        # Ensure isolated project directory per run
+        try:
+            from datetime import datetime as _dt
+            from pathlib import Path as _Path
+            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+            proj_dir = _Path(f"generated_projects/tui_run_{ts}").resolve()
+            proj_dir.mkdir(parents=True, exist_ok=True)
+            self.project_root = str(proj_dir)
+        except Exception:
+            self.project_root = "."
 
         async def _run():
             self.task_running = True
@@ -1144,6 +1199,31 @@ class EquitrTUI(App):
                         self.active_agent_names.append(f"Worker {i+1}")
                 self.agents_sidebar.update_agents(self.active_agent_names)
 
+                # Apply previous task handling before execution
+                if self.prev_task_mode != "ignore":
+                    try:
+                        from ..tools.builtin.todo import get_todo_manager
+                        mgr = get_todo_manager()
+                        if self.prev_task_mode == "only":
+                            # Mark all groups not selected as completed to focus on selected ones
+                            select = set(self.prev_task_ids or [])
+                            for g in mgr.plan.task_groups:
+                                if g.group_id not in select:
+                                    g.status = 'completed'
+                            mgr._save_plan()
+                        elif self.prev_task_mode == "include":
+                            # Leave existing groups; they will be included. Optionally mark selected as pending explicitly
+                            select = set(self.prev_task_ids or [])
+                            for g in mgr.plan.task_groups:
+                                if g.group_id in select:
+                                    g.status = 'pending'
+                            mgr._save_plan()
+                    except Exception:
+                        pass
+
+                # Execute task using programmatic interface in isolated project path
+                self.coder = self.coder or create_single_agent_coder()
+                self.coder.repo_path = __import__('pathlib').Path(self.project_root).resolve()
                 result = await self.coder.execute_task(task_description, config)
 
                 if result.success:
@@ -1165,7 +1245,6 @@ class EquitrTUI(App):
                 self.status_bar.stage = "ready"
                 await self.update_todos()
 
-        # Run in background so we can cancel on /session pause
         import asyncio as _asyncio
         self._task_handle = _asyncio.create_task(_run())
         # Do not await here to keep UI responsive

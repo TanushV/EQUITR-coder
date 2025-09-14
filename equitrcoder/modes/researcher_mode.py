@@ -116,6 +116,24 @@ class ResearcherMode:
                     auto_commit=self.auto_commit,
                 )
 
+                # Ensure research mode uses multi-agent prompt with a research-specific suffix (simple approach)
+                try:
+                    from ..core.profile_manager import ProfileManager
+                    pm = ProfileManager()
+                    prompts_cfg = pm.system_prompt_config or {}
+                    base_multi_prompt = ma.system_prompts.get(
+                        'multi_agent_prompt',
+                        'You are part of a team. Coordinate with other agents.'
+                    )
+                    research_suffix = prompts_cfg.get('research_multi_agent_suffix', (
+                        "\n\n[Research Mode Addendum]\n"
+                        "- Prioritize experiment design and execution. If experiments fail, add fix todos and retry until pass or retry limit.\n"
+                        "- Include datasets, hardware, and experiments context when available."
+                    ))
+                    ma.system_prompts['multi_agent_prompt'] = base_multi_prompt + "\n\n" + research_suffix
+                except Exception:
+                    pass
+
                 phase_num = 1
                 while not get_todo_manager().are_all_tasks_complete():
                     runnable_groups = get_todo_manager().get_next_runnable_groups()

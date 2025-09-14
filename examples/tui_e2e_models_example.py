@@ -54,12 +54,8 @@ async def run_research_flow(app: EquitrTUI):
         await pilot.press("enter")
 
         # Let it run for a while (this will call into real backend). Adjust timeout as needed.
-        await pilot.pause(5.0)
+        await pilot.pause(600.0)
 
-        # Pause the session to stop background activity cleanly for this example
-        cmd.value = "/session pause"
-        await pilot.press("enter")
-        await pilot.pause(0.2)
 
 async def run_multi_flow(app: EquitrTUI):
     async with app.run_test() as pilot:
@@ -92,11 +88,7 @@ async def run_multi_flow(app: EquitrTUI):
         cmd.value = f"/run {MULTI_TASK}"
         await pilot.press("enter")
 
-        await pilot.pause(5.0)
-
-        cmd.value = "/session pause"
-        await pilot.press("enter")
-        await pilot.pause(0.2)
+        await pilot.pause(600.0)
 
 async def main():
     # Use project-local output space, like programmatic examples do
