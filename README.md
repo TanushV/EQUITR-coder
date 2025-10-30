@@ -21,7 +21,7 @@ Set whatever providers you plan to use:
 - `MOONSHOT_API_KEY`
 - `GROQ_API_KEY`
 
-You can also set `CLAUDE_AGENT_MODEL`, `CLAUDE_AGENT_BUDGET`, and `CLAUDE_AGENT_PROFILE` to override defaults.
+
 
 Export examples (macOS/Linux):
 ```bash
@@ -102,6 +102,18 @@ equitrcoder api --host 0.0.0.0 --port 8000
 - User overrides: `~/.EQUITR-coder/config.yaml`.
 - Env overrides supported for selected keys (see code and docs).
 - `session.max_context: "auto"` is supported and normalized automatically.
+
+### MCP Servers (Optional)
+
+- Enable MCP by installing the Python SDK:
+
+```bash
+pip install modelcontextprotocol
+```
+
+- Declare servers in `~/.EQUITR-coder/mcp_servers.json` or set `EQUITR_MCP_SERVERS`.
+Each server appears as a tool `mcp:<serverName>` that forwards to the remote tools.
+See `docs/MCP_INTEGRATION_GUIDE.md`.
 
 ## Examples
 
