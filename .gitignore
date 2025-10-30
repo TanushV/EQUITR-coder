@@ -118,6 +118,13 @@ cython_debug/
 generated_projects/
 /generated_projects
 
+# Audit artifacts and generated audit tests
+audits/
+tests/audit/
+
+# Local MCP server overrides (use ~/.EQUITR-coder instead)
+/mcp_servers.json
+
 # Ruff cache
 .ruff_cache/
 
