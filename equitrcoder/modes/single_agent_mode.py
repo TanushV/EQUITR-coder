@@ -50,6 +50,14 @@ class SingleAgentMode:
                 git_manager.ensure_repo_is_ready()
             
             tools = discover_tools()
+            # Ensure read-only audit tools are always present
+            by_name = {t.get_name(): t for t in tools}
+            required = ["read_file", "list_files", "grep_search", "git_status", "git_diff"]
+            for r in required:
+                if r not in by_name:
+                    # find in discovery again to avoid duplication
+                    extra = [t for t in discover_tools() if t.get_name() == r]
+                    tools.extend(extra)
             agent = CleanAgent(
                 agent_id="single_agent", model=self.agent_model, tools=tools, context=docs_result,
                 max_cost=self.max_cost, max_iterations=self.max_iterations, audit_model=self.orchestrator_model,
@@ -134,7 +142,20 @@ class SingleAgentMode:
                 group_num += 1
             
             print(f"🎉 Agent has completed all task groups! Total cost: ${total_cost:.4f}")
-            return {"success": True, "docs_result": docs_result, "cost": total_cost}
+            # Final audit after all todos complete (single-agent mode)
+            try:
+                auditor = CleanAgent(
+                    agent_id="final_auditor_single",
+                    model=self.orchestrator_model,
+                    tools=[t for t in discover_tools() if t.get_name() in ("read_file", "list_files", "grep_search", "git_status", "git_diff")],
+                    context=docs_result,
+                    audit_model=self.orchestrator_model,
+                )
+                audit_result = await auditor._run_audit()
+            except Exception as e:
+                audit_result = {"success": False, "error": str(e)}
+
+            return {"success": True, "docs_result": docs_result, "cost": total_cost, "final_audit": audit_result}
         
         except Exception as e:
             return {"success": False, "error": str(e), "mode": "single_agent"}

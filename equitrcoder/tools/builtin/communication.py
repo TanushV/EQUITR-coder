@@ -1,6 +1,6 @@
 # equitrcoder/tools/builtin/communication.py
 
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Dict, Any
 from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
@@ -67,17 +67,18 @@ class ReceiveMessages(Tool):
 
 
 
-def create_communication_tools_for_agent(agent_id: str) -> List[Tool]:
-    """Factory function to create a set of communication tools for a specific agent."""
+def create_communication_tools_for_agent(agent_id: str, supervisor_model: str, docs_context: Optional[Dict[str, Any]] = None) -> List[Tool]:
+    """Factory function to create a set of communication tools for a specific agent.
+
+    docs_context: full docs_result dict to provide to ask_supervisor for rich context.
+    """
     from .ask_supervisor import AskSupervisor
     from ...providers.litellm import LiteLLMProvider
     
-    # Create supervisor provider (using same model as orchestrator)
-    # This will be passed the correct model when the agent is created
-    supervisor_provider = LiteLLMProvider(model="o3")  # Default, will be overridden
+    supervisor_provider = LiteLLMProvider(model=supervisor_model)
     
     return [
         SendMessage(sender_id=agent_id),
         ReceiveMessages(agent_id=agent_id),
-        AskSupervisor(provider=supervisor_provider),
+        AskSupervisor(provider=supervisor_provider, docs_context=docs_context),
     ]

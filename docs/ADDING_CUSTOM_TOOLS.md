@@ -11,6 +11,11 @@ EQUITR Coder has three types of tools:
 
 Custom tools are automatically discovered and made available to agents based on their profiles.
 
+### MCP Tools via JSON-configured servers
+
+You can add external MCP servers without writing Python code by adding them to the MCP JSON config (see MCP Integration Guide). Each server becomes a tool `mcp:<serverName>` that forwards calls to the server's tools.
+
+
 ---
 
 ## 1. Tool Structure

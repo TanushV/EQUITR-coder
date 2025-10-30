@@ -253,31 +253,19 @@ class TodosGenerator(IGenerator[str], BaseConfigurable):
         }
     
     async def generate(self, user_prompt: str, requirements: str, design: str) -> str:
-        """Generate todos document automatically with grouped, reasonable tasks using tool calls."""
-        system_prompt = """You are a project manager creating a well-organized task breakdown for potential parallel execution.
+        """Generate a concise todos document with grouped, reasonable tasks using tool calls."""
+        system_prompt = """You are a project manager creating a lean, well-organized task breakdown for efficient execution.
 
-CRITICAL REQUIREMENTS:
-1. Create 1-25 tasks total (flexible based on project complexity)
-2. Group tasks into 3-6 logical categories for easy parallel agent distribution
-3. Each category should be self-contained and independent
-4. Tasks within categories should be related and sequential
-5. Use clear, actionable descriptions
-6. You can work on multiple todos at once if they're related
+TODO GUIDELINES (no numeric caps):
+1. Group tasks into logical categories; keep categories reasonably independent.
+2. Use concise, imperative titles without sub-steps; avoid micro-tasks.
+3. Prioritize implementation and testing; keep meta/documentation minimal.
+4. Keep the overall list lean and reasonable based on project scope.
 
 WORKFLOW:
-1. Analyze the requirements and design
-2. Create logical categories for parallel agent distribution
-3. Use the create_todo_category tool to create each category with its tasks
-4. Each category should have 2-8 tasks that can be worked on by one agent
-5. Categories should have minimal dependencies on each other
-
-RULES FOR PARALLEL AGENT DISTRIBUTION:
-- Each category should be assignable to a separate agent
-- Categories should have minimal dependencies on each other
-- Aim for 3-6 categories to allow 2-6 parallel agents
-- Tasks should be specific and actionable
-- Focus on what needs to be delivered, not how to do it
-- Multiple related tasks can be worked on simultaneously
+1. Analyze requirements and design
+2. Create logical categories
+3. Use create_todo_category to emit each category with its tasks
 
 Available tools:
 - create_todo_category: Use this to create each category with its associated tasks"""
@@ -339,6 +327,7 @@ Available tools:
                 for tool_call in response.tool_calls:
                     if tool_call.function["name"] == "create_todo_category":
                         args = json.loads(tool_call.function["arguments"])
+                        # No hard cap; just accept tasks as provided
                         categories.append(args)
 
                         tool_calls_dict = [

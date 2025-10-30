@@ -182,6 +182,16 @@ def auto_load_environment() -> Dict[str, Any]:
     Returns:
         Dict with loading status and available providers
     """
+    # Force UTF-8 friendly defaults for cross-platform runs
+    try:
+        os.environ.setdefault("PYTHONUTF8", "1")
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+        # Best-effort for subprocess locale on Unix; harmless on Windows
+        os.environ.setdefault("LC_ALL", "C.UTF-8")
+        os.environ.setdefault("LANG", "C.UTF-8")
+    except Exception:
+        pass
+
     # Try to load .env file
     dotenv_loaded = load_dotenv_file()
 

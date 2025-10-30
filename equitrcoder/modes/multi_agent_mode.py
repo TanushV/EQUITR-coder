@@ -1,6 +1,7 @@
 # equitrcoder/modes/multi_agent_mode.py
 
 import asyncio
+import os
 # import yaml  # Unused
 from datetime import datetime
 # from pathlib import Path  # Unused
@@ -29,7 +30,8 @@ class MultiAgentMode:
         self.auto_commit = auto_commit # <-- NEW PROPERTY
         self.profile_manager = ProfileManager()
         self.system_prompts = self._load_system_prompts()
-        self.global_cost = 0.0  # Track total cost across all agents
+        self.global_cost = 0.0  # Track total cost across all agents and supervisor
+        self.start_time = datetime.now()
         print(f"🎭 Multi-Agent Mode ({'Parallel Phased' if run_parallel else 'Sequential Group'}): Auto-commit is {'ON' if self.auto_commit else 'OFF'}")
         print(f"   Agent Model: {agent_model}, Audit Model: {audit_model}")
     
@@ -48,6 +50,7 @@ class MultiAgentMode:
         }
     
     async def run(self, task_description: str, project_path: str = ".", callbacks: Optional[Dict[str, Callable]] = None, team: Optional[List[str]] = None, task_name: Optional[str] = None, session_id: Optional[str] = None) -> Dict[str, Any]:
+        original_cwd = None
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             docs_result = await orchestrator.create_docs(
@@ -68,7 +71,6 @@ class MultiAgentMode:
             set_global_todo_file(docs_result['todos_path'])
             
             # Change to project directory so tools work with correct relative paths
-            import os
             original_cwd = os.getcwd()
             os.chdir(project_path)
             
@@ -85,7 +87,7 @@ class MultiAgentMode:
                 phase_results = await asyncio.gather(*agent_coroutines)
                 
                 # Calculate phase cost and add to global cost
-                phase_cost = sum(result.get("cost", 0.0) for result in phase_results)
+                phase_cost = sum(float(result.get("cost", 0.0) or 0.0) for result in phase_results)
                 self.global_cost += phase_cost
                 
                 if any(not result.get("success") for result in phase_results):
@@ -102,15 +104,30 @@ class MultiAgentMode:
                 print(f"💰 Phase {phase_num} cost: ${phase_cost:.4f} | Global cost: ${self.global_cost:.4f}")
                 phase_num += 1
             
-            print(f"🎉 ALL PHASES COMPLETED! Global cost: ${self.global_cost:.4f}")
-            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1, "cost": self.global_cost}
+            total_seconds = (datetime.now() - self.start_time).total_seconds()
+            print(f"🎉 ALL PHASES COMPLETED! Global cost: ${self.global_cost:.4f} | Time: {total_seconds:.1f}s")
+            # Final audit after all todos complete: run a lightweight single-agent audit using the orchestrator model
+            try:
+                auditor = CleanAgent(
+                    agent_id="final_auditor",
+                    model=self.orchestrator_model,
+                    tools=[t for t in discover_tools() if t.get_name() in ("read_file", "list_files", "grep_search", "git_status", "git_diff")],
+                    context=docs_result,
+                    audit_model=self.orchestrator_model,
+                )
+                audit_result = await auditor._run_audit()
+            except Exception as e:
+                audit_result = {"success": False, "error": str(e)}
+
+            return {"success": True, "docs_result": docs_result, "total_phases": phase_num - 1, "cost": self.global_cost, "execution_time": total_seconds, "final_audit": audit_result}
         
         except Exception as e:
             return {"success": False, "error": str(e)}
         finally:
             # Restore original working directory
             try:
-                os.chdir(original_cwd)
+                if original_cwd:
+                    os.chdir(original_cwd)
             except OSError as e:
                 # Failed to change back to original directory, log but continue
                 print(f"Warning: Failed to change back to original directory: {e}")
@@ -132,10 +149,31 @@ class MultiAgentMode:
 
         # Filter tools based on the agent configuration
         all_available_tools = discover_tools()
+        by_name = {t.name: t for t in all_available_tools}
         agent_tools = [tool for tool in all_available_tools if tool.name in allowed_tool_names]
+
+        # Ensure experiment_runner has critical tools even if profile omitted them
+        if specialization == 'experiment_runner':
+            critical = {"run_experiments", "generate_research_report"}
+            for cname in critical:
+                if cname in by_name and cname not in {t.name for t in agent_tools}:
+                    agent_tools.append(by_name[cname])
+
+        # Always include read-only audit tools to guarantee audit runs
+        audit_tools_required = {"read_file", "list_files", "grep_search", "git_status", "git_diff"}
+        existing = {t.name for t in agent_tools}
+        for at in audit_tools_required:
+            if at in by_name and at not in existing:
+                agent_tools.append(by_name[at])
+                existing.add(at)
         
         # Add communication tools, as they are essential for coordination
-        communication_tools = create_communication_tools_for_agent(agent_id)
+        # Pass full documentation context to ask_supervisor
+        communication_tools = create_communication_tools_for_agent(
+            agent_id,
+            supervisor_model=self.orchestrator_model,
+            docs_context=docs_result,
+        )
         agent_tools.extend(communication_tools)
         
         # --- Instantiate Agent with Context ---

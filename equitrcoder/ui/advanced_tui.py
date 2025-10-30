@@ -268,6 +268,7 @@ class StatusBar(Static):
     stage: reactive[str] = reactive("ready")
     agent_count: reactive[int] = reactive(0)
     current_cost: reactive[float] = reactive(0.0)
+    elapsed_seconds: reactive[float] = reactive(0.0)
     max_cost: reactive[float] = reactive(0.0)
 
     def compose(self) -> ComposeResult:
@@ -291,6 +292,11 @@ class StatusBar(Static):
             yield Label(
                 f"Cost: ${self.current_cost:.4f}/${self.max_cost:.2f}",
                 id="status-cost",
+                classes="status-item",
+            )
+            yield Label(
+                f"Time: {self.elapsed_seconds:.1f}s",
+                id="status-time",
                 classes="status-item",
             )
 
@@ -334,6 +340,11 @@ class StatusBar(Static):
         self._safe_update(
             "#status-cost", f"Cost: ${self.current_cost:.4f}/${max_cost:.2f}"
         )
+
+    def update_elapsed(self, seconds: float):
+        """Update elapsed time display."""
+        self.elapsed_seconds = seconds
+        self._safe_update("#status-time", f"Time: {seconds:.1f}s")
 
 
 class TaskInputPanel(Static):
@@ -828,6 +839,21 @@ class EquitrTUI(App):
         if main_window:
             mode_label = self.status_bar.mode
             main_window.add_status_update(f"Mode set to {mode_label}. Use /run <task description> to execute.", "info")
+        # Recreate coder per mode to ensure identical backend as programmatic interface
+        try:
+            if self.mode == "single":
+                self.coder = create_single_agent_coder()
+            elif self.mode == "multi":
+                self.coder = create_multi_agent_coder()
+            else:  # research
+                self.coder = EquitrCoder(mode="research")
+            self.coder.on_task_start = self.on_task_start
+            self.coder.on_task_complete = self.on_task_complete
+            self.coder.on_tool_call = self.on_tool_call
+            self.coder.on_message = self.on_message
+            self.coder.on_iteration = self.on_iteration
+        except Exception:
+            pass
         try:
             self.query_one("#command-input", Input).focus()
         except Exception:
@@ -1066,6 +1092,10 @@ class EquitrTUI(App):
                 self.model_selected = True
                 self.prev_task_mode = prev_task_mode.value or "ignore"
                 self.prev_task_ids = [x.strip() for x in (prev_ids_input.value or "").split(',') if x.strip()]
+                # Reflect selected models immediately
+                models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
+                self.status_bar.models = models_display
+                self.update_pricing_display()
                 
                 first_task = startup_input.value.strip()
                 if not first_task:
@@ -1145,6 +1175,13 @@ class EquitrTUI(App):
             try:
                 main_window = self.agent_grid.get_agent_window("main")
                 main_window.add_message("user", task_description)
+                # Clear any previous worker windows so UI reflects current mode
+                try:
+                    for _agent_id in list(self.agent_grid.agent_windows.keys()):
+                        if _agent_id != "main":
+                            self.agent_grid.remove_agent_window(_agent_id)
+                except Exception:
+                    pass
 
                 # Configure and execute task
                 if mode == "single":
@@ -1160,9 +1197,10 @@ class EquitrTUI(App):
                     self.status_bar.agent_count = 1
                     self.active_agent_names = ["Main Agent"]
                 elif mode == "multi":
+                    _workers = get_config('limits.max_workers', 3)
                     config = MultiAgentTaskConfiguration(
                         description=task_description,
-                        max_workers=get_config('limits.max_workers', 3),
+                        max_workers=_workers,
                         max_cost=get_config('limits.max_cost', 15.0),
                         supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
                         worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
@@ -1171,17 +1209,18 @@ class EquitrTUI(App):
                         session_id=self.current_session_id,
                     )
                     self.status_bar.update_cost_limit(15.0)
+                    self.status_bar.agent_count = 1 + int(_workers)
                     self.active_agent_names = ["Supervisor"]
-                    workers = get_config('limits.max_workers', 3)
-                    for i in range(workers):
+                    for i in range(_workers):
                         agent_id = f"worker_{i+1}"
                         self.agent_grid.add_agent_window(agent_id)
                         self.active_agent_names.append(f"Worker {i+1}")
                 else:  # research
                     from ..programmatic.interface import ResearchTaskConfiguration
+                    _workers = get_config('limits.max_workers', 3)
                     config = ResearchTaskConfiguration(
                         description=task_description,
-                        max_workers=get_config('limits.max_workers', 3),
+                        max_workers=_workers,
                         max_cost=get_config('limits.max_cost', 15.0),
                         supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
                         worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
@@ -1191,9 +1230,9 @@ class EquitrTUI(App):
                         research_context={},
                     )
                     self.status_bar.update_cost_limit(15.0)
+                    self.status_bar.agent_count = 1 + int(_workers)
                     self.active_agent_names = ["Supervisor"]
-                    workers = get_config('limits.max_workers', 3)
-                    for i in range(workers):
+                    for i in range(_workers):
                         agent_id = f"worker_{i+1}"
                         self.agent_grid.add_agent_window(agent_id)
                         self.active_agent_names.append(f"Worker {i+1}")
@@ -1222,11 +1261,28 @@ class EquitrTUI(App):
                         pass
 
                 # Execute task using programmatic interface in isolated project path
-                self.coder = self.coder or create_single_agent_coder()
+                if not self.coder:
+                    if mode == "single":
+                        self.coder = create_single_agent_coder()
+                    elif mode == "multi":
+                        self.coder = create_multi_agent_coder()
+                    else:
+                        self.coder = EquitrCoder(mode="research")
+                    self.coder.on_task_start = self.on_task_start
+                    self.coder.on_task_complete = self.on_task_complete
+                    self.coder.on_tool_call = self.on_tool_call
+                    self.coder.on_message = self.on_message
+                    self.coder.on_iteration = self.on_iteration
                 self.coder.repo_path = __import__('pathlib').Path(self.project_root).resolve()
                 result = await self.coder.execute_task(task_description, config)
 
                 if result.success:
+                    # Update status bar elapsed and cost
+                    try:
+                        self.status_bar.update_elapsed(float(getattr(result, "execution_time", 0.0) or 0.0))
+                        self.status_bar.current_cost = float(getattr(result, "cost", 0.0) or 0.0)
+                    except Exception:
+                        pass
                     main_window.add_status_update(
                         f"Task completed successfully! Cost: ${result.cost:.4f}, Time: {result.execution_time:.2f}s",
                         "success",
@@ -1334,10 +1390,12 @@ class EquitrTUI(App):
         current_time = datetime.now().strftime("%H:%M:%S")
         supervisor_text = f"Supervisor: {self.supervisor_model or 'Not set'}"
         worker_text = f"Worker: {self.worker_model or 'Not set'}"
-        mode_text = f"Mode: {self.mode}"
+        mode_label = getattr(self.status_bar, "mode", self.mode)
+        mode_text = f"Mode: {mode_label}"
         cost_text = f"Session Cost: ${self.session_cost:.4f}"
-        
-        header_text = f"⏰ {current_time} | {supervisor_text} | {worker_text} | {mode_text} | {cost_text}"
+        agent_text = f"Agents: {self.status_bar.agent_count}"
+
+        header_text = f"⏰ {current_time} | {supervisor_text} | {worker_text} | {mode_text} | {agent_text} | {cost_text}"
         
         if self.custom_header:
             try:

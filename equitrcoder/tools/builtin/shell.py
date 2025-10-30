@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 import tempfile
 import venv
 from pathlib import Path
@@ -74,16 +75,30 @@ class RunCommand(Tool):
             return ToolResult(success=False, error=str(e))
 
     async def _run_bash(self, command: str, timeout: int) -> ToolResult:
-        """Run command directly in bash."""
+        """Run command using an appropriate shell for the current platform."""
         try:
-            # Use bash explicitly
+            cwd_str = str(Path.cwd().resolve())
+
+            # Prefer bash when available (works on macOS/Linux and Git Bash on Windows)
+            bash_path = shutil.which("bash")
+            if bash_path:
+                shell_exe = bash_path
+                shell_args = ["-lc", f"set -euo pipefail; {command}"]
+            else:
+                # Fallback to cmd.exe on Windows, sh on POSIX
+                if os.name == "nt":
+                    shell_exe = os.environ.get("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
+                    shell_args = ["/d", "/c", command]
+                else:
+                    shell_exe = shutil.which("sh") or "/bin/sh"
+                    shell_args = ["-c", command]
+
             process = await asyncio.create_subprocess_exec(
-                "/bin/bash",
-                "-c",
-                f"set -euo pipefail; {command}",
+                shell_exe,
+                *shell_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=str(Path.cwd().resolve()),
+                cwd=cwd_str,
             )
 
             try:
@@ -116,30 +131,43 @@ class RunCommand(Tool):
             return ToolResult(success=False, error=str(e))
 
     async def _run_in_venv(self, command: str, timeout: int) -> ToolResult:
-        """Run command in a virtual environment."""
+        """Run command in a temporary virtual environment with cross-platform shell support."""
         with tempfile.TemporaryDirectory() as temp_dir:
             venv_path = Path(temp_dir) / "sandbox_venv"
 
             # Create virtual environment
             venv.create(venv_path, with_pip=True, clear=True)
 
-            # Determine activation script path and command
-            if os.name == "nt":  # Windows
+            # Determine which shell to use
+            cwd_str = str(Path.cwd().resolve())
+            if os.name == "nt":
+                # On Windows, prefer cmd.exe with activate.bat which always exists
                 activate_script = venv_path / "Scripts" / "activate.bat"
-                full_command = f'"{activate_script}" && {command}'
-            else:  # Unix/Linux/macOS
-                activate_script = venv_path / "bin" / "activate"
-                full_command = f'source "{activate_script}" && {command}'
+                full_command = f'call "{activate_script}" && {command}'
+                shell_exe = os.environ.get("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
+                shell_args = ["/d", "/c", full_command]
+            else:
+                # POSIX / macOS: prefer bash if available, otherwise sh
+                bash_path = shutil.which("bash")
+                if bash_path:
+                    activate_script = venv_path / "bin" / "activate"
+                    full_command = f'source "{activate_script}" && {command}'
+                    shell_exe = bash_path
+                    shell_args = ["-lc", f"set -euo pipefail; {full_command}"]
+                else:
+                    activate_script = venv_path / "bin" / "activate"
+                    full_command = f'. "{activate_script}" && {command}'
+                    shell_exe = shutil.which("sh") or "/bin/sh"
+                    shell_args = ["-c", full_command]
 
             try:
                 # Use bash for venv commands too
                 process = await asyncio.create_subprocess_exec(
-                    "/bin/bash",
-                    "-c",
-                    f"set -euo pipefail; {full_command}",
+                    shell_exe,
+                    *shell_args,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    cwd=str(Path.cwd().resolve()),
+                    cwd=cwd_str,
                 )
 
                 try:

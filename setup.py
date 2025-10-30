@@ -44,6 +44,9 @@ setup(
             "textual>=0.45.0",
             "rich>=13.0.0",
         ],
+        "mcp": [
+            "mcp>=0.1.0",
+        ],
         "dev": [
             "pytest>=7.4.0",
             "pytest-asyncio>=0.21.0",
@@ -57,6 +60,7 @@ setup(
             "uvicorn>=0.24.0", 
             "textual>=0.45.0",
             "rich>=13.0.0",
+            "mcp>=0.1.0",
         ]
     },
     entry_points={

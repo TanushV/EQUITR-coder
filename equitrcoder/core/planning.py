@@ -271,12 +271,12 @@ Based on:
 - Requirements: {requirements}
 - Design: {design}
 
-Create a structured TODO LIST as JSON with:
+Create a structured TODO LIST as JSON array of task objects with fields:
 [
   {{
     "id": "unique-id",
-    "title": "Task title",
-    "description": "Detailed description",
+    "title": "Concise, imperative task title",
+    "description": "Short description (avoid excessive detail)",
     "priority": "high|medium|low",
     "estimated_hours": 2,
     "dependencies": ["other-task-ids"],
@@ -285,7 +285,10 @@ Create a structured TODO LIST as JSON with:
   }}
 ]
 
-Include ALL tasks needed to implement the design, in dependency order.
+GUIDELINES (no numeric caps):
+- Avoid micro-steps and over-granularity; list what needs to be delivered.
+- Keep titles short and clear; minimize documentation/meta tasks.
+- Order tasks by dependencies and logical execution flow.
 """
 
         messages = [Message(role="user", content=prompt)]

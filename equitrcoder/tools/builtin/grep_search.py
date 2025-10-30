@@ -24,6 +24,13 @@ class GrepSearchArgs(BaseModel):
         if not v:
             return "."
         p = Path(v)
+        # Cross-platform guard for sensitive roots like /etc even on Windows
+        try:
+            posix_in = v.replace("\\", "/").strip()
+            if posix_in.startswith("/etc") or posix_in.startswith("/private/etc"):
+                raise ValueError("Path traversal not allowed. Use a safe project or temp directory.")
+        except Exception:
+            pass
         if ".." in v:
             raise ValueError("Path traversal not allowed. Use a safe, relative path.")
         real = None
@@ -69,6 +76,13 @@ class GrepSearch(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
+            # Cross-platform guard for sensitive roots like /etc even on Windows
+            try:
+                norm = (args.path or ".").replace("\\", "/").strip()
+                if norm.startswith("/etc") or norm.startswith("/private/etc"):
+                    return ToolResult(success=False, error="Path traversal not allowed. Use a safe project or temp directory")
+            except Exception:
+                pass
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 

@@ -482,9 +482,15 @@ Be specific about implementation details and architectural decisions.
     async def _generate_todos(
         self, conversation_text: str, requirements: str, design: str
     ) -> Optional[str]:
-        """Generate todo list from conversation, requirements, and design."""
+        """Generate a concise todo list from conversation, requirements, and design, without numeric caps."""
         prompt = f"""
-Based on the planning conversation, requirements, and design documents, generate a comprehensive todo list.
+Based on the planning conversation, requirements, and design documents, generate a concise, actionable todo list.
+
+TODO CREATION GUIDELINES (no hard numeric limits):
+- Use short, imperative titles.
+- Avoid overly granular micro-steps; summarize what needs to be delivered.
+- Group logically if helpful; keep lists lean and reasonable.
+- Prioritize implementation and testing; keep meta tasks minimal.
 
 CONVERSATION:
 {conversation_text}
@@ -495,37 +501,7 @@ REQUIREMENTS:
 DESIGN:
 {design}
 
-Generate a detailed todo list that includes:
-
-1. SETUP TASKS
-   - Project initialization
-   - Environment setup
-   - Dependencies installation
-
-2. CORE IMPLEMENTATION TASKS
-   - Break down each major component into specific tasks
-   - Order tasks by dependencies and priority
-   - Include estimated complexity (Simple/Medium/Complex)
-
-3. TESTING TASKS
-   - Unit test creation
-   - Integration test setup
-   - Test data preparation
-
-4. DOCUMENTATION TASKS
-   - Code documentation
-   - User documentation
-   - API documentation (if applicable)
-
-5. DEPLOYMENT TASKS
-   - Configuration setup
-   - Deployment preparation
-   - Production readiness checks
-
-Format as a numbered list with clear, actionable items.
-Each task should be specific enough to be completed independently.
-Group related tasks together and indicate dependencies where relevant.
-Include priority levels (High/Medium/Low) for each task.
+Output markdown only. If grouping, use simple headings with bullet lists of concise todos.
 """
 
         try:

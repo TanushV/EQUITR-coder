@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import List, Type
 
 from .base import Tool, registry
+from .mcp.config import load_mcp_config
+from .mcp.dynamic_tools import MCPToolProxy
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +30,31 @@ class ToolDiscovery:
             self._discover_tools_in_package("equitrcoder.tools.custom", custom_path)
 
     def discover_mcp_tools(self):
-        """Discover and load MCP server tools."""
+        """Discover and load MCP server tools.
+
+        Two sources are used:
+        1) Static modules under equitrcoder.tools.mcp (if any) for built-ins
+        2) Dynamic proxies created from JSON config (mcp_servers.json)
+        """
         mcp_path = Path(__file__).parent / "mcp"
         if mcp_path.exists():
             self._discover_tools_in_package("equitrcoder.tools.mcp", mcp_path)
+
+        # Load dynamic servers from JSON config
+        cfg, path, err = load_mcp_config()
+        if err:
+            logger.warning(f"Failed to load MCP servers config ({path}): {err}")
+            return
+        if not cfg or not cfg.mcpServers:
+            return
+
+        for server_name, server_cfg in cfg.mcpServers.items():
+            try:
+                proxy = MCPToolProxy(server_name, server_cfg)
+                registry.register(proxy)
+                logger.info(f"Registered MCP server proxy tool: {proxy.name}")
+            except Exception as e:
+                logger.warning(f"Failed to register MCP server '{server_name}': {e}")
 
     def _discover_tools_in_package(self, package_name: str, package_path: Path):
         """Discover tools in a specific package."""

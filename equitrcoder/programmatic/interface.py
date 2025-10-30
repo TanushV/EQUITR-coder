@@ -131,7 +131,7 @@ class EquitrCoder:
             return {"error": "Git is disabled"}
         try:
             import subprocess
-            out = subprocess.run(["git", "status", "--porcelain", "-b"], cwd=self.repo_path, capture_output=True, text=True)
+            out = subprocess.run(["git", "status", "--porcelain", "-b"], cwd=self.repo_path, capture_output=True, text=True, encoding="utf-8", errors="ignore")
             branch = "HEAD"
             lines = out.stdout.splitlines()
             if lines and lines[0].startswith("## "):
@@ -149,7 +149,7 @@ class EquitrCoder:
             return []
         try:
             import subprocess
-            out = subprocess.run(["git", "--no-pager", "log", f"-{n}", "--pretty=%h %s"], cwd=self.repo_path, capture_output=True, text=True)
+            out = subprocess.run(["git", "--no-pager", "log", f"-{n}", "--pretty=%h %s"], cwd=self.repo_path, capture_output=True, text=True, encoding="utf-8", errors="ignore")
             return [line for line in out.stdout.splitlines() if line.strip()]
         except Exception:
             return []
@@ -258,10 +258,10 @@ class EquitrCoder:
             return ExecutionResult(
                 success=result_data.get("success", False),
                 content=str(result_data),
-                cost=result_data.get("cost", 0.0),
+                cost=float(result_data.get("cost", 0.0) or 0.0),
                 iterations=result_data.get("iterations", 0),
                 session_id=result_data.get("session_id", "N/A"),
-                execution_time=(datetime.now() - start_time).total_seconds(),
+                execution_time=float(result_data.get("execution_time") or (datetime.now() - start_time).total_seconds()),
                 error=result_data.get("error"),
                 git_committed=bool(commit_hash),
                 commit_hash=commit_hash,

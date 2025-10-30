@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Type
 
 import yaml
 from pydantic import BaseModel, Field
+from ...providers.litellm import LiteLLMProvider, Message
 
 from ..base import Tool, ToolResult
 from ..builtin.shell import RunCommand
@@ -271,6 +272,7 @@ class RunNotebook(Tool):
 class RunExperimentsArgs(BaseModel):
     config_path: str = Field(..., description="Path to experiments YAML file")
     stop_on_fail: bool = Field(default=False, description="Stop after the first failing experiment")
+    results_path: Optional[str] = Field(default=None, description="Optional path to write JSON results")
 
 
 class RunExperiments(Tool):
@@ -312,7 +314,29 @@ class RunExperiments(Tool):
             use_venv = sandbox_type == 'venv'
             runner = RunCommand()
 
-            for exp in experiments:
+            # Prepare logs directory and default results path
+            logs_dir = (cfg_path.parent / "logs").resolve()
+            try:
+                logs_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            default_results_path = (cfg_path.parent / "experiments_results.json").resolve()
+
+            # Hardware-aware configuration
+            try:
+                from .research_tools import HardwareInfo  # self import safe
+                hw = await HardwareInfo().run(detailed=True)
+                hw_data = hw.data if hw.success else {}
+                cpu_count = int(hw_data.get("cpu_count", 1) or 1)
+                mem_gb = float(hw_data.get("memory_total_gb", 4) or 4)
+                is_mac = str(hw_data.get("os", "")).lower().find("darwin") >= 0
+            except Exception:
+                cpu_count = 1
+                mem_gb = 4.0
+                is_mac = False
+
+            from datetime import datetime as _dt
+            for idx, exp in enumerate(experiments, start=1):
                 name = exp.get("name") or exp.get("id") or f"exp_{len(results)+1}"
                 command = exp.get("command")
                 if not command:
@@ -322,7 +346,14 @@ class RunExperiments(Tool):
                         break
                     continue
                 cwd = exp.get("cwd") or str(cfg_path.parent)
-                timeout = int(exp.get("timeout", 900))
+                # Tune timeout by hardware (scale up on low CPU/memory)
+                base_timeout = int(exp.get("timeout", 900))
+                scale = 1.0
+                if cpu_count <= 2:
+                    scale *= 1.5
+                if mem_gb <= 8:
+                    scale *= 1.3
+                timeout = int(base_timeout * scale)
 
                 # Per-experiment requirements (string or list), overrides + extends global
                 reqs_local: List[str] = []
@@ -367,6 +398,9 @@ class RunExperiments(Tool):
 
                 # Respect cwd by inlining cd; honor sandbox via use_venv
                 full_cmd = f"cd {cwd} && {combined}"
+                # Hardware hints: set env vars to let scripts know and to parallelize safely
+                env_prefix = f"EQUITR_CPU_COUNT={cpu_count} EQUITR_MEM_GB={int(mem_gb)} EQUITR_IS_MAC={'1' if is_mac else '0'} "
+                full_cmd = env_prefix + full_cmd
                 tr = await runner.run(command=full_cmd, timeout=timeout, use_venv=use_venv)
                 rc = (tr.data or {}).get("return_code", 1) if tr.success else 1
                 stdout = (tr.data or {}).get("stdout", "") if tr.data else ""
@@ -375,7 +409,26 @@ class RunExperiments(Tool):
                 passed = rc == 0
                 all_passed = all_passed and passed
 
-                results.append({
+                # Persist combined logs to file
+                timestamp = _dt.utcnow().strftime("%Y%m%d_%H%M%S")
+                run_id = f"{idx}_{timestamp}"
+                log_path = logs_dir / f"{run_id}.log"
+                try:
+                    with log_path.open("w", encoding="utf-8", newline="\n") as f:
+                        if stdout:
+                            f.write("STDOUT:\n")
+                            f.write(stdout)
+                            if not stdout.endswith("\n"):
+                                f.write("\n")
+                        if stderr:
+                            f.write("STDERR:\n")
+                            f.write(stderr)
+                            if not stderr.endswith("\n"):
+                                f.write("\n")
+                except Exception:
+                    pass
+
+                result_entry = {
                     "name": name,
                     "command": command,
                     "cwd": cwd,
@@ -383,13 +436,185 @@ class RunExperiments(Tool):
                     "passed": passed,
                     "stdout": stdout[-4000:],
                     "stderr": (stderr or "")[-4000:],
-                })
+                    "run_id": run_id,
+                    "log_path": str(log_path)
+                }
+
+                results.append(result_entry)
 
                 if args.stop_on_fail and not passed:
                     break
 
-            return ToolResult(success=True, data={"all_passed": all_passed, "results": results})
+            # Optionally persist results to disk (JSON)
+            try:
+                results_target = getattr(args, "results_path", None) or str(default_results_path)
+                outp = Path(results_target)
+                outp.parent.mkdir(parents=True, exist_ok=True)
+                payload = {"all_passed": all_passed, "results": results}
+                outp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+            # Force-update experiments.yaml with last_run info and links
+            try:
+                updated_cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+                updated_exps: List[Dict[str, Any]] = updated_cfg.get("experiments", []) or []
+                # Align per index
+                for i, exp in enumerate(updated_exps):
+                    if i < len(results):
+                        r = results[i]
+                        exp["last_run"] = {
+                            "timestamp": _dt.utcnow().isoformat(),
+                            "run_id": r.get("run_id"),
+                            "return_code": r.get("return_code"),
+                            "passed": r.get("passed"),
+                            "cwd": r.get("cwd"),
+                            "log_path": str(Path(r.get("log_path", "")).resolve()),
+                            "results_json": str(outp.resolve()),
+                        }
+                        updated_exps[i] = exp
+                updated_cfg["experiments"] = updated_exps
+                updated_cfg["last_run_at"] = _dt.utcnow().isoformat()
+                cfg_path.write_text(yaml.safe_dump(updated_cfg, sort_keys=False), encoding="utf-8")
+            except Exception:
+                pass
+
+            return ToolResult(success=True, data={"all_passed": all_passed, "results": results, "results_path": str(outp)})
         except subprocess.TimeoutExpired as te:
             return ToolResult(success=False, error=f"Experiment timed out: {te}")
         except Exception as e:
             return ToolResult(success=False, error=str(e)) 
+
+
+class WriteAndRunExperimentScriptArgs(BaseModel):
+    output_path: str = Field(default="run_experiments.py", description="Path to write the experiment runner script")
+    config_path: str = Field(default="docs/experiments.yaml", description="Path to experiments.yaml")
+
+
+class WriteAndRunExperimentScript(Tool):
+    def get_name(self) -> str:
+        return "write_and_run_experiment_script"
+
+    def get_description(self) -> str:
+        return "Writes a Python script that loads experiments.yaml and executes all experiments, then runs it."
+
+    def get_args_schema(self) -> Type[BaseModel]:
+        return WriteAndRunExperimentScriptArgs
+
+    async def run(self, **kwargs) -> ToolResult:
+        args = self.validate_args(kwargs)
+        try:
+            from pathlib import Path
+            script_src = f"""
+import subprocess, sys, json
+from pathlib import Path
+import yaml
+cfg = Path(r"{args.config_path}")
+exp = yaml.safe_load(cfg.read_text(encoding='utf-8')) or {{}}
+results = []
+for e in exp.get('experiments', []):
+    cmd = e.get('command')
+    if not cmd:
+        continue
+    p = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    results.append({{'name': e.get('name'), 'command': cmd, 'return_code': p.returncode, 'stdout': p.stdout, 'stderr': p.stderr}})
+Path('docs/experiment_results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
+print('EXPERIMENTS_DONE')
+""".strip()
+            out = Path(args.output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(script_src, encoding="utf-8")
+            import subprocess
+            run = subprocess.run([sys.executable, str(out)], capture_output=True, text=True)
+            return ToolResult(success=(run.returncode == 0), data={"stdout": run.stdout, "stderr": run.stderr, "script": str(out)})
+        except Exception as e:
+            return ToolResult(success=False, error=str(e))
+
+
+class GenerateResearchReportArgs(BaseModel):
+    output_path: str = Field(..., description="Path to write the Markdown report")
+    task_description: Optional[str] = Field(default="", description="High-level task description")
+    experiments_config_path: Optional[str] = Field(default=None, description="Path to experiments.yaml (optional)")
+    results_path: Optional[str] = Field(default=None, description="Path to JSON results produced by run_experiments (optional)")
+    research_plan_path: Optional[str] = Field(default=None, description="Path to research_plan.yaml for datasets/hardware (optional)")
+
+
+class GenerateResearchReport(Tool):
+    def get_name(self) -> str:
+        return "generate_research_report"
+
+    def get_description(self) -> str:
+        return "Generate a concise Markdown research report using datasets, hardware, and experiment results. Uses LLM if available."
+
+    def get_args_schema(self) -> Type[BaseModel]:
+        return GenerateResearchReportArgs
+
+    async def run(self, **kwargs) -> ToolResult:
+        try:
+            args = self.validate_args(kwargs)
+            output_path = Path(args.output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Load research context
+            datasets = []
+            hardware: Dict[str, Any] = {}
+            try:
+                if args.research_plan_path:
+                    rp = Path(args.research_plan_path)
+                    if rp.exists():
+                        plan = yaml.safe_load(rp.read_text(encoding="utf-8")) or {}
+                        datasets = plan.get("datasets", []) or []
+                        hardware = plan.get("hardware", {}) or {}
+            except Exception:
+                pass
+
+            if not hardware:
+                # Fallback to live hardware detection
+                hw_res = await HardwareInfo().run(detailed=True)
+                hardware = hw_res.data if hw_res.success else {}
+
+            # Load experiment results
+            exp_summary: Dict[str, Any] = {"all_passed": None, "results": []}
+            try:
+                if args.results_path and Path(args.results_path).exists():
+                    exp_summary = json.loads(Path(args.results_path).read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+            # Compose report via LLM
+            try:
+                supervisor_model = get_config('orchestrator.supervisor_model', 'gpt-4')
+                provider = LiteLLMProvider(model=supervisor_model)
+                datasets_txt = "\n".join(
+                    f"- {d.get('path')} — {d.get('description','')}" for d in datasets
+                )
+                system_prompt = (
+                    "You are a strict research supervisor. Produce a concise Markdown report summarizing the task, "
+                    "datasets, hardware, experiments executed, and outcomes. Include a Conclusion and Next Steps."
+                )
+                user_prompt = (
+                    f"TASK DESCRIPTION:\n{(args.task_description or '').strip()}\n\n"
+                    f"DATASETS:\n{datasets_txt or 'N/A'}\n\n"
+                    f"HARDWARE (JSON):\n```json\n{json.dumps(hardware, indent=2)}\n```\n\n"
+                    f"EXPERIMENT SUMMARY (JSON):\n```json\n{json.dumps(exp_summary, indent=2)}\n```\n\n"
+                    "Output ONLY GitHub-Flavored Markdown."
+                )
+                messages = [Message(role="system", content=system_prompt), Message(role="user", content=user_prompt)]
+                resp = await provider.chat(messages=messages)
+                md = resp.content.strip()
+                if not md.startswith("#"):
+                    md = f"# Research Report\n\n{md}"
+            except Exception as e:
+                # Fallback minimal report
+                md = (
+                    f"# Research Report\n\n{(args.task_description or '').strip()}\n\n"
+                    f"## Datasets\n{(os.linesep).join([str(x) for x in datasets]) or 'N/A'}\n\n"
+                    f"## Hardware\n```json\n{json.dumps(hardware, indent=2)}\n```\n\n"
+                    f"## Experiments\n```json\n{json.dumps(exp_summary, indent=2)}\n```\n"
+                    f"_Report generation fallback: {e}_\n"
+                )
+
+            output_path.write_text(md, encoding="utf-8")
+            return ToolResult(success=True, data={"output_path": str(output_path)})
+        except Exception as e:
+            return ToolResult(success=False, error=str(e))

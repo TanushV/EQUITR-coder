@@ -1,9 +1,15 @@
 pydantic>=2.0.0
 httpx>=0.24.0
-litellm>=1.46.7
+litellm==1.46.7
+python-dotenv>=1.0.0
+numpy>=1.26.0
+ddgs>=1.8.0
+pathspec>=0.12.1
 # Added for performance monitoring tests
 psutil>=5.9.0
 # Added for built-in git tool
 GitPython>=3.1.40
 # Async file I/O used by session manager
 aiofiles>=23.2.1
+python-dotenv>=1.0.0
+numpy>=1.26.0

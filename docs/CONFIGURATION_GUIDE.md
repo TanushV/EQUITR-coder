@@ -68,6 +68,31 @@ llm:
 ```yaml
 orchestrator:
   use_multi_agent: false      # Enable multi-agent mode
+
+### 3. MCP Servers Configuration
+
+MCP servers are configured via JSON, separate from the YAML config. The loader searches in this order:
+- `EQUITR_MCP_SERVERS` (env var) → path to a JSON file
+- `~/.EQUITR-coder/mcp_servers.json`
+- Packaged default at `equitrcoder/config/mcp_servers.json`
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "sqlite": {
+      "command": "uvx",
+      "args": ["mcp-server-sqlite", "--db-path", "./test.db"],
+      "env": {},
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+Each configured server becomes available as a tool named `mcp:<serverName>` with arguments `{ "tool": "<remoteToolName>", "arguments": { ... } }`.
+
   max_iterations: 20          # Maximum interaction loops
   worker_timeout: 600         # Worker timeout in seconds
   max_workers: 3              # Maximum parallel workers

@@ -29,7 +29,7 @@ class GitManager:
         
         print("INFO: No git repository found. Initializing a new one.")
         try:
-            subprocess.run(["git", "init"], cwd=self.repo_path, capture_output=True, text=True, check=True)
+            subprocess.run(["git", "init"], cwd=self.repo_path, capture_output=True, text=True, encoding="utf-8", errors="ignore", check=True)
             self.is_repo = True
             self._create_gitignore()
             self.commit("feat: Initial commit by EQUITR Coder", auto_add=True)
@@ -61,7 +61,7 @@ venv/
         if not self.is_repo:
             return False
         try:
-            subprocess.run(["git", "add", "-A"], cwd=self.repo_path, check=True, capture_output=True)
+            subprocess.run(["git", "add", "-A"], cwd=self.repo_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="ignore")
             return True
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to `git add`: {e.stderr}")
@@ -76,13 +76,13 @@ venv/
             self.add_all()
         
         # Check if there are changes to commit
-        status_result = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo_path, capture_output=True, text=True)
+        status_result = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo_path, capture_output=True, text=True, encoding="utf-8", errors="ignore")
         if not status_result.stdout.strip():
             logger.info("No changes to commit.")
             return True # Nothing to do, so it's a "success"
         
         try:
-            subprocess.run(["git", "commit", "-m", message], cwd=self.repo_path, check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-m", message], cwd=self.repo_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="ignore")
             logger.info(f"Committed changes with message: {message}")
             return True
         except subprocess.CalledProcessError as e:

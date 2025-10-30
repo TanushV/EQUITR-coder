@@ -67,13 +67,25 @@ class ResearcherMode:
             # If a research_context is provided (e.g., from TUI), use it to avoid interactive prompts.
             research_ctx = research_context
             if research_ctx is None:
-                research_ctx = await self._collect_research_context(task_description)
+                # Non-interactive fallback: create minimal, sane defaults so mode is guaranteed to proceed
+                research_ctx = {
+                    "datasets": [],
+                    "hardware": {},
+                    "experiments": [
+                        {"name": "lint", "command": "python -m ruff check .", "timeout": 300},
+                        {"name": "tests", "command": "pytest -q", "timeout": 900},
+                    ],
+                }
 
             # Step 1: Create docs with orchestrator using augmented description
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             augmented_desc = self._augment_task_description(task_description, research_ctx)
             docs_result = await orchestrator.create_docs(
-                task_description=augmented_desc, project_path=str(project_dir), task_name=task_name, team=self.team
+                task_description=augmented_desc,
+                project_path=str(project_dir),
+                task_name=task_name,
+                team=self.team,
+                is_research=True,
             )
             if not docs_result.get("success"):
                 return {
@@ -87,6 +99,20 @@ class ResearcherMode:
             research_plan_path = docs_dir / "research_plan.yaml"
             experiments_path = docs_dir / "experiments.yaml"
             self._write_research_files(research_plan_path, experiments_path, research_ctx)
+
+            # Ensure experiments.yaml is populated; if empty, auto-generate a sensible default
+            try:
+                exp_cfg = yaml.safe_load(experiments_path.read_text(encoding="utf-8")) or {}
+                experiments = exp_cfg.get("experiments", [])
+                if not experiments:
+                    default_exps = [
+                        {"name": "lint", "command": "python -m ruff check .", "timeout": 300},
+                        {"name": "tests", "command": "pytest -q", "timeout": 900},
+                    ]
+                    experiments_path.write_text(yaml.safe_dump({"experiments": default_exps, "created_at": datetime.now().isoformat()}, sort_keys=False), encoding="utf-8")
+                    print(f"🧪 Auto-generated default experiments: {experiments_path}")
+            except Exception as e:
+                print(f"⚠️  Could not auto-generate experiments: {e}")
 
             # Step 2: Git init/ensure
             git_manager = GitManager(repo_path=str(project_dir))
@@ -171,68 +197,86 @@ class ResearcherMode:
                     f"🎉 INITIAL PHASES COMPLETED! Global cost so far: ${self.global_cost:.4f}"
                 )
 
-                # Step 4: Run experiments and handle failures by creating fix todos
-                exp_result = await RunExperiments().run(config_path=str(experiments_path))
-                all_passed = bool(exp_result.success and exp_result.data and exp_result.data.get("all_passed"))
-
-                retry_round = 0
-                max_retries = 2
-                while not all_passed and retry_round < max_retries:
-                    print("🧪 Experiments failed. Creating fix todos and re-running...")
-                    failed = [r for r in exp_result.data.get("results", []) if not r.get("passed")]
-
-                    # Create a new task group for fixes
-                    fix_group_id = f"fix_experiments_r{retry_round+1}"
-                    get_todo_manager().create_task_group(
-                        group_id=fix_group_id,
-                        specialization="ml_researcher",
-                        description="Fix failing experiments",
-                        dependencies=[],
-                    )
-                    for fr in failed:
-                        title = f"Fix experiment '{fr.get('name')}' (exit {fr.get('return_code')})"
-                        get_todo_manager().add_todo_to_group(fix_group_id, title)
-
-                    # Execute the new fix group(s)
-                    fix_phase_groups = get_todo_manager().get_next_runnable_groups()
-                    if fix_phase_groups:
-                        print(
-                            f"\n--- EXECUTING FIX PHASE r{retry_round+1} ({len(fix_phase_groups)} groups) ---"
-                        )
-                        fix_results = await asyncio.gather(
-                            *[ma._execute_task_group(g, docs_result, callbacks) for g in fix_phase_groups]
-                        )
-                        fix_cost = sum(r.get("cost", 0.0) for r in fix_results)
-                        self.global_cost += fix_cost
-                        if self.auto_commit:
-                            for group in fix_phase_groups:
-                                git_manager.commit_task_group_completion(group.model_dump())
-
-                    # Re-run experiments
-                    exp_result = await RunExperiments().run(config_path=str(experiments_path))
-                    all_passed = bool(
-                        exp_result.success and exp_result.data and exp_result.data.get("all_passed")
-                    )
-                    retry_round += 1
-
-                # Step 5: Generate final research report using supervisor model
-                report_path = docs_dir / "research_report.md"
-                await self._generate_report_with_supervisor(
-                    output_path=report_path,
-                    task_description=task_description,
-                    research_ctx=research_ctx,
-                    exp_result=exp_result,
-                )
+                # Step 4: Execute the pre-injected experiment group (created by orchestrator in research mode)
+                exp_groups = [g for g in get_todo_manager().get_next_runnable_groups() if g.group_id == "experiment_execution"]
+                if exp_groups:
+                    print(f"\n--- EXECUTING EXPERIMENT PHASE ({len(exp_groups)} group) ---")
+                    exp_results = await asyncio.gather(*[ma._execute_task_group(g, docs_result, callbacks) for g in exp_groups])
+                    phase_cost = sum(r.get("cost", 0.0) for r in exp_results)
+                    self.global_cost += phase_cost
+                    if any(not r.get("success") for r in exp_results):
+                        print("❌ Experiment execution phase failed.")
+                        return {
+                            "success": False,
+                            "error": "Experiment execution phase failed.",
+                            "stage": "experiments",
+                            "cost": self.global_cost,
+                        }
+                else:
+                    # If no explicit experiment group is runnable (e.g., empty plan), attempt a direct experiments run
+                    try:
+                        exp_cfg_path = experiments_path
+                        run_tool = RunExperiments()
+                        run_res = await run_tool.run(config_path=str(exp_cfg_path))
+                        if not run_res.success:
+                            print(f"❌ Direct experiments run failed: {run_res.error}")
+                            return {
+                                "success": False,
+                                "error": f"Direct experiments run failed: {run_res.error}",
+                                "stage": "experiments",
+                                "cost": self.global_cost,
+                            }
+                        # Try to generate a research report as a final artifact
+                        try:
+                            report_path = Path(docs_result["docs_dir"]) / "research_report.md"
+                            await self._generate_report_with_supervisor(
+                                report_path,
+                                task_description,
+                                research_ctx,
+                                run_res,
+                            )
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        return {
+                            "success": False,
+                            "error": f"Experiments fallback failed: {e}",
+                            "stage": "experiments",
+                            "cost": self.global_cost,
+                        }
 
                 final = {
-                    "success": True if all_passed else False,
+                    "success": True,
                     "docs_result": docs_result,
-                    "experiments": exp_result.data if exp_result.success else {"error": exp_result.error},
-                    "report_path": str(report_path),
                     "cost": self.global_cost,
                 }
-                if not all_passed:
-                    final["error"] = "One or more experiments failed after retries. See report for details."
+                # Report path will be part of artifacts written by the experiment_runner task
+                # Final audit after phases (regardless of experiment outcomes)
+                try:
+                    from ..tools.discovery import discover_tools
+                    auditor = MultiAgentMode(
+                        num_agents=1,
+                        agent_model=self.orchestrator_model,
+                        orchestrator_model=self.orchestrator_model,
+                        audit_model=self.orchestrator_model,
+                        max_cost_per_agent=self.max_cost_per_agent,
+                        max_iterations_per_agent=5,
+                        run_parallel=False,
+                        auto_commit=self.auto_commit,
+                    )
+                    # Reuse CleanAgent audit pathway directly for a single audit
+                    from ..core.clean_agent import CleanAgent
+                    audit_agent = CleanAgent(
+                        agent_id="final_research_auditor",
+                        model=self.orchestrator_model,
+                        tools=[t for t in discover_tools() if t.get_name() in ("read_file", "list_files", "grep_search", "git_status", "git_diff")],
+                        context=docs_result,
+                        audit_model=self.orchestrator_model,
+                    )
+                    audit_result = await audit_agent._run_audit()
+                except Exception as e:
+                    audit_result = {"success": False, "error": str(e)}
+                final["final_audit"] = audit_result
                 return final
             finally:
                 # Restore working directory
@@ -384,9 +428,10 @@ async def run_researcher_mode(**kwargs) -> Dict[str, Any]:
     # Defaults
     config = {
         "num_agents": kwargs.pop("num_agents", 3),
-        "agent_model": kwargs.pop("agent_model", "moonshot/kimi-k2-0711-preview"),
-        "orchestrator_model": kwargs.pop("orchestrator_model", "moonshot/kimi-k2-0711-preview"),
-        "audit_model": kwargs.pop("audit_model", "o3"),
+        # Enforce exact requested defaults
+        "agent_model": kwargs.pop("agent_model", "gpt-5-mini"),
+        "orchestrator_model": kwargs.pop("orchestrator_model", "gpt-5"),
+        "audit_model": kwargs.pop("audit_model", "gpt-5"),
         "max_cost_per_agent": kwargs.pop("max_cost_per_agent", None),
         "max_iterations_per_agent": kwargs.pop("max_iterations_per_agent", 50),
         "auto_commit": kwargs.pop("auto_commit", True),

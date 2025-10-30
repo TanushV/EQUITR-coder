@@ -1,8 +1,12 @@
 """
 Ask Supervisor Tool - Allows weak agents to consult the strong reasoning model.
+
+Updated to share the core audit-style loop: uses the same read-only tools and
+iteration budget as audit, while keeping a distinct system prompt and accepting
+explicit context (including full docs) for the supervisor.
 """
 
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -26,12 +30,19 @@ class AskSupervisorArgs(BaseModel):
 
 
 class AskSupervisor(Tool):
-    """Tool for weak agents to consult the strong reasoning supervisor model."""
+    """Tool for weak agents to consult the strong reasoning supervisor model.
 
-    def __init__(self, provider, max_calls: int = 5):
+    The tool now mirrors the audit loop: it exposes the same read-only tools
+    (read_file, list_files, grep_search, git_status, git_diff, plus any MCP
+    proxies `mcp:*`) to the supervisor and runs up to the same number of
+    iterations as audit.
+    """
+
+    def __init__(self, provider, max_calls: int = 5, docs_context: Optional[Dict[str, Any]] = None):
         self.provider = provider
         self.call_count = 0
         self.max_calls = max_calls
+        self.docs_context: Optional[Dict[str, Any]] = docs_context
         super().__init__()
 
     def get_name(self) -> str:
@@ -62,8 +73,24 @@ class AskSupervisor(Tool):
         
         self.call_count += 1
         
-        # Build context for supervisor
-        context_parts = []
+        # Build context for supervisor (explicit, labeled)
+        context_parts: List[str] = []
+
+        # Include full docs context if available
+        try:
+            if isinstance(self.docs_context, dict) and self.docs_context:
+                import json as _json
+                doc_payload: Dict[str, Any] = {}
+                for key in ("requirements_content", "design_content", "docs_dir", "todos_path"):
+                    if key in self.docs_context:
+                        doc_payload[key] = self.docs_context[key]
+                if doc_payload:
+                    context_parts.append(
+                        "FULL DOCUMENTATION CONTEXT (read-only):\n" + _json.dumps(doc_payload, indent=2)
+                    )
+        except Exception:
+            # Non-fatal; continue without docs
+            pass
         
         # Add repository tree if requested
         if args.include_repo_tree:
@@ -99,80 +126,104 @@ class AskSupervisor(Tool):
         # Combine all context
         full_context = "\n\n".join(context_parts)
         
-        # Create supervisor prompt
-        supervisor_prompt = f"""You are a senior technical supervisor helping a development agent. 
-The agent has asked for your guidance on the following question:
-
-QUESTION: {args.question}
-
-CONTEXT:
-{full_context}
-
-Please provide clear, actionable guidance. You can use read-only tools like grep_search, read_file, and list_files to investigate further if needed. 
-
-Respond with specific, practical advice that the agent can immediately act upon."""
+        # Create supervisor prompt (distinct from audit, but encourage MCP usage and tool loop)
+        supervisor_prompt = (
+            "You are a senior technical supervisor helping a development agent.\n\n"
+            "INSTRUCTIONS:\n"
+            "• At each turn, either CALL a read-only tool (read_file, list_files, grep_search, git_status, git_diff, and any MCP tools 'mcp:*') or, when satisfied, provide a final advisory answer.\n"
+            "• Prefer calling tools to validate assumptions. MCP tools (mcp:*) may be used to fetch external information when helpful.\n"
+            "• Provide clear, actionable guidance the agent can immediately act upon.\n\n"
+            f"QUESTION: {args.question}\n\n"
+            f"CONTEXT:\n{full_context}\n"
+        )
 
         # Query supervisor model in a loop until it provides an answer
         from ...providers.litellm import Message
         
-        # Available read-only tools for supervisor
-        read_only_tools = []
+        # Available read-only tools for supervisor (match audit set + MCP proxies)
+        tool_schemas: List[Dict[str, Any]] = []
+        tools_by_name: Dict[str, Any] = {}
         try:
-            from . import search as _search, fs as _fs  # noqa: F401
-            # Filter provided tools (if any) that match read-only names
-            try:
-                candidate_tools = getattr(self, "_available_tools", None)
-            except Exception:
-                candidate_tools = None
-            if candidate_tools:
-                read_only_tools = [
-                    tool for tool in candidate_tools if tool.get_name() in ("grep_search", "read_file", "list_files")
-                ]
-            else:
-                read_only_tools = []
+            from ...tools.discovery import discover_tools as _discover_tools  # type: ignore
         except Exception:
-            read_only_tools = []
+            _discover_tools = None  # type: ignore
+
+        allowed_base = {"read_file", "list_files", "grep_search", "git_status", "git_diff"}
+        if _discover_tools:
+            try:
+                for t in _discover_tools():
+                    name = getattr(t, "name", None) or t.get_name()
+                    if not name:
+                        continue
+                    if name in {"ask_supervisor", "send_message", "receive_messages"}:
+                        continue
+                    if (name in allowed_base) or name.startswith("mcp:"):
+                        tools_by_name[name] = t
+                        try:
+                            tool_schemas.append(t.get_json_schema())
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         
         messages = [Message(role="system", content=supervisor_prompt)]
         
-        # Supervisor reasoning loop
-        max_iterations = 5
+        # Supervisor reasoning loop (match audit iteration budget)
+        max_iterations = 20
+        total_cost = 0.0
         for _ in range(max_iterations):
             try:
                 response = await self.provider.chat(
                     messages=messages,
-                    tools=read_only_tools if read_only_tools else None
+                    tools=tool_schemas if tool_schemas else None
                 )
+                try:
+                    total_cost += float(getattr(response, "cost", 0.0) or 0.0)
+                except Exception:
+                    pass
                 
                 if response.tool_calls:
-                    # Execute read-only tools for supervisor
+                    # Execute requested tools (read-only + MCP proxies)
+                    import json as _json
                     for tool_call in response.tool_calls:
-                        tool_name = tool_call.function["name"]
-                        tool_args = tool_call.function.get("arguments", {})
-                        
-                        # Execute the tool and add result to conversation
-                        tool_result = await self._execute_read_only_tool(tool_name, tool_args)
-                        messages.append(Message(
-                            role="tool",
-                            content=tool_result,
-                            name=tool_name
-                        ))
+                        tool_name = tool_call.function.get("name", "")
+                        raw_args = tool_call.function.get("arguments", "{}")
+                        try:
+                            tool_args = _json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                        except Exception:
+                            tool_args = {}
+
+                        if tool_name in tools_by_name:
+                            try:
+                                tool_obj = tools_by_name[tool_name]
+                                result = await tool_obj.run(**(tool_args or {}))
+                                content = result.json() if hasattr(result, "json") else str(result.data or result.error)
+                            except Exception as e:
+                                content = f"Tool execution failed: {e}"
+                        else:
+                            # Fallback to limited built-in executor
+                            content = await self._execute_read_only_tool(tool_name, tool_args)
+
+                        messages.append(Message(role="tool", content=content, name=tool_name))
                 else:
                     # Supervisor provided final answer
                     return ToolResult(
                         success=True,
-                        data=response.content
+                        data=response.content,
+                        metadata={"cost": total_cost, "usage": getattr(response, "usage", {})}
                     )
                     
             except Exception as e:
                 return ToolResult(
                     success=False,
-                    error=f"Supervisor consultation failed: {str(e)}"
+                    error=f"Supervisor consultation failed: {str(e)}",
+                    metadata={"cost": total_cost}
                 )
         
         return ToolResult(
             success=False,
-            error="Supervisor did not provide a final answer within iteration limit"
+            error="Supervisor did not provide a final answer within iteration limit",
+            metadata={"cost": total_cost}
         )
     
     async def _execute_read_only_tool(self, tool_name: str, args: dict) -> str:

@@ -1,1 +1,0 @@
-{"seed":5,"mse":0.9704763042982681,"r2":0.5934408497665223,"n_parameters":4,"train_samples":800,"val_samples":200,"created":"2025-08-24T07:31:43.893225Z","run_id":"lr_run_5","lr":0.01,"regularization":0.0,"epochs":1}

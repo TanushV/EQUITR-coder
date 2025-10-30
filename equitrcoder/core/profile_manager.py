@@ -25,7 +25,7 @@ class ProfileManager:
             if filename.endswith('.yaml') or filename.endswith('.yml'):
                 profile_name = os.path.splitext(filename)[0]
                 filepath = os.path.join(self.profiles_dir, filename)
-                with open(filepath, 'r') as f:
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                     profile_data = yaml.safe_load(f)
                     profiles[profile_name] = profile_data
         return profiles

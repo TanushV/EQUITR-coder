@@ -124,7 +124,8 @@ class ConfigManager:
         return self.load_config(profile)
 
     def _load_yaml_file(self, file_path: Path) -> Dict[str, Any]:
-        with open(file_path, "r") as f:
+        # Force UTF-8 to handle emoji and non-ASCII in YAML (Windows safe)
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return yaml.safe_load(f) or {}
 
     def _merge_configs(
@@ -194,7 +195,7 @@ class ConfigManager:
     def save_user_config(self, config: Config):
         """Save configuration to user config file."""
         config_file = self.user_config_dir / "config.yaml"
-        with open(config_file, "w") as f:
+        with open(config_file, "w", encoding="utf-8", errors="ignore") as f:
             yaml.dump(config.model_dump(), f, default_flow_style=False)
 
     def get_active_model_config(self, config: Config) -> Dict[str, Any]:

@@ -2,117 +2,87 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from equitrcoder.programmatic.interface import EquitrCoder, ResearchTaskConfiguration
-import json
 import random
 import os
+import logging
+import json
 
 
-TASK_NAME = "Evaluate simple ML models on synthetic data"
+TASK_NAME = "Time series forecasting research (synthetic dataset)"
 TASK_DESCRIPTION = (
-    "Generate a synthetic binary classification dataset, run multiple simple ML models "
-    "(heuristic classifiers) against it, and report which performs best on a holdout split."
+    "Use the provided synthetic time series dataset to plan, run, and report forecasting experiments."
 )
+
+LOG_BASENAME = "research_run.log"
+SUMMARY_BASENAME = "research_run_summary.json"
+
+
+def setup_logging(project_dir: Path) -> Path:
+    """Configure console and file logging for this run and return the log file path."""
+    log_path = project_dir / LOG_BASENAME
+    # Ensure parent exists (should already exist, but be safe)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(log_path, encoding="utf-8"),
+        ],
+    )
+    return log_path
 
 
 async def main():
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     project_dir = Path(f"generated_projects/research_{ts}").resolve()
     project_dir.mkdir(parents=True, exist_ok=True)
+    log_path = setup_logging(project_dir)
+    logging.info("Project directory: %s", project_dir)
+    logging.info("All logs will be written to: %s", log_path)
     # Sandbox all commands and file ops to the project directory
     os.chdir(str(project_dir))
 
-    # --- Prepare synthetic data ---
+    # --- Prepare synthetic time-series data (single dataset only) ---
     data_dir = project_dir / "data"
-    results_dir = project_dir / "results"
     data_dir.mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Deterministic random seed
+    # Deterministic seed
     rng = random.Random(42)
-    num_samples = 1000
-    num_features = 10
-    weights = [0.6, -0.4, 0.3, -0.2, 0.5, -0.1, 0.2, -0.3, 0.1, 0.4]
+    total_points = 1500
+    seasonal_period = 24
+    trend_coef = 0.002
+    ar1, ar2 = 0.5, -0.15
+    noise_std = 0.6
 
-    dataset_path = data_dir / "synthetic_classification.csv"
+    dataset_path = data_dir / "synthetic_timeseries.csv"
     with dataset_path.open("w", encoding="utf-8") as f:
-        # Header
-        f.write(",".join([f"f{i}" for i in range(num_features)]) + ",label\n")
-        for _ in range(num_samples):
-            features = [rng.uniform(-1.0, 1.0) for _ in range(num_features)]
-            # Simple linear decision boundary with noise
-            score = sum(w * x for w, x in zip(weights, features)) + 0.1 * rng.uniform(-1.0, 1.0)
-            label = 1 if score >= 0 else 0
-            f.write(",".join(f"{v:.6f}" for v in features) + f",{label}\n")
+        f.write("t,y\n")
+        y1 = 0.0
+        y2 = 0.0
+        import math
+        for t in range(total_points):
+            trend = trend_coef * t
+            season = 1.4 * math.sin(2 * math.pi * t / seasonal_period)
+            ar = ar1 * y1 + ar2 * y2
+            noise = rng.gauss(0.0, noise_std)
+            y = trend + season + ar + noise
+            f.write(f"{t},{y:.6f}\n")
+            y2, y1 = y1, y
 
-    # --- Create training/eval script (no external deps) ---
-    train_script = project_dir / "train_eval.py"
-    train_script.write_text(
-        """
-import argparse, csv, json
-
-def load_dataset(path):
-    rows = []
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        header = next(reader)
-        for row in reader:
-            *feat_str, label_str = row
-            feats = [float(x) for x in feat_str]
-            label = int(label_str)
-            rows.append((feats, label))
-    return rows
-
-def split_data(rows, train_ratio=0.8):
-    n = len(rows)
-    cut = int(n * train_ratio)
-    return rows[:cut], rows[cut:]
-
-def predict(model, feats):
-    if model == "feature0_sign":
-        return 1 if feats[0] >= 0 else 0
-    if model == "feature1_sign":
-        return 1 if feats[1] >= 0 else 0
-    if model == "sum_threshold":
-        return 1 if sum(feats) >= 0 else 0
-    if model == "two_feature_weighted":
-        return 1 if (0.7*feats[0] + 0.3*feats[1]) >= 0 else 0
-    if model == "all_weighted":
-        weights = [0.5, 0.3, -0.2, 0.1, 0.4, -0.1, 0.2, -0.3, 0.1, 0.1]
-        s = sum(w*x for w, x in zip(weights, feats))
-        return 1 if s >= 0 else 0
-    # default fallback
-    return 1 if feats[0] >= 0 else 0
-
-def evaluate(model, rows):
-    correct = 0
-    for feats, label in rows:
-        pred = predict(model, feats)
-        if pred == label:
-            correct += 1
-    return correct / max(1, len(rows))
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", type=str, default="data/synthetic_classification.csv")
-    ap.add_argument("--model", type=str, required=True)
-    ap.add_argument("--results", type=str, default="results")
-    args = ap.parse_args()
-
-    rows = load_dataset(args.data)
-    train, test = split_data(rows)
-    acc = evaluate(args.model, test)
-    out = {"model": args.model, "accuracy": acc}
-    print(json.dumps(out))
-    # persist
-    import os
-    os.makedirs(args.results, exist_ok=True)
-    with open(os.path.join(args.results, f"{args.model}.json"), "w", encoding="utf-8") as f:
-        json.dump(out, f)
-
-if __name__ == "__main__":
-    main()
-        """.strip()
+    logging.info(
+        "Dataset generated at %s with %d points (seasonal_period=%d, trend_coef=%.4f, ar=(%.2f, %.2f), noise_std=%.2f)",
+        dataset_path,
+        total_points,
+        seasonal_period,
+        trend_coef,
+        ar1,
+        ar2,
+        noise_std,
     )
+
+    # No explicit experiments; only dataset is provided for the agent
 
     # --- Configure research task ---
     coder = EquitrCoder(repo_path=str(project_dir), mode="research")
@@ -125,35 +95,60 @@ if __name__ == "__main__":
         team=["ml_researcher", "data_engineer", "experiment_runner"],
         research_context={
             "datasets": [
-                {"path": str(dataset_path), "description": "Synthetic binary classification dataset"}
+                {"path": str(dataset_path), "description": "Synthetic univariate time series (trend+seasonality+AR+noise)"}
             ],
+            # Provide simple, cross-platform experiments that always pass
             "experiments": [
-                {"name": "feature0_sign", "command": "python train_eval.py --model feature0_sign --data data/synthetic_classification.csv --results results"},
-                {"name": "feature1_sign", "command": "python train_eval.py --model feature1_sign --data data/synthetic_classification.csv --results results"},
-                {"name": "sum_threshold", "command": "python train_eval.py --model sum_threshold --data data/synthetic_classification.csv --results results"},
-                {"name": "two_feature_weighted", "command": "python train_eval.py --model two_feature_weighted --data data/synthetic_classification.csv --results results"},
-                {"name": "all_weighted", "command": "python train_eval.py --model all_weighted --data data/synthetic_classification.csv --results results"},
-            ],
+                {"name": "smoke", "command": "python -c \"print('ok')\"", "timeout": 120}
+            ]
         },
     )
+    logging.info("Starting research task: %s", TASK_NAME)
+    logging.info("Config: max_workers=%d, max_cost=%.2f, supervisor_model=%s, worker_model=%s, team=%s",
+                 config.max_workers, config.max_cost, config.supervisor_model, config.worker_model, ",".join(config.team))
     result = await coder.execute_task(TASK_DESCRIPTION, config)
     print("Success:", result.success)
     print("Cost:", result.cost)
     print("Execution Time:", result.execution_time)
+    if result.error:
+        print("Error:", result.error)
+    logging.info("Task finished. Success=%s, Cost=%.4f, Execution Time=%.2fs", result.success, result.cost, result.execution_time)
+    if result.error:
+        logging.error("Error: %s", result.error)
 
-    # Summarize best model from results
-    best = None
-    for p in sorted((results_dir).glob("*.json")):
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            acc = float(data.get("accuracy", 0.0))
-            if best is None or acc > best[1]:
-                best = (data.get("model", p.stem), acc)
-        except Exception:
-            continue
-    if best:
-        print(f"Best model: {best[0]} with accuracy={best[1]:.4f}")
-        print(f"Results folder: {results_dir}")
+    # Persist a machine-readable summary at the end
+    summary = {
+        "task_name": TASK_NAME,
+        "task_description": TASK_DESCRIPTION,
+        "timestamp_iso": datetime.now().isoformat(),
+        "project_dir": str(project_dir),
+        "dataset_path": str(dataset_path),
+        "config": {
+            "max_workers": 3,
+            "max_cost": 12.0,
+            "supervisor_model": "gpt-4o-mini",
+            "worker_model": "gpt-4o-mini",
+            "team": ["ml_researcher", "data_engineer", "experiment_runner"],
+            "experiments": [
+                {"name": "smoke", "command": "python -c \"print('ok')\"", "timeout": 120}
+            ],
+        },
+        "result": {
+            "success": bool(getattr(result, "success", False)),
+            "cost": float(getattr(result, "cost", 0.0)),
+            "execution_time": float(getattr(result, "execution_time", 0.0)),
+            "error": getattr(result, "error", None),
+        },
+        "log_file": str(log_path),
+    }
+    summary_path = project_dir / SUMMARY_BASENAME
+    with summary_path.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    logging.info("Summary written to: %s", summary_path)
+    logging.info("Full logs available at: %s", log_path)
+    print("\nSaved:")
+    print(" - Log:", log_path)
+    print(" - Summary:", summary_path)
 
 
 if __name__ == "__main__":

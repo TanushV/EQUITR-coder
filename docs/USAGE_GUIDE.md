@@ -47,6 +47,27 @@ config = ResearchTaskConfiguration(
   }
 )
 result = await coder.execute_task(config.description, config)
+
+## MCP Servers
+
+- Install optional dependency to enable MCP:
+
+```bash
+pip install modelcontextprotocol
+```
+
+- Create `~/.EQUITR-coder/mcp_servers.json` (or set `EQUITR_MCP_SERVERS`):
+
+```json
+{
+  "mcpServers": {
+    "sqlite": { "command": "uvx", "args": ["mcp-server-sqlite", "--db-path", "./test.db"], "transport": "stdio" }
+  }
+}
+```
+
+- After startup, tools named `mcp:<serverName>` appear and can call any tool on that server via `{ "tool": "<name>", "arguments": { ... } }`.
+
 ```
 
 See also external programmatic example: `examples/research_programmatic_example.py`.

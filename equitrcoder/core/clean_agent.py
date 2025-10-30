@@ -665,29 +665,39 @@ class CleanAgent:
                 if hasattr(response, "cost") and response.cost:
                     self.current_cost += response.cost
 
-                # Log detailed LLM response with full content
+                # Log detailed LLM response with full content and live pricing
                 print(f"\n🤖 [{self.agent_id}] Iteration {iteration} - LLM Response:")
                 print(f"   Model: {self.model}")
-                print(f"   Cost: ${getattr(response, 'cost', 0.0):.4f} (Total: ${self.current_cost:.4f})")
+                # Overall totals include orchestrator + all agents; we approximate with session manager aggregation if available
+                overall_total = self.current_cost
+                try:
+                    if self.session:
+                        overall_total = float(self.session.cost or 0.0) + float(self.current_cost or 0.0)
+                except Exception:
+                    pass
+                print(f"   Cost (this step): ${getattr(response, 'cost', 0.0):.6f} | Agent total: ${self.current_cost:.6f} | Overall total: ${overall_total:.6f}")
                 print(f"   Usage: {getattr(response, 'usage', {})}")
+                try:
+                    from time import perf_counter
+                except Exception:
+                    perf_counter = None  # type: ignore
                 
                 if response.content:
-                    print("   Content:")
-                    # Log full content with proper formatting
-                    content_lines = response.content.split('\n')
-                    for line in content_lines[:10]:  # Show first 10 lines
+                    print("   Assistant Content (full):")
+                    for line in response.content.split('\n'):
                         print(f"     {line}")
-                    if len(content_lines) > 10:
-                        print(f"     ... ({len(content_lines) - 10} more lines)")
                 
                 if response.tool_calls:
                     print(f"   Tool Calls ({len(response.tool_calls)}):")
                     for i, tc in enumerate(response.tool_calls, 1):
-                        args = json.loads(tc.function['arguments'])
-                        print(f"     {i}. {tc.function['name']}:")
-                        for key, value in args.items():
-                            value_str = str(value)[:100] + "..." if len(str(value)) > 100 else str(value)
-                            print(f"        {key}: {value_str}")
+                        try:
+                            args = json.loads(tc.function.get('arguments', '{}'))
+                        except Exception:
+                            args = {"raw": tc.function.get('arguments')}
+                        print(f"     {i}. {tc.function['name']}")
+                        print("        Arguments:")
+                        for key, value in (args.items() if isinstance(args, dict) else [("value", args)]):
+                            print(f"          {key}: {value}")
                 else:
                     print("   ⚠️  NO TOOL CALLS - This violates the mandatory tool use rule!")
 
@@ -724,20 +734,24 @@ class CleanAgent:
                                 if tool_result.success
                                 else tool_result.error
                             )
+                            # Accumulate any tool-reported cost
+                            try:
+                                if isinstance(tool_result.metadata, dict) and "cost" in tool_result.metadata:
+                                    self.current_cost += float(tool_result.metadata.get("cost") or 0.0)
+                            except Exception:
+                                pass
 
                             # Update tool call tracking
                             tool_call_data["success"] = tool_result.success
                             tool_call_data["result"] = tool_result.data if tool_result.success else None
                             tool_call_data["error"] = tool_result.error if not tool_result.success else None
+                            tool_call_data["metadata"] = tool_result.metadata or {}
 
-                            # Log tool execution result
+                            # Log tool execution result with full args and result
                             status_icon = "✅" if tool_result.success else "❌"
                             print(f"🔧 [{self.agent_id}] Tool Execution: {status_icon} {tool_name}")
-                            if tool_args:
-                                args_preview = str(tool_args)[:100] + "..." if len(str(tool_args)) > 100 else str(tool_args)
-                                print(f"   Args: {args_preview}")
-                            result_preview = result_content[:150] + "..." if len(result_content) > 150 else result_content
-                            print(f"   Result: {result_preview}")
+                            print(f"   Args (full): {tool_args}")
+                            print(f"   Result (full): {result_content}")
 
                             self.add_message(
                                 "tool",
@@ -745,6 +759,7 @@ class CleanAgent:
                                 {
                                     "tool_name": tool_name,
                                     "success": tool_result.success,
+                                    "metadata": tool_result.metadata or {},
                                 },
                             )
 
@@ -856,6 +871,13 @@ class CleanAgent:
             read_only_tools = [
                 self.tools[name] for name in ("read_file", "list_files", "grep_search", "git_status", "git_diff") if name in self.tools
             ]
+            # Include MCP proxy tools if available
+            try:
+                for _n, _t in self.tools.items():
+                    if _n.startswith("mcp:"):
+                        read_only_tools.append(_t)
+            except Exception:
+                pass
             if not read_only_tools:
                 return {"success": False, "reason": "No audit tools available", "audit_passed": False}
  
@@ -867,10 +889,26 @@ class CleanAgent:
                 "• At each turn either CALL a read-only tool or, when satisfied, RETURN results using the virtual tool 'audit_results'.\n"
                 "• The 'audit_results' call must include JSON with: {\"passed\": bool, \"reasons\": str, \"additional_tasks\": list}.\n"
                 "• Fail only if one or more todos have not been completed.\n"
-                "• Keep investigating until confident."
+                "• Keep investigating until confident.\n\n"
+                "You are encouraged to use MCP tools (mcp:*) to fetch external information if relevant."
             )
  
             messages = [Message(role="system", content=system_prompt)]
+            # Provide full docs context (read-only, labeled) if available
+            try:
+                doc_payload = {}
+                for key in ("requirements_content", "design_content", "docs_dir", "todos_path"):
+                    if key in (self.context or {}):
+                        doc_payload[key] = self.context[key]
+                if doc_payload:
+                    messages.append(
+                        Message(
+                            role="user",
+                            content="FULL DOCUMENTATION CONTEXT (read-only):\n" + json.dumps(doc_payload, indent=2),
+                        )
+                    )
+            except Exception:
+                pass
             max_iter = 20
             audit_results_tool = {
                 "type": "function",
@@ -888,8 +926,15 @@ class CleanAgent:
                     },
                 },
             }
-            for _ in range(max_iter):
+            for i in range(1, max_iter + 1):
                 resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [audit_results_tool])
+                print(f"\n🧾 [audit] Iteration {i} - Model: {self.audit_model}")
+                print(f"   Usage: {getattr(resp, 'usage', {})}")
+                print(f"   Cost (this step): ${getattr(resp, 'cost', 0.0):.6f}")
+                if resp.content:
+                    print("   Assistant Content (full):")
+                    for line in resp.content.split('\n'):
+                        print(f"     {line}")
                 if resp.tool_calls:
                     # Expecting at most one tool call per iteration
                     tc = resp.tool_calls[0]

@@ -35,8 +35,9 @@ TASK_DESCRIPTION = (
 
 NUM_AGENTS = get_config('limits.max_workers', 5)
 MAX_COST_USD = get_config('limits.max_cost', 30.0)  # Increased for multiple agents
-SUPERVISOR_MODEL = get_config('orchestrator.supervisor_model', "gpt-5")
-WORKER_MODEL = get_config('orchestrator.worker_model', "gpt-5-mini")
+# Force the exact models requested regardless of config overrides
+SUPERVISOR_MODEL = "gpt-5"
+WORKER_MODEL = "gpt-5-mini"
 
 # Specialized team profiles for Mario game development
 TEAM_PROFILES = [
@@ -80,11 +81,14 @@ async def main() -> None:
     project_dir = base_dir / f"mario_game_{time_stamp}"
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    configure_logging(project_dir / "logs")
-    # Ensure all tools run inside the project directory
-    os.chdir(str(project_dir))
+    # Resolve absolute path to avoid relative path issues after chdir
+    project_dir_abs = project_dir.resolve()
 
-    coder = EquitrCoder(repo_path=str(project_dir), git_enabled=True, mode="multi")
+    configure_logging(project_dir_abs / "logs")
+    # Ensure all tools run inside the project directory
+    os.chdir(str(project_dir_abs))
+
+    coder = EquitrCoder(repo_path=str(project_dir_abs), git_enabled=True, mode="multi")
 
     cfg = MultiAgentTaskConfiguration(
         description=TASK_NAME,

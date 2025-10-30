@@ -1,0 +1,17 @@
+{
+  "registry": {
+    "duckduckgo": {
+      "name": "nickclyde/duckduckgo-mcp-server",
+      "description": "DuckDuckGo web search and content fetch tools (no API keys).",
+      "recommended": true,
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"],
+      "transport": "stdio",
+      "links": {
+        "github": "https://github.com/nickclyde/duckduckgo-mcp-server"
+      }
+    }
+  }
+}
+
+
