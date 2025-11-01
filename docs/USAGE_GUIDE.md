@@ -19,11 +19,19 @@ The TUI will run the full researcher flow and the final Markdown report is gener
 - Single:
   - `equitrcoder single "Implement feature X" --model moonshot/kimi-k2-0711-preview`
 - Multi:
-  - `equitrcoder multi "Implement system Y" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3`
+  - `equitrcoder multi "Implement system Y" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3 --team backend_dev,frontend_dev,qa_engineer`
 - Research (ML only):
-  - `equitrcoder research "Evaluate model on dataset" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3`
+  - `equitrcoder research "Evaluate model on dataset" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3 --team ml_researcher,data_engineer,experiment_runner`
   - Team defaults: `ml_researcher,data_engineer,experiment_runner`
   - Supervisor model outputs `research_report.md` in the session docs folder.
+- Tools management:
+  - `equitrcoder tools --list` (List available tools)
+  - `equitrcoder tools --discover` (Discover and register tools)
+- Models listing:
+  - `equitrcoder models` (List all AI models)
+  - `equitrcoder models --provider openai` (Filter by provider)
+- API server:
+  - `equitrcoder api --host localhost --port 8000` (Start REST API server)
 
 ## Programmatic
 

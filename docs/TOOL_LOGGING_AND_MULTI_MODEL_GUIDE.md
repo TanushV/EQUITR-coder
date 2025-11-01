@@ -299,6 +299,90 @@ orchestrator:
 3. **Cost optimization**: Balance model capabilities with budget constraints
 4. **Testing**: Test different model combinations for your use cases
 
+## Advanced Model Features
+
+### Intelligent Reasoning and Thinking Budgets
+
+EQUITR Coder automatically enables advanced reasoning capabilities for supported models (o3, o1, GPT-4o, etc.):
+
+#### Automatic Reasoning Mode Detection
+- **o3/o1 Models**: Automatically enables `reasoning_effort` with optimized budget allocation
+- **Thinking Budget**: Dynamically allocates thinking tokens based on task complexity
+- **Fallback Support**: Gracefully degrades for models without advanced reasoning
+
+#### Configuration
+```python
+# Programmatic control (automatic by default)
+from equitrcoder import EquitrCoder
+
+coder = EquitrCoder(
+    # Reasoning automatically enabled for supported models
+    supervisor_model="o3",  # Will use reasoning_effort
+    worker_model="moonshot/kimi-k2-0711-preview"  # Standard mode
+)
+```
+
+#### Benefits
+- **Better Problem Solving**: Enhanced reasoning for complex tasks
+- **Optimized Costs**: Efficient token allocation based on task needs
+- **Model-Aware**: Only enables reasoning for capable models
+
+### Accurate Cost Calculation
+
+EQUITR Coder uses litellm for precise, model-aware cost tracking:
+
+#### Features
+- **Real-time Cost Tracking**: Accurate costs during execution
+- **Model-Specific Pricing**: Uses correct pricing per model/token
+- **Multi-Provider Support**: Consistent cost calculation across providers
+- **Cost Optimization**: Helps choose cost-effective model combinations
+
+#### Cost Monitoring
+```python
+from equitrcoder import EquitrCoder
+
+coder = EquitrCoder()
+result = await coder.execute_task("Build an API", config)
+
+print(f"Total cost: ${result.cost:.4f}")
+print(f"Cost breakdown by model available in execution details")
+```
+
+#### Supported Models
+- **OpenAI**: GPT-4, GPT-3.5, o1, o3 series
+- **Anthropic**: Claude 3 series, Haiku, Sonnet
+- **Moonshot**: All Kimi models with accurate pricing
+- **And more**: Full litellm provider support
+
+### Automatic Requirements Installation
+
+For ML research experiments using virtual environments:
+
+#### Auto-Installation Features
+- **requirements.txt Detection**: Automatically finds and installs requirements
+- **Virtual Environment Setup**: Creates and manages experiment environments
+- **Dependency Resolution**: Handles complex dependency trees
+- **Error Recovery**: Continues execution even if some installations fail
+
+#### Usage in Research Mode
+```python
+from equitrcoder import ResearchTaskConfiguration
+
+config = ResearchTaskConfiguration(
+    description="Evaluate model performance",
+    research_context={
+        "experiments": [
+            {
+                "name": "baseline",
+                "command": "python train.py --dataset data",
+                "requirements": ["torch==2.0.1", "transformers", "datasets"]
+                # Auto-installed in venv before execution
+            }
+        ]
+    }
+)
+```
+
 ## Troubleshooting
 
 ### Common Issues

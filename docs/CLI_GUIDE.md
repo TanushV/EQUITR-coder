@@ -27,7 +27,7 @@ Expected output:
 
 ## Multi-Agent Parallel
 
-Run with supervisor/worker models and optional team profiles:
+Run with supervisor/worker models and specialized team profiles:
 
 ```
 equitrcoder multi "Build a FastAPI + React app" \
@@ -50,13 +50,14 @@ Expected output:
 
 ## Research Mode (ML)
 
-Interactive collection of datasets and experiments, then full execution:
+Interactive collection of datasets and experiments, then full execution with specialized ML profiles:
 
 ```
 equitrcoder research "Evaluate ResNet on CIFAR-10" \
   --supervisor-model moonshot/kimi-k2-0711-preview \
   --worker-model moonshot/kimi-k2-0711-preview \
-  --workers 3
+  --workers 3 \
+  --team ml_researcher,data_engineer,experiment_runner
 ```
 
 Prompts:
@@ -78,4 +79,39 @@ Completion:
 🧪 Experiments complete. Generating supervisor report...
 ✅ Researcher mode completed successfully!
 📄 Report: docs/task_20250101_153000/research_report.md
-``` 
+```
+
+## Additional CLI Commands
+
+### Tools Management
+
+List all available tools:
+```
+equitrcoder tools --list
+```
+
+Discover and register new tools:
+```
+equitrcoder tools --discover
+```
+
+### Models Listing
+
+List all available AI models:
+```
+equitrcoder models
+```
+
+Filter models by provider:
+```
+equitrcoder models --provider openai
+equitrcoder models --provider anthropic
+equitrcoder models --provider moonshot
+```
+
+### API Server
+
+Start the REST API server:
+```
+equitrcoder api --host localhost --port 8000
+```

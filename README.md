@@ -1,6 +1,6 @@
 # EQUITR Coder
 
-Modular AI coding assistant supporting single and multi-agent workflows and an ML-focused researcher mode. Includes an advanced TUI.
+Modular AI coding assistant supporting single and multi-agent workflows and an ML-focused researcher mode. Includes an advanced TUI, automatic audit system, and intelligent model optimization.
 
 ## Quick Start
 
@@ -58,13 +58,24 @@ equitrcoder single "Build a small API" --model moonshot/kimi-k2-0711-preview
 - Multi:
   ```bash
 equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
-  --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15
+  --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
+  --team backend_dev,frontend_dev,qa_engineer
   ```
 - Research (ML only):
   ```bash
 equitrcoder research "Evaluate model X on dataset Y" \
   --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview \
-  --workers 3 --max-cost 12
+  --workers 3 --max-cost 12 --team ml_researcher,data_engineer,experiment_runner
+  ```
+- Tools management:
+  ```bash
+equitrcoder tools --list              # List all available tools
+equitrcoder tools --discover          # Discover and register tools
+  ```
+- Models listing:
+  ```bash
+equitrcoder models                    # List all available AI models
+equitrcoder models --provider openai  # Filter by provider
   ```
 
 ## Programmatic Usage
@@ -96,12 +107,44 @@ equitrcoder api --host 0.0.0.0 --port 8000
   - `GET /multi/{id}/status`
   - `DELETE /multi/{id}`
 
+## Audit System
+
+EQUITR Coder includes a comprehensive audit pipeline that automatically runs after task completion:
+
+- **Automatic Testing**: Generates and runs audit tests for each completed task group
+- **Quality Assurance**: Validates code changes against requirements and design specifications
+- **Failure Handling**: Automatically marks failed audits for remediation and adds follow-up tasks
+- **Comprehensive Reports**: Generates detailed audit reports with test results and commentary
+
+To run the audit monitor manually:
+```bash
+python -m equitrcoder.cli.audit_monitor \
+  --todo-file docs/<task_name>/todos.json \
+  --task-name <task_name> \
+  --sections-file docs/<task_name>/group_sections.json \
+  --poll-interval 10
+```
+
+Set the audit token for write operations:
+```bash
+export EQUITR_AUDIT_TOKEN=your-secret
+```
+
+See `docs/AUDIT_SYSTEM.md` for complete documentation.
+
 ## Configuration
 
 - Default config lives in `equitrcoder/config/default.yaml`.
 - User overrides: `~/.EQUITR-coder/config.yaml`.
 - Env overrides supported for selected keys (see code and docs).
 - `session.max_context: "auto"` is supported and normalized automatically.
+
+### Advanced Features
+
+- **Intelligent Model Optimization**: Automatic reasoning/thinking budget allocation for supported models (o3, o1, etc.)
+- **Accurate Cost Tracking**: Model-aware cost calculation using litellm for precise billing
+- **Automatic Requirements Installation**: Auto-installs Python requirements for venv-based experiments
+- **Specialized Agent Profiles**: Choose from 10+ specialized profiles (backend_dev, frontend_dev, qa_engineer, ml_researcher, etc.)
 
 ### MCP Servers (Optional)
 
