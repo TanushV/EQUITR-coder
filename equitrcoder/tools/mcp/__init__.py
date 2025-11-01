@@ -5,7 +5,12 @@ Configuration is read from `~/.EQUITR-coder/mcp_servers.json` by default,
 or from a path specified in `EQUITR_MCP_SERVERS`.
 """
 
-from .config import MCPServerConfig, MCPServersFile, load_mcp_config, find_mcp_config_path
+from .config import (
+    MCPServerConfig,
+    MCPServersFile,
+    load_mcp_config,
+    find_mcp_config_path,
+)
 
 __all__ = [
     "MCPServerConfig",
@@ -13,4 +18,3 @@ __all__ = [
     "load_mcp_config",
     "find_mcp_config_path",
 ]
-

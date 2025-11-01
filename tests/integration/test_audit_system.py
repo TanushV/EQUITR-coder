@@ -9,7 +9,6 @@ import pytest
 from equitrcoder.tools.custom.audit_tests import (
     CreateGroupTests,
     ListGroupTests,
-    GetGroupTestStatuses,
     MarkDefectiveTests,
     RemoveDefectiveTests,
 )
@@ -36,7 +35,13 @@ def test_audit_tools_create_list_and_mark_remove_defective(tmp_path):
 
     # Create tests for demo group using DEV_ALLOW fallback
     create_tool = CreateGroupTests()
-    res = _run_async(create_tool.run, group_id="demo", section_paths=[str(src_file)], auth_token="DEV_ALLOW", overwrite=True)
+    res = _run_async(
+        create_tool.run,
+        group_id="demo",
+        section_paths=[str(src_file)],
+        auth_token="DEV_ALLOW",
+        overwrite=True,
+    )
     # NOTE: pytest.run for async helper (defined below)
     assert isinstance(res, ToolResult) and res.success
     assert res.data and res.data.get("total", 0) >= 1
@@ -50,13 +55,20 @@ def test_audit_tools_create_list_and_mark_remove_defective(tmp_path):
 
     # Mark as defective
     mark_tool = MarkDefectiveTests()
-    res_mark = _run_async(mark_tool.run, group_id="demo", test_patterns_or_paths=["test_base.py"], auth_token="DEV_ALLOW")
+    res_mark = _run_async(
+        mark_tool.run,
+        group_id="demo",
+        test_patterns_or_paths=["test_base.py"],
+        auth_token="DEV_ALLOW",
+    )
     assert res_mark.success
     assert any("test_base.py" in p for p in res_mark.data.get("marked_defective", []))
 
     # Remove defective
     remove_tool = RemoveDefectiveTests()
-    res_rm = _run_async(remove_tool.run, group_id="demo", auth_token="DEV_ALLOW", remove_files=True)
+    res_rm = _run_async(
+        remove_tool.run, group_id="demo", auth_token="DEV_ALLOW", remove_files=True
+    )
     assert res_rm.success
 
 
@@ -91,10 +103,14 @@ def test_audit_agent_flow_generates_report_and_tests(tmp_path, monkeypatch):
     sections_file.write_text(json.dumps(sections_map, indent=2), encoding="utf-8")
 
     # Stub out LLM commentary to avoid network
-    async def _fake_chat(self, messages, tools=None, temperature=None, max_tokens=None, **kwargs):
+    async def _fake_chat(
+        self, messages, tools=None, temperature=None, max_tokens=None, **kwargs
+    ):
         return ChatResponse(content="OK", tool_calls=[], usage={}, cost=0.0)
 
-    monkeypatch.setattr("equitrcoder.agents.audit_agent.LiteLLMProvider.chat", _fake_chat)
+    monkeypatch.setattr(
+        "equitrcoder.agents.audit_agent.LiteLLMProvider.chat", _fake_chat
+    )
 
     agent = AuditAgent()
     result = _run_async(
@@ -117,6 +133,7 @@ def test_audit_agent_flow_generates_report_and_tests(tmp_path, monkeypatch):
 # Helper: allow awaiting async tool/agent methods in sync pytest
 def _await(coro):
     import asyncio
+
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
@@ -125,5 +142,3 @@ def _run_async(async_fn, *args, **kwargs):
 
 
 # No pytest hook needed; tests call _run_async directly.
-
-

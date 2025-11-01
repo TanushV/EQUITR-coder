@@ -21,12 +21,27 @@ async def success_args(tool_name: str) -> Dict[str, Any] | None:
     if tool_name == "run_notebook":
         tmpdir = Path(tempfile.mkdtemp())
         nb = tmpdir / "demo.ipynb"
-        nb.write_text(json.dumps({
-            "cells": [{"cell_type": "code", "metadata": {}, "source": "x=1\nprint(x)", "outputs": [], "execution_count": None}],
-            "metadata": {"kernelspec": {"name": "python3", "display_name": "python3"}},
-            "nbformat": 4,
-            "nbformat_minor": 5,
-        }), encoding="utf-8")
+        nb.write_text(
+            json.dumps(
+                {
+                    "cells": [
+                        {
+                            "cell_type": "code",
+                            "metadata": {},
+                            "source": "x=1\nprint(x)",
+                            "outputs": [],
+                            "execution_count": None,
+                        }
+                    ],
+                    "metadata": {
+                        "kernelspec": {"name": "python3", "display_name": "python3"}
+                    },
+                    "nbformat": 4,
+                    "nbformat_minor": 5,
+                }
+            ),
+            encoding="utf-8",
+        )
         return {"path": str(nb), "timeout": 60}
     if tool_name == "run_experiments":
         tmpdir = Path(tempfile.mkdtemp())
@@ -75,21 +90,34 @@ async def run_tool(tool) -> Dict[str, Any]:
             "args_used": sa,
         }
     except Exception as e:
-        return {"discovery": True, "invoked": False, "tool": name, "error": str(e), "args_used": sa}
+        return {
+            "discovery": True,
+            "invoked": False,
+            "tool": name,
+            "error": str(e),
+            "args_used": sa,
+        }
 
 
 async def main():
     tools = discover_tools()
-    custom = [t for t in tools if t.__class__.__module__.startswith("equitrcoder.tools.custom.")]
+    custom = [
+        t
+        for t in tools
+        if t.__class__.__module__.startswith("equitrcoder.tools.custom.")
+    ]
     print(f"Found {len(custom)} custom tools")
     results = []
     for t in custom:
         r = await run_tool(t)
         results.append(r)
         status = "OK" if r.get("invoked") else "FAIL"
-        print(f"[{status}] {t.get_name()} -> success={r.get('result_success')} error={r.get('error')} args={r.get('args_used')}")
+        print(
+            f"[{status}] {t.get_name()} -> success={r.get('result_success')} error={r.get('error')} args={r.get('args_used')}"
+        )
     ok = sum(1 for r in results if r.get("invoked"))
     print(f"Summary: invoked {ok}/{len(results)} tools")
 
+
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

@@ -22,7 +22,9 @@ class DummyReadFile(Tool):
 
     async def run(self, **kwargs) -> ToolResult:
         # Return a minimal payload similar to builtin ReadFile
-        return ToolResult(success=True, data={"path": kwargs.get("path"), "content": "dummy"})
+        return ToolResult(
+            success=True, data={"path": kwargs.get("path"), "content": "dummy"}
+        )
 
 
 class _ToolCallLike:
@@ -65,24 +67,32 @@ class FakeProvider:
 async def test_ask_supervisor_audit_style_loop_with_docs_and_tools(monkeypatch):
     # Patch discover_tools used by AskSupervisor.run to return our dummy read_file
     import importlib
+
     discovery_mod = importlib.import_module("equitrcoder.tools.discovery")
-    monkeypatch.setattr(discovery_mod, "discover_tools", lambda: [DummyReadFile()], raising=True)
+    monkeypatch.setattr(
+        discovery_mod, "discover_tools", lambda: [DummyReadFile()], raising=True
+    )
 
     # Instantiate AskSupervisor with a fake provider and docs_context
     provider = FakeProvider()
-    tool = AskSupervisor(provider=provider, docs_context={
-        "requirements_content": "REQS",
-        "design_content": "DESIGN",
-        "docs_dir": "docs/task_123",
-        "todos_path": "docs/task_123/todos.json",
-    })
+    tool = AskSupervisor(
+        provider=provider,
+        docs_context={
+            "requirements_content": "REQS",
+            "design_content": "DESIGN",
+            "docs_dir": "docs/task_123",
+            "todos_path": "docs/task_123/todos.json",
+        },
+    )
 
-    result = await tool.run(question="How should I proceed?", include_repo_tree=False, include_git_status=False)
+    result = await tool.run(
+        question="How should I proceed?",
+        include_repo_tree=False,
+        include_git_status=False,
+    )
 
     assert result.success is True
     assert isinstance(result.data, str)
     assert "Final advisory answer" in result.data
     # Ensure at least two provider calls (one tool call, one final answer)
     assert provider.calls >= 2
-
-

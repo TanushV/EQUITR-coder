@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ..agents.audit_agent import AuditAgent
 from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
@@ -29,7 +29,9 @@ class AuditMonitor:
         self.auth_token = auth_token
         self.sections_mapping_file = sections_mapping_file
         self.poll_interval = poll_interval
-        self._state_file = self.todo_file.with_suffix(self.todo_file.suffix + ".audit_state.json")
+        self._state_file = self.todo_file.with_suffix(
+            self.todo_file.suffix + ".audit_state.json"
+        )
 
     def _load_state(self) -> Dict[str, str]:
         if self._state_file.exists():
@@ -85,5 +87,3 @@ class AuditMonitor:
             sections_mapping_file=self.sections_mapping_file,
             docs_dir=str(Path("docs") / self.task_name),
         )
-
-

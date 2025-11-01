@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 
-from textual.widgets import Input, Select, Button
+from textual.widgets import Input, Button
 
 from equitrcoder.ui.advanced_tui import EquitrTUI
 
@@ -11,16 +11,15 @@ from equitrcoder.ui.advanced_tui import EquitrTUI
 # It configures the same models used in examples/research_programmatic_example.py and
 # executes both Research Mode and Multi-Agent Mode runs, similar to real user interaction.
 
-SUPERVISOR_MODEL = "gpt-5"          # same as research_programmatic_example.py
-WORKER_MODEL = "gpt-5-mini"          # same as research_programmatic_example.py
+SUPERVISOR_MODEL = "gpt-5"  # same as research_programmatic_example.py
+WORKER_MODEL = "gpt-5-mini"  # same as research_programmatic_example.py
 
 RESEARCH_TASK = (
     "Generate a synthetic dataset and run simple experiments to pick the best heuristic, "
     "then produce a brief report."
 )
-MULTI_TASK = (
-    "Create a small CLI utility that reads a CSV, computes per-column means, and writes a JSON summary."
-)
+MULTI_TASK = "Create a small CLI utility that reads a CSV, computes per-column means, and writes a JSON summary."
+
 
 async def run_research_flow(app: EquitrTUI):
     async with app.run_test() as pilot:
@@ -90,6 +89,7 @@ async def run_multi_flow(app: EquitrTUI):
 
         await pilot.pause(600.0)
 
+
 async def main():
     # Use project-local output space, like programmatic examples do
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -105,5 +105,6 @@ async def main():
     multi_app = EquitrTUI(mode="multi")
     await run_multi_flow(multi_app)
 
+
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

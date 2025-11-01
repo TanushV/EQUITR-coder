@@ -77,12 +77,16 @@ class ToolRegistry:
             name: tool for name, tool in self._tools.items() if name in enabled_names
         }
 
-    def get_schemas(self, enabled_names: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def get_schemas(
+        self, enabled_names: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """Get JSON schemas for enabled tools."""
         if enabled_names is None:
             tools_list: List[Tool] = list(self._tools.values())
         else:
-            tools_list = [self._tools[name] for name in enabled_names if name in self._tools]
+            tools_list = [
+                self._tools[name] for name in enabled_names if name in self._tools
+            ]
 
         return [tool.get_json_schema() for tool in tools_list]
 

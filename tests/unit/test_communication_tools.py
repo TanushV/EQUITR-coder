@@ -51,4 +51,4 @@ async def test_communication_direct_message():
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["from"] == sender
-    assert data[0]["content"] == "psst" 
+    assert data[0]["content"] == "psst"

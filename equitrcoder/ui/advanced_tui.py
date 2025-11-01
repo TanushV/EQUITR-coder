@@ -9,7 +9,7 @@ Features:
 - Real-time updates and proper event handling
 """
 
-import os
+import sys
 import shlex
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -17,8 +17,10 @@ from typing import Any, Dict, List, Optional
 try:
     from litellm import get_valid_models
 except ImportError:
+
     def get_valid_models(*args, **kwargs):
         return []
+
 
 from ..core.unified_config import get_config
 
@@ -30,16 +32,28 @@ from textual.events import Key
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
-    Header,
     Input,
     Label,
     ListItem,
-    ListView,
     RichLog,
     Static,
-    Footer,
     Select,
 )
+
+from ..core.unified_config import get_config_manager as _get_cm
+from ..programmatic import (
+    EquitrCoder,
+    ExecutionResult,
+    MultiAgentTaskConfiguration,
+    TaskConfiguration,
+    create_multi_agent_coder,
+    create_single_agent_coder,
+)
+from ..tools.builtin.todo import todo_manager
+
+config_manager = _get_cm()
+TEXTUAL_AVAILABLE = True
+
 
 class StartupScreen(Static):
     """Initial startup screen with model selection and welcome message."""
@@ -50,23 +64,31 @@ class StartupScreen(Static):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="startup-container"):
-            yield Label("🤖 EQUITR Coder - Multi-Agent AI Assistant", classes="startup-title")
-            yield Label("Select your models to get started:", classes="startup-subtitle")
-            
+            yield Label(
+                "🤖 EQUITR Coder - Multi-Agent AI Assistant", classes="startup-title"
+            )
+            yield Label(
+                "Select your models to get started:", classes="startup-subtitle"
+            )
+
             with Horizontal(classes="model-selectors"):
                 with Vertical():
                     yield Label("Supervisor Model:", classes="model-label")
                     yield Select(
                         options=[(model, model) for model in self.available_models],
-                        value=self.available_models[0] if self.available_models else None,
-                        id="supervisor-select"
+                        value=(
+                            self.available_models[0] if self.available_models else None
+                        ),
+                        id="supervisor-select",
                     )
                 with Vertical():
                     yield Label("Worker Model:", classes="model-label")
                     yield Select(
                         options=[(model, model) for model in self.available_models],
-                        value=self.available_models[0] if self.available_models else None,
-                        id="worker-select"
+                        value=(
+                            self.available_models[0] if self.available_models else None
+                        ),
+                        id="worker-select",
                     )
                 with Vertical():
                     yield Label("Mode:", classes="model-label")
@@ -75,10 +97,10 @@ class StartupScreen(Static):
                             ("Single Agent", "single"),
                             ("Multi-Agent Parallel", "multi-parallel"),
                             ("Multi-Agent Sequential", "multi-seq"),
-                            ("Research Mode", "research")
+                            ("Research Mode", "research"),
                         ],
                         value="single",
-                        id="mode-select"
+                        id="mode-select",
                     )
             # New session/task selection controls
             yield Label("Previous tasks handling:", classes="model-label")
@@ -89,17 +111,25 @@ class StartupScreen(Static):
                     ("Only work on selected previous tasks", "only"),
                 ],
                 value="ignore",
-                id="prev-task-mode"
+                id="prev-task-mode",
             )
-            yield Input(placeholder="Comma-separated task group IDs to include (optional)", id="prev-task-ids")
-            
-            yield Label("Type your first task below to begin:", classes="startup-instruction")
-            yield Input(placeholder="Describe what you want to build...", id="startup-input")
+            yield Input(
+                placeholder="Comma-separated task group IDs to include (optional)",
+                id="prev-task-ids",
+            )
+
+            yield Label(
+                "Type your first task below to begin:", classes="startup-instruction"
+            )
+            yield Input(
+                placeholder="Describe what you want to build...", id="startup-input"
+            )
             yield Button("Start Coding", variant="primary", id="btn-start")
+
 
 class MainScreen(Static):
     """Main TUI screen with sidebars and chat."""
-    
+
     def __init__(self, todo_sidebar, agent_grid, agents_sidebar, command_bar, **kwargs):
         super().__init__(**kwargs)
         self.todo_sidebar = todo_sidebar
@@ -114,25 +144,6 @@ class MainScreen(Static):
                 yield self.agent_grid
             yield self.agents_sidebar
         yield self.command_bar
-
-
-try:
-    TEXTUAL_AVAILABLE = True
-except ImportError:
-    TEXTUAL_AVAILABLE = False
-
-from ..core.unified_config import get_config_manager as _get_cm
-config_manager = _get_cm()
-from ..programmatic import (
-    EquitrCoder,
-    ExecutionResult,
-    MultiAgentTaskConfiguration,
-    TaskConfiguration,
-    create_multi_agent_coder,
-    create_single_agent_coder,
-)
-from ..tools.builtin.todo import todo_manager
-from ..core.model_manager import model_manager
 
 
 class TodoSidebar(Static):
@@ -278,7 +289,9 @@ class StatusBar(Static):
                 f"Models: {self.models}", id="status-models", classes="status-item"
             )
             yield Label(
-                f"Profiles: {self.profiles}", id="status-profiles", classes="status-item"
+                f"Profiles: {self.profiles}",
+                id="status-profiles",
+                classes="status-item",
             )
             yield Label(
                 f"Prices: {self.pricing}", id="status-pricing", classes="status-item"
@@ -349,6 +362,7 @@ class StatusBar(Static):
 
 class TaskInputPanel(Static):
     """Removed - using startup screen instead."""
+
     pass
 
 
@@ -773,18 +787,24 @@ class EquitrTUI(App):
             if not self.available_models:
                 # Fallback to common models if API detection fails
                 self.available_models = [
-                    "gpt-4", "gpt-3.5-turbo", "claude-3-sonnet", "claude-3-haiku",
-                    "moonshot/kimi-k2-0711-preview"
+                    "gpt-4",
+                    "gpt-3.5-turbo",
+                    "claude-3-sonnet",
+                    "claude-3-haiku",
+                    "moonshot/kimi-k2-0711-preview",
                 ]
         except Exception:
             self.available_models = [
-                "gpt-4", "gpt-3.5-turbo", "claude-3-sonnet", "claude-3-haiku",
-                "moonshot/kimi-k2-0711-preview"
+                "gpt-4",
+                "gpt-3.5-turbo",
+                "claude-3-sonnet",
+                "claude-3-haiku",
+                "moonshot/kimi-k2-0711-preview",
             ]
 
         # Show startup screen initially
         await self.show_startup_screen()
-        
+
         # Update header with current time
         self.update_header()
         self.set_interval(1.0, self.update_header)  # Update every second
@@ -792,7 +812,7 @@ class EquitrTUI(App):
         # Initialize main agent window
         self.agent_grid.add_agent_window("main")
         self.active_agent_names = ["Main Agent"]
-        
+
         # Load todos
         await self.update_todos()
 
@@ -824,7 +844,12 @@ class EquitrTUI(App):
         elif normalized in ("multi", "multi-parallel", "multi_parallel", "parallel"):
             self.mode = "multi"
             self.multi_run_parallel = True
-        elif normalized in ("multi-seq", "multi_sequential", "sequential", "multi-sequential"):
+        elif normalized in (
+            "multi-seq",
+            "multi_sequential",
+            "sequential",
+            "multi-sequential",
+        ):
             self.mode = "multi"
             self.multi_run_parallel = False
         elif normalized in ("research",):
@@ -834,11 +859,18 @@ class EquitrTUI(App):
             if main_window:
                 main_window.add_status_update(f"Unknown mode: {mode}", "error")
             return
-        self.status_bar.mode = self.mode if self.mode != "multi" else ("multi-seq" if not self.multi_run_parallel else "multi-parallel")
+        self.status_bar.mode = (
+            self.mode
+            if self.mode != "multi"
+            else ("multi-seq" if not self.multi_run_parallel else "multi-parallel")
+        )
         main_window = self.agent_grid.get_agent_window("main")
         if main_window:
             mode_label = self.status_bar.mode
-            main_window.add_status_update(f"Mode set to {mode_label}. Use /run <task description> to execute.", "info")
+            main_window.add_status_update(
+                f"Mode set to {mode_label}. Use /run <task description> to execute.",
+                "info",
+            )
         # Recreate coder per mode to ensure identical backend as programmatic interface
         try:
             if self.mode == "single":
@@ -866,7 +898,9 @@ class EquitrTUI(App):
             return
         if not line.startswith("/"):
             if main_window:
-                main_window.add_status_update("Use /help to see available commands.", "warning")
+                main_window.add_status_update(
+                    "Use /help to see available commands.", "warning"
+                )
             return
         try:
             parts = shlex.split(line[1:])
@@ -905,13 +939,19 @@ class EquitrTUI(App):
                 return
             else:
                 if main_window:
-                    main_window.add_status_update("Usage: /set supervisor <model> | /set worker <model> | /set mode <mode>", "warning")
+                    main_window.add_status_update(
+                        "Usage: /set supervisor <model> | /set worker <model> | /set mode <mode>",
+                        "warning",
+                    )
                 return
             models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
             self.status_bar.models = models_display
             self.update_pricing_display()
             if main_window:
-                main_window.add_status_update(f"Models updated: Supervisor={self.supervisor_model}, Worker={self.worker_model}", "success")
+                main_window.add_status_update(
+                    f"Models updated: Supervisor={self.supervisor_model}, Worker={self.worker_model}",
+                    "success",
+                )
             try:
                 self.query_one("#command-input", Input).focus()
             except Exception:
@@ -920,11 +960,15 @@ class EquitrTUI(App):
         if cmd == "run":
             if not args:
                 if main_window:
-                    main_window.add_status_update("Usage: /run <task description>", "warning")
+                    main_window.add_status_update(
+                        "Usage: /run <task description>", "warning"
+                    )
                 return
             if not self.model_selected:
                 if main_window:
-                    main_window.add_status_update("Select models first with /models or /set", "warning")
+                    main_window.add_status_update(
+                        "Select models first with /models or /set", "warning"
+                    )
                 self.select_model()
                 return
             task_text = " ".join(args)
@@ -940,7 +984,9 @@ class EquitrTUI(App):
             return
         if cmd == "agents":
             if main_window:
-                main_window.add_status_update(f"Agents: {', '.join(self.active_agent_names) or 'None'}", "info")
+                main_window.add_status_update(
+                    f"Agents: {', '.join(self.active_agent_names) or 'None'}", "info"
+                )
             return
         if cmd == "profiles":
             if not args:
@@ -950,14 +996,18 @@ class EquitrTUI(App):
             if sub == "list":
                 cfg = config_manager.load_config()
                 if main_window:
-                    main_window.add_status_update(f"Profiles: {', '.join(cfg.profiles.available)}", "info")
+                    main_window.add_status_update(
+                        f"Profiles: {', '.join(cfg.profiles.available)}", "info"
+                    )
                 return
             if sub == "select" and len(args) >= 2:
                 name = args[1]
                 self.selected_profiles = [name]
                 self.status_bar.profiles = name
                 if main_window:
-                    main_window.add_status_update(f"Profile selected: {name}", "success")
+                    main_window.add_status_update(
+                        f"Profile selected: {name}", "success"
+                    )
                 return
             self.show_help()
             return
@@ -979,11 +1029,18 @@ class EquitrTUI(App):
                         if not sessions:
                             main_window.add_status_update("No sessions found", "info")
                         else:
-                            lines = [f"{s['session_id']} | msgs={s['message_count']} | updated={s['updated_at']} | cost=${s.get('cost',0.0):.2f}" for s in sessions]
-                            main_window.add_status_update("Sessions:\n" + "\n".join(lines), "info")
+                            lines = [
+                                f"{s['session_id']} | msgs={s['message_count']} | updated={s['updated_at']} | cost=${s.get('cost',0.0):.2f}"
+                                for s in sessions
+                            ]
+                            main_window.add_status_update(
+                                "Sessions:\n" + "\n".join(lines), "info"
+                            )
                 except Exception as e:
                     if main_window:
-                        main_window.add_status_update(f"Failed to list sessions: {e}", "error")
+                        main_window.add_status_update(
+                            f"Failed to list sessions: {e}", "error"
+                        )
                 return
             if sub == "current":
                 sid = self.current_session_id or "None"
@@ -992,6 +1049,7 @@ class EquitrTUI(App):
                 return
             if sub == "new":
                 import uuid
+
                 sid = args[1] if len(args) >= 2 else str(uuid.uuid4())[:8]
                 self.current_session_id = sid
                 try:
@@ -1002,7 +1060,9 @@ class EquitrTUI(App):
                 except Exception:
                     pass
                 if main_window:
-                    main_window.add_status_update(f"Using new session: {sid}", "success")
+                    main_window.add_status_update(
+                        f"Using new session: {sid}", "success"
+                    )
                 return
             if sub == "resume" and len(args) >= 2:
                 sid = args[1]
@@ -1014,29 +1074,42 @@ class EquitrTUI(App):
                         sess.metadata["paused"] = False
                         self.coder.session_manager.save_session(sess)
                         if main_window:
-                            main_window.add_status_update(f"Resumed session: {sid}", "success")
+                            main_window.add_status_update(
+                                f"Resumed session: {sid}", "success"
+                            )
                     else:
                         if main_window:
-                            main_window.add_status_update(f"Session not found: {sid}", "error")
+                            main_window.add_status_update(
+                                f"Session not found: {sid}", "error"
+                            )
                 except Exception as e:
                     if main_window:
-                        main_window.add_status_update(f"Failed to resume session: {e}", "error")
+                        main_window.add_status_update(
+                            f"Failed to resume session: {e}", "error"
+                        )
                 return
             if sub == "pause":
                 if not self.current_session_id:
                     if main_window:
-                        main_window.add_status_update("No current session to pause. Use /session new or /session resume <id>.", "warning")
+                        main_window.add_status_update(
+                            "No current session to pause. Use /session new or /session resume <id>.",
+                            "warning",
+                        )
                     return
                 try:
                     if self._task_handle and not self._task_handle.done():
                         self._task_handle.cancel()
                     if self.coder:
-                        sess = self.coder.session_manager.get_session_data(self.current_session_id)
+                        sess = self.coder.session_manager.get_session_data(
+                            self.current_session_id
+                        )
                         sess.metadata["paused"] = True
                         self.coder.session_manager.save_session(sess)
                     self._paused = True
                     if main_window:
-                        main_window.add_status_update(f"Paused session: {self.current_session_id}", "success")
+                        main_window.add_status_update(
+                            f"Paused session: {self.current_session_id}", "success"
+                        )
                 except Exception as e:
                     if main_window:
                         main_window.add_status_update(f"Failed to pause: {e}", "error")
@@ -1053,22 +1126,33 @@ class EquitrTUI(App):
                 if mode_val in ("ignore", "include", "only"):
                     self.prev_task_mode = mode_val
                     if main_window:
-                        main_window.add_status_update(f"Previous tasks mode set to: {mode_val}", "success")
+                        main_window.add_status_update(
+                            f"Previous tasks mode set to: {mode_val}", "success"
+                        )
                 else:
                     if main_window:
-                        main_window.add_status_update("Usage: /tasks mode [ignore|include|only]", "warning")
+                        main_window.add_status_update(
+                            "Usage: /tasks mode [ignore|include|only]", "warning"
+                        )
                 return
             if sub == "select" and len(args) >= 2:
                 ids_csv = args[1]
-                self.prev_task_ids = [x.strip() for x in ids_csv.split(',') if x.strip()]
+                self.prev_task_ids = [
+                    x.strip() for x in ids_csv.split(",") if x.strip()
+                ]
                 if main_window:
-                    main_window.add_status_update(f"Selected task groups: {', '.join(self.prev_task_ids) if self.prev_task_ids else '(none)'}", "success")
+                    main_window.add_status_update(
+                        f"Selected task groups: {', '.join(self.prev_task_ids) if self.prev_task_ids else '(none)'}",
+                        "success",
+                    )
                 return
             self.show_help()
             return
         # Unknown command
         if main_window:
-            main_window.add_status_update(f"Unknown command: {cmd}. Use /help.", "error")
+            main_window.add_status_update(
+                f"Unknown command: {cmd}. Use /help.", "error"
+            )
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -1081,32 +1165,36 @@ class EquitrTUI(App):
                 startup_input = self.query_one("#startup-input", Input)
                 prev_task_mode = self.query_one("#prev-task-mode", Select)
                 prev_ids_input = self.query_one("#prev-task-ids", Input)
-                
+
                 self.supervisor_model = supervisor_select.value
                 self.worker_model = worker_select.value
-                
+
                 # Set mode based on selection
                 selected_mode = mode_select.value
                 self.set_mode(selected_mode)
-                
+
                 self.model_selected = True
                 self.prev_task_mode = prev_task_mode.value or "ignore"
-                self.prev_task_ids = [x.strip() for x in (prev_ids_input.value or "").split(',') if x.strip()]
+                self.prev_task_ids = [
+                    x.strip()
+                    for x in (prev_ids_input.value or "").split(",")
+                    if x.strip()
+                ]
                 # Reflect selected models immediately
                 models_display = f"Supervisor: {self.supervisor_model or 'Default'} | Worker: {self.worker_model or 'Default'}"
                 self.status_bar.models = models_display
                 self.update_pricing_display()
-                
+
                 first_task = startup_input.value.strip()
                 if not first_task:
                     return
-                
+
                 # Switch to main screen
                 await self.show_main_screen()
-                
+
                 # Execute the first task
                 await self.execute_task(self.mode, first_task)
-                
+
             except Exception as e:
                 print(f"Error starting: {e}")
 
@@ -1139,21 +1227,22 @@ class EquitrTUI(App):
         if not self.model_selected:
             main_window = self.agent_grid.get_agent_window("main")
             if main_window:
-                main_window.add_status_update("Select models first with /models or /set", "warning")
+                main_window.add_status_update(
+                    "Select models first with /models or /set", "warning"
+                )
             self.select_model()
             return
 
         task_description = (task_text or "").strip()
         if not task_description:
             main_window = self.agent_grid.get_agent_window("main")
-            main_window.add_status_update(
-                "Please enter a task description", "warning"
-            )
+            main_window.add_status_update("Please enter a task description", "warning")
             return
 
         # Ensure we have a session id
         if not self.current_session_id:
             import uuid
+
             self.current_session_id = str(uuid.uuid4())[:8]
         self._paused = False
 
@@ -1161,6 +1250,7 @@ class EquitrTUI(App):
         try:
             from datetime import datetime as _dt
             from pathlib import Path as _Path
+
             ts = _dt.now().strftime("%Y%m%d_%H%M%S")
             proj_dir = _Path(f"generated_projects/tui_run_{ts}").resolve()
             proj_dir.mkdir(parents=True, exist_ok=True)
@@ -1187,8 +1277,8 @@ class EquitrTUI(App):
                 if mode == "single":
                     config = TaskConfiguration(
                         description=task_description,
-                        max_cost=get_config('limits.max_cost', 5.0),
-                        max_iterations=get_config('limits.max_iterations', 20),
+                        max_cost=get_config("limits.max_cost", 5.0),
+                        max_iterations=get_config("limits.max_iterations", 20),
                         auto_commit=True,
                         model=self.supervisor_model or self.worker_model,
                         session_id=self.current_session_id,
@@ -1197,13 +1287,15 @@ class EquitrTUI(App):
                     self.status_bar.agent_count = 1
                     self.active_agent_names = ["Main Agent"]
                 elif mode == "multi":
-                    _workers = get_config('limits.max_workers', 3)
+                    _workers = get_config("limits.max_workers", 3)
                     config = MultiAgentTaskConfiguration(
                         description=task_description,
                         max_workers=_workers,
-                        max_cost=get_config('limits.max_cost', 15.0),
-                        supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
-                        worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
+                        max_cost=get_config("limits.max_cost", 15.0),
+                        supervisor_model=self.supervisor_model
+                        or get_config("orchestrator.supervisor_model", "gpt-4"),
+                        worker_model=self.worker_model
+                        or get_config("orchestrator.worker_model", "gpt-3.5-turbo"),
                         auto_commit=True,
                         run_parallel=self.multi_run_parallel,
                         session_id=self.current_session_id,
@@ -1217,13 +1309,16 @@ class EquitrTUI(App):
                         self.active_agent_names.append(f"Worker {i+1}")
                 else:  # research
                     from ..programmatic.interface import ResearchTaskConfiguration
-                    _workers = get_config('limits.max_workers', 3)
+
+                    _workers = get_config("limits.max_workers", 3)
                     config = ResearchTaskConfiguration(
                         description=task_description,
                         max_workers=_workers,
-                        max_cost=get_config('limits.max_cost', 15.0),
-                        supervisor_model=self.supervisor_model or get_config('orchestrator.supervisor_model', "gpt-4"),
-                        worker_model=self.worker_model or get_config('orchestrator.worker_model', "gpt-3.5-turbo"),
+                        max_cost=get_config("limits.max_cost", 15.0),
+                        supervisor_model=self.supervisor_model
+                        or get_config("orchestrator.supervisor_model", "gpt-4"),
+                        worker_model=self.worker_model
+                        or get_config("orchestrator.worker_model", "gpt-3.5-turbo"),
                         auto_commit=True,
                         team=["ml_researcher", "data_engineer", "experiment_runner"],
                         session_id=self.current_session_id,
@@ -1242,20 +1337,21 @@ class EquitrTUI(App):
                 if self.prev_task_mode != "ignore":
                     try:
                         from ..tools.builtin.todo import get_todo_manager
+
                         mgr = get_todo_manager()
                         if self.prev_task_mode == "only":
                             # Mark all groups not selected as completed to focus on selected ones
                             select = set(self.prev_task_ids or [])
                             for g in mgr.plan.task_groups:
                                 if g.group_id not in select:
-                                    g.status = 'completed'
+                                    g.status = "completed"
                             mgr._save_plan()
                         elif self.prev_task_mode == "include":
                             # Leave existing groups; they will be included. Optionally mark selected as pending explicitly
                             select = set(self.prev_task_ids or [])
                             for g in mgr.plan.task_groups:
                                 if g.group_id in select:
-                                    g.status = 'pending'
+                                    g.status = "pending"
                             mgr._save_plan()
                     except Exception:
                         pass
@@ -1273,14 +1369,20 @@ class EquitrTUI(App):
                     self.coder.on_tool_call = self.on_tool_call
                     self.coder.on_message = self.on_message
                     self.coder.on_iteration = self.on_iteration
-                self.coder.repo_path = __import__('pathlib').Path(self.project_root).resolve()
+                self.coder.repo_path = (
+                    __import__("pathlib").Path(self.project_root).resolve()
+                )
                 result = await self.coder.execute_task(task_description, config)
 
                 if result.success:
                     # Update status bar elapsed and cost
                     try:
-                        self.status_bar.update_elapsed(float(getattr(result, "execution_time", 0.0) or 0.0))
-                        self.status_bar.current_cost = float(getattr(result, "cost", 0.0) or 0.0)
+                        self.status_bar.update_elapsed(
+                            float(getattr(result, "execution_time", 0.0) or 0.0)
+                        )
+                        self.status_bar.current_cost = float(
+                            getattr(result, "cost", 0.0) or 0.0
+                        )
                     except Exception:
                         pass
                     main_window.add_status_update(
@@ -1292,7 +1394,9 @@ class EquitrTUI(App):
                             f"Changes committed: {result.commit_hash}", "info"
                         )
                 else:
-                    main_window.add_status_update(f"Task failed: {result.error}", "error")
+                    main_window.add_status_update(
+                        f"Task failed: {result.error}", "error"
+                    )
             except Exception as e:
                 main_window = self.agent_grid.get_agent_window("main")
                 main_window.add_status_update(f"Execution error: {str(e)}", "error")
@@ -1302,6 +1406,7 @@ class EquitrTUI(App):
                 await self.update_todos()
 
         import asyncio as _asyncio
+
         self._task_handle = _asyncio.create_task(_run())
         # Do not await here to keep UI responsive
 
@@ -1320,7 +1425,9 @@ class EquitrTUI(App):
                     "group_id": group.group_id,
                     "description": group.description,
                     "status": group.status,
-                    "todos": [{"title": t.title, "status": t.status} for t in group.todos],
+                    "todos": [
+                        {"title": t.title, "status": t.status} for t in group.todos
+                    ],
                 }
                 groups.append(group_entry)
             self.todo_sidebar.update_todos(groups)
@@ -1396,7 +1503,7 @@ class EquitrTUI(App):
         agent_text = f"Agents: {self.status_bar.agent_count}"
 
         header_text = f"⏰ {current_time} | {supervisor_text} | {worker_text} | {mode_text} | {agent_text} | {cost_text}"
-        
+
         if self.custom_header:
             try:
                 self.custom_header.update(header_text)
@@ -1407,10 +1514,10 @@ class EquitrTUI(App):
         """Show the startup screen with model selection."""
         container = self.query_one("#screen-container")
         container.remove_children()
-        
+
         self.startup_screen = StartupScreen(self.available_models)
         container.mount(self.startup_screen)
-        
+
         # Focus the startup input
         try:
             self.query_one("#startup-input", Input).focus()
@@ -1421,34 +1528,45 @@ class EquitrTUI(App):
         """Show the main TUI screen."""
         container = self.query_one("#screen-container")
         container.remove_children()
-        
+
         self.main_screen = MainScreen(
             self.todo_sidebar, self.agent_grid, self.agents_sidebar, self.command_bar
         )
         container.mount(self.main_screen)
-        
+
         # Add welcome messages
         main_window = self.agent_grid.get_agent_window("main")
         if main_window:
-            main_window.add_status_update("All actions are via slash-commands in the bottom input. Type /help or press 'h' for a command list.", "info")
-        
+            main_window.add_status_update(
+                "All actions are via slash-commands in the bottom input. Type /help or press 'h' for a command list.",
+                "info",
+            )
+
         # Update agents sidebar now that it's mounted
         self.agents_sidebar.update_agents(self.active_agent_names)
-        
+
         # Focus bottom command input
         try:
             self.query_one("#command-input", Input).focus()
         except Exception:
             pass
-        
+
         self.startup_mode = False
 
     def select_model(self) -> None:
         """Show model selection info since we use startup screen."""
         main_window = self.agent_grid.get_agent_window("main")
         if main_window:
-            main_window.add_status_update(f"Current setup: Mode={self.mode}, Supervisor={self.supervisor_model}, Worker={self.worker_model}. Use /set to change.", "info")
-            main_window.add_status_update("Available models: " + ", ".join(self.available_models[:10]) + ("..." if len(self.available_models) > 10 else ""), "info")
+            main_window.add_status_update(
+                f"Current setup: Mode={self.mode}, Supervisor={self.supervisor_model}, Worker={self.worker_model}. Use /set to change.",
+                "info",
+            )
+            main_window.add_status_update(
+                "Available models: "
+                + ", ".join(self.available_models[:10])
+                + ("..." if len(self.available_models) > 10 else ""),
+                "info",
+            )
 
     def update_pricing_display(self) -> None:
         """Update pricing info (shown in header now)."""
@@ -1458,7 +1576,9 @@ class EquitrTUI(App):
 def launch_advanced_tui(mode: str = "single") -> int:
     """Launch the advanced TUI application."""
     if not TEXTUAL_AVAILABLE:
-        print("❌ Advanced TUI requires 'textual' and 'rich' packages. Please install them with: pip install textual rich")
+        print(
+            "❌ Advanced TUI requires 'textual' and 'rich' packages. Please install them with: pip install textual rich"
+        )
         return 1
 
     try:
@@ -1476,7 +1596,5 @@ def launch_tui(mode: str = "single") -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     mode = sys.argv[1] if len(sys.argv) > 1 else "single"
     exit(launch_tui(mode))

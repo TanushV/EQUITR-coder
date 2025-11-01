@@ -22,7 +22,9 @@ class DummyReadFile(Tool):
         return Args
 
     async def run(self, **kwargs) -> ToolResult:
-        return ToolResult(success=True, data={"path": kwargs.get("path"), "content": "dummy"})
+        return ToolResult(
+            success=True, data={"path": kwargs.get("path"), "content": "dummy"}
+        )
 
 
 class DummyListFiles(Tool):
@@ -147,6 +149,7 @@ async def test_clean_agent_audit_includes_git_if_available(monkeypatch):
         return Resp()
 
     from equitrcoder.providers import litellm as _litellm
+
     monkeypatch.setattr(_litellm.LiteLLMProvider, "chat", fake_chat, raising=True)
 
     agent = CleanAgent(
@@ -167,4 +170,4 @@ async def test_clean_agent_audit_includes_git_if_available(monkeypatch):
     # Ensure git tools were included in audit tool schemas
     names = {t.get("function", {}).get("name") or t.get("name") for t in captured_tools}
     assert {"read_file", "list_files"}.issubset(names)
-    assert {"git_status", "git_diff"}.issubset(names) 
+    assert {"git_status", "git_diff"}.issubset(names)

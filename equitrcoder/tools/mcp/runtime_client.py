@@ -6,18 +6,16 @@ Currently supports the 'stdio' transport using the official MCP Python SDK.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from typing import AsyncIterator, Dict, Tuple
 from contextlib import asynccontextmanager
 
-from pydantic import AnyUrl
-
 try:
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
     from mcp import types as mcp_types
+
     HAS_MCP = True
 except Exception:  # pragma: no cover - optional dependency
     HAS_MCP = False
@@ -28,7 +26,9 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def connect_stdio(server: MCPServerConfig) -> AsyncIterator[Tuple[ClientSession, any, any]]:
+async def connect_stdio(
+    server: MCPServerConfig,
+) -> AsyncIterator[Tuple[ClientSession, any, any]]:
     """Connect to an MCP server over stdio.
 
     Yields a tuple (session, read, write). Caller is responsible for using
@@ -43,7 +43,9 @@ async def connect_stdio(server: MCPServerConfig) -> AsyncIterator[Tuple[ClientSe
     env: Dict[str, str] = dict(os.environ)
     env.update(server.env or {})
 
-    params = StdioServerParameters(command=server.command, args=list(server.args or []), env=env)
+    params = StdioServerParameters(
+        command=server.command, args=list(server.args or []), env=env
+    )
 
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -56,7 +58,7 @@ async def list_server_tools(session: "ClientSession") -> Dict[str, mcp_types.Too
     return {t.name: t for t in tools.tools}
 
 
-async def call_server_tool(session: "ClientSession", tool_name: str, arguments: Dict) -> mcp_types.CallToolResult:
+async def call_server_tool(
+    session: "ClientSession", tool_name: str, arguments: Dict
+) -> mcp_types.CallToolResult:
     return await session.call_tool(tool_name, arguments or {})
-
-

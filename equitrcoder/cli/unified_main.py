@@ -23,7 +23,10 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     from .. import __version__ as _VERSION
-    parser.add_argument("--version", action="version", version=f"equitrcoder {_VERSION}")
+
+    parser.add_argument(
+        "--version", action="version", version=f"equitrcoder {_VERSION}"
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -42,7 +45,7 @@ def create_parser() -> argparse.ArgumentParser:
     multi_parser.add_argument("coordination_task", help="High-level coordination task")
     multi_parser.add_argument(
         "--team",
-        help="Comma-separated list of specialist profiles to use (e.g., backend_dev,frontend_dev)"
+        help="Comma-separated list of specialist profiles to use (e.g., backend_dev,frontend_dev)",
     )
     multi_parser.add_argument(
         "--workers", type=int, default=2, help="Number of workers to create"
@@ -54,21 +57,34 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Researcher mode command
-    research_parser = subparsers.add_parser("research", help="Run researcher mode (interactive planning + experiments)")
-    research_parser.add_argument("research_task", help="High-level research task/problem")
+    research_parser = subparsers.add_parser(
+        "research", help="Run researcher mode (interactive planning + experiments)"
+    )
+    research_parser.add_argument(
+        "research_task", help="High-level research task/problem"
+    )
     research_parser.add_argument(
         "--team",
         help="Comma-separated list of specialist profiles to use (default: ml_researcher,data_engineer,experiment_runner)",
     )
-    research_parser.add_argument("--workers", type=int, default=3, help="Number of worker agents")
-    research_parser.add_argument("--supervisor-model", help="Model for supervisor/orchestrator agent")
+    research_parser.add_argument(
+        "--workers", type=int, default=3, help="Number of worker agents"
+    )
+    research_parser.add_argument(
+        "--supervisor-model", help="Model for supervisor/orchestrator agent"
+    )
     research_parser.add_argument("--worker-model", help="Model for worker agents")
-    research_parser.add_argument("--max-cost", type=float, default=12.0, help="Global cost limit")
+    research_parser.add_argument(
+        "--max-cost", type=float, default=12.0, help="Global cost limit"
+    )
 
     # TUI command
     tui_parser = subparsers.add_parser("tui", help="Launch interactive TUI (advanced)")
     tui_parser.add_argument(
-        "--mode", choices=["single", "multi", "research"], default="single", help="TUI starting mode"
+        "--mode",
+        choices=["single", "multi", "research"],
+        default="single",
+        help="TUI starting mode",
     )
 
     # API command
@@ -192,7 +208,7 @@ async def run_multi_agent(args) -> int:
         print("=" * 60)
 
         # Parse the team argument
-        team = args.team.split(',') if args.team else None
+        team = args.team.split(",") if args.team else None
 
         # Use clean multi-agent parallel mode (same as programmatic)
         supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"

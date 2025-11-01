@@ -17,7 +17,9 @@ class DockerBuildArgs(BaseModel):
     image_name: str = Field(..., description="Name for the Docker image")
     tag: str = Field(default="latest", description="Tag for the Docker image")
     build_context: str = Field(default=".", description="Build context directory")
-    build_args: Dict[str, str] = Field(default_factory=dict, description="Build arguments")
+    build_args: Dict[str, str] = Field(
+        default_factory=dict, description="Build arguments"
+    )
 
 
 class DockerBuild(Tool):
@@ -33,34 +35,36 @@ class DockerBuild(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
-            
+
             # Check if Dockerfile exists
             dockerfile_path = Path(args.dockerfile_path)
             if not dockerfile_path.exists():
-                return ToolResult(success=False, error=f"Dockerfile not found: {args.dockerfile_path}")
-            
+                return ToolResult(
+                    success=False, error=f"Dockerfile not found: {args.dockerfile_path}"
+                )
+
             # Build docker command
             cmd = [
-                "docker", "build",
-                "-f", args.dockerfile_path,
-                "-t", f"{args.image_name}:{args.tag}"
+                "docker",
+                "build",
+                "-f",
+                args.dockerfile_path,
+                "-t",
+                f"{args.image_name}:{args.tag}",
             ]
-            
+
             # Add build args
             for key, value in args.build_args.items():
                 cmd.extend(["--build-arg", f"{key}={value}"])
-            
+
             cmd.append(args.build_context)
-            
+
             # Run docker build
-            timeout = get_config('limits.devops_timeout', 600)
+            timeout = get_config("limits.devops_timeout", 600)
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                cmd, capture_output=True, text=True, timeout=timeout
             )
-            
+
             return ToolResult(
                 success=result.returncode == 0,
                 data={
@@ -68,24 +72,34 @@ class DockerBuild(Tool):
                     "stderr": result.stderr,
                     "return_code": result.returncode,
                     "command": " ".join(cmd),
-                    "image_name": f"{args.image_name}:{args.tag}"
+                    "image_name": f"{args.image_name}:{args.tag}",
                 },
-                error=result.stderr if result.returncode != 0 else None
+                error=result.stderr if result.returncode != 0 else None,
             )
-            
+
         except subprocess.TimeoutExpired:
-            return ToolResult(success=False, error="Docker build timed out after 10 minutes")
+            return ToolResult(
+                success=False, error="Docker build timed out after 10 minutes"
+            )
         except FileNotFoundError:
-            return ToolResult(success=False, error="Docker not found. Please install Docker first.")
+            return ToolResult(
+                success=False, error="Docker not found. Please install Docker first."
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
 
 class CreateDockerfileArgs(BaseModel):
     base_image: str = Field(default="python:3.11-slim", description="Base Docker image")
-    working_dir: str = Field(default="/app", description="Working directory in container")
-    requirements_file: str = Field(default="requirements.txt", description="Requirements file to copy")
-    main_command: str = Field(default="python app.py", description="Main command to run")
+    working_dir: str = Field(
+        default="/app", description="Working directory in container"
+    )
+    requirements_file: str = Field(
+        default="requirements.txt", description="Requirements file to copy"
+    )
+    main_command: str = Field(
+        default="python app.py", description="Main command to run"
+    )
     expose_port: int = Field(default=8000, description="Port to expose")
 
 
@@ -102,7 +116,7 @@ class CreateDockerfile(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
-            
+
             # Generate Dockerfile content
             dockerfile_content = f"""# Generated Dockerfile
 FROM {args.base_image}
@@ -123,21 +137,21 @@ EXPOSE {args.expose_port}
 # Run the application
 CMD ["{args.main_command.split()[0]}", "{' '.join(args.main_command.split()[1:])}"]
 """
-            
+
             # Write Dockerfile
             dockerfile_path = Path("Dockerfile")
             dockerfile_path.write_text(dockerfile_content)
-            
+
             return ToolResult(
                 success=True,
                 data={
                     "dockerfile_path": str(dockerfile_path),
                     "content": dockerfile_content,
                     "base_image": args.base_image,
-                    "exposed_port": args.expose_port
-                }
+                    "exposed_port": args.expose_port,
+                },
             )
-            
+
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -163,72 +177,55 @@ class GenerateK8sManifest(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
-            
+
             # Generate deployment manifest
             deployment = {
                 "apiVersion": "apps/v1",
                 "kind": "Deployment",
-                "metadata": {
-                    "name": args.app_name,
-                    "namespace": args.namespace
-                },
+                "metadata": {"name": args.app_name, "namespace": args.namespace},
                 "spec": {
                     "replicas": args.replicas,
-                    "selector": {
-                        "matchLabels": {
-                            "app": args.app_name
-                        }
-                    },
+                    "selector": {"matchLabels": {"app": args.app_name}},
                     "template": {
-                        "metadata": {
-                            "labels": {
-                                "app": args.app_name
-                            }
-                        },
+                        "metadata": {"labels": {"app": args.app_name}},
                         "spec": {
-                            "containers": [{
-                                "name": args.app_name,
-                                "image": args.image_name,
-                                "ports": [{
-                                    "containerPort": args.port
-                                }]
-                            }]
-                        }
-                    }
-                }
+                            "containers": [
+                                {
+                                    "name": args.app_name,
+                                    "image": args.image_name,
+                                    "ports": [{"containerPort": args.port}],
+                                }
+                            ]
+                        },
+                    },
+                },
             }
-            
+
             # Generate service manifest
             service = {
                 "apiVersion": "v1",
                 "kind": "Service",
                 "metadata": {
                     "name": f"{args.app_name}-service",
-                    "namespace": args.namespace
+                    "namespace": args.namespace,
                 },
                 "spec": {
-                    "selector": {
-                        "app": args.app_name
-                    },
-                    "ports": [{
-                        "protocol": "TCP",
-                        "port": 80,
-                        "targetPort": args.port
-                    }],
-                    "type": "ClusterIP"
-                }
+                    "selector": {"app": args.app_name},
+                    "ports": [{"protocol": "TCP", "port": 80, "targetPort": args.port}],
+                    "type": "ClusterIP",
+                },
             }
-            
+
             # Write manifests to files
             deployment_file = Path(f"{args.app_name}-deployment.yaml")
             service_file = Path(f"{args.app_name}-service.yaml")
-            
-            with open(deployment_file, 'w') as f:
+
+            with open(deployment_file, "w") as f:
                 yaml.dump(deployment, f, default_flow_style=False)
-            
-            with open(service_file, 'w') as f:
+
+            with open(service_file, "w") as f:
                 yaml.dump(service, f, default_flow_style=False)
-            
+
             return ToolResult(
                 success=True,
                 data={
@@ -236,17 +233,21 @@ class GenerateK8sManifest(Tool):
                     "service_file": str(service_file),
                     "app_name": args.app_name,
                     "replicas": args.replicas,
-                    "namespace": args.namespace
-                }
+                    "namespace": args.namespace,
+                },
             )
-            
+
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
 
 class CheckSystemResourcesArgs(BaseModel):
-    include_disk: bool = Field(default=True, description="Include disk usage information")
-    include_memory: bool = Field(default=True, description="Include memory usage information")
+    include_disk: bool = Field(
+        default=True, description="Include disk usage information"
+    )
+    include_memory: bool = Field(
+        default=True, description="Include memory usage information"
+    )
     include_cpu: bool = Field(default=True, description="Include CPU usage information")
 
 
@@ -263,61 +264,49 @@ class CheckSystemResources(Tool):
     async def run(self, **kwargs) -> ToolResult:
         try:
             args = self.validate_args(kwargs)
-            
+
             resource_info = {}
-            
+
             # Get CPU information
             if args.include_cpu:
                 try:
                     # Get CPU usage
                     cpu_result = subprocess.run(
-                        ["top", "-bn1"], 
-                        capture_output=True, 
-                        text=True, 
-                        timeout=10
+                        ["top", "-bn1"], capture_output=True, text=True, timeout=10
                     )
                     if cpu_result.returncode == 0:
                         # Parse CPU usage from top output
-                        lines = cpu_result.stdout.split('\n')
+                        lines = cpu_result.stdout.split("\n")
                         for line in lines:
-                            if 'Cpu(s):' in line:
-                                resource_info['cpu'] = line.strip()
+                            if "Cpu(s):" in line:
+                                resource_info["cpu"] = line.strip()
                                 break
                 except (subprocess.SubprocessError, OSError, Exception):
-                    resource_info['cpu'] = "CPU information unavailable"
-            
+                    resource_info["cpu"] = "CPU information unavailable"
+
             # Get memory information
             if args.include_memory:
                 try:
                     mem_result = subprocess.run(
-                        ["free", "-h"], 
-                        capture_output=True, 
-                        text=True, 
-                        timeout=10
+                        ["free", "-h"], capture_output=True, text=True, timeout=10
                     )
                     if mem_result.returncode == 0:
-                        resource_info['memory'] = mem_result.stdout
+                        resource_info["memory"] = mem_result.stdout
                 except (subprocess.SubprocessError, OSError, Exception):
-                    resource_info['memory'] = "Memory information unavailable"
-            
+                    resource_info["memory"] = "Memory information unavailable"
+
             # Get disk information
             if args.include_disk:
                 try:
                     disk_result = subprocess.run(
-                        ["df", "-h"], 
-                        capture_output=True, 
-                        text=True, 
-                        timeout=10
+                        ["df", "-h"], capture_output=True, text=True, timeout=10
                     )
                     if disk_result.returncode == 0:
-                        resource_info['disk'] = disk_result.stdout
+                        resource_info["disk"] = disk_result.stdout
                 except (subprocess.SubprocessError, OSError, Exception):
-                    resource_info['disk'] = "Disk information unavailable"
-            
-            return ToolResult(
-                success=True,
-                data=resource_info
-            )
-            
+                    resource_info["disk"] = "Disk information unavailable"
+
+            return ToolResult(success=True, data=resource_info)
+
         except Exception as e:
             return ToolResult(success=False, error=str(e))

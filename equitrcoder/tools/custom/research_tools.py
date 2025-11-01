@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import platform
 import shutil
 import subprocess
@@ -19,7 +20,9 @@ from ...core.unified_config import get_config
 
 
 class HardwareInfoArgs(BaseModel):
-    detailed: bool = Field(default=True, description="Include detailed fields when available")
+    detailed: bool = Field(
+        default=True, description="Include detailed fields when available"
+    )
 
 
 class HardwareInfo(Tool):
@@ -55,24 +58,52 @@ class HardwareInfo(Tool):
             mem_total_bytes: Optional[int] = None
             try:
                 if hasattr(os, "sysconf"):
-                    if os.sysconf_names.get("SC_PAGE_SIZE") and os.sysconf_names.get("SC_PHYS_PAGES"):
-                        mem_total_bytes = int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
+                    if os.sysconf_names.get("SC_PAGE_SIZE") and os.sysconf_names.get(
+                        "SC_PHYS_PAGES"
+                    ):
+                        mem_total_bytes = int(os.sysconf("SC_PAGE_SIZE")) * int(
+                            os.sysconf("SC_PHYS_PAGES")
+                        )
             except Exception:
                 pass
 
             if mem_total_bytes is None:
                 # Try vm_stat on macOS
                 try:
-                    out = subprocess.run(["/usr/bin/vm_stat"], capture_output=True, text=True)
+                    out = subprocess.run(
+                        ["/usr/bin/vm_stat"], capture_output=True, text=True
+                    )
                     if out.returncode == 0:
-                        _pages_line = next((line for line in out.stdout.splitlines() if "Pages free" in line), None)
-                        page_size_line = next((line for line in out.stdout.splitlines() if "page size of" in line), None)
+                        _ = next(
+                            (
+                                line
+                                for line in out.stdout.splitlines()
+                                if "Pages free" in line
+                            ),
+                            None,
+                        )
+                        page_size_line = next(
+                            (
+                                line
+                                for line in out.stdout.splitlines()
+                                if "page size of" in line
+                            ),
+                            None,
+                        )
                         if page_size_line:
-                            _page_size = int(page_size_line.split("page size of")[-1].strip().split()[0])
+                            _ = int(
+                                page_size_line.split("page size of")[-1]
+                                .strip()
+                                .split()[0]
+                            )
                         else:
-                            _page_size = 4096  # default page size
+                            _ = 4096  # default page size
                         # vm_stat doesn't give total pages; fallback to system_profiler
-                        sp = subprocess.run(["/usr/sbin/sysctl", "hw.memsize"], capture_output=True, text=True)
+                        sp = subprocess.run(
+                            ["/usr/sbin/sysctl", "hw.memsize"],
+                            capture_output=True,
+                            text=True,
+                        )
                         if sp.returncode == 0 and ":" in sp.stdout:
                             mem_total_bytes = int(sp.stdout.split(":")[-1].strip())
                 except Exception:
@@ -80,7 +111,7 @@ class HardwareInfo(Tool):
 
             if mem_total_bytes is not None:
                 info["memory_total_bytes"] = mem_total_bytes
-                info["memory_total_gb"] = round(mem_total_bytes / (1024 ** 3), 2)
+                info["memory_total_gb"] = round(mem_total_bytes / (1024**3), 2)
 
             # GPU detection
             gpu_info: Dict[str, Any] = {}
@@ -93,7 +124,11 @@ class HardwareInfo(Tool):
                     ]
                     res = subprocess.run(q, capture_output=True, text=True)
                     if res.returncode == 0:
-                        lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+                        lines = [
+                            line.strip()
+                            for line in res.stdout.splitlines()
+                            if line.strip()
+                        ]
                         gpus = []
                         for line in lines:
                             parts = [p.strip() for p in line.split(",")]
@@ -101,22 +136,35 @@ class HardwareInfo(Tool):
                                 gpus.append(
                                     {
                                         "name": parts[0],
-                                        "memory_mb": int(parts[1]) if parts[1].isdigit() else parts[1],
-                                        "driver_version": parts[2] if len(parts) > 2 else None,
+                                        "memory_mb": (
+                                            int(parts[1])
+                                            if parts[1].isdigit()
+                                            else parts[1]
+                                        ),
+                                        "driver_version": (
+                                            parts[2] if len(parts) > 2 else None
+                                        ),
                                     }
                                 )
                         gpu_info["nvidia"] = gpus
                 else:
                     # macOS integrated GPU info
                     if platform.system().lower() == "darwin":
-                        sp = subprocess.run([
-                            "/usr/sbin/system_profiler",
-                            "SPDisplaysDataType",
-                        ], capture_output=True, text=True)
+                        sp = subprocess.run(
+                            [
+                                "/usr/sbin/system_profiler",
+                                "SPDisplaysDataType",
+                            ],
+                            capture_output=True,
+                            text=True,
+                        )
                         if sp.returncode == 0:
                             models = []
                             for raw_line in sp.stdout.splitlines():
-                                if "Chipset Model:" in raw_line or "Chipset Model" in raw_line:
+                                if (
+                                    "Chipset Model:" in raw_line
+                                    or "Chipset Model" in raw_line
+                                ):
                                     models.append(raw_line.split(":", 1)[-1].strip())
                             if models:
                                 gpu_info["apple_displays"] = models
@@ -132,8 +180,12 @@ class HardwareInfo(Tool):
 
 class CreateNotebookArgs(BaseModel):
     path: str = Field(..., description="Path to write the .ipynb file")
-    cells: List[str] = Field(default_factory=list, description="List of code cell sources")
-    kernel_name: str = Field(default="python3", description="Kernel name for the notebook")
+    cells: List[str] = Field(
+        default_factory=list, description="List of code cell sources"
+    )
+    kernel_name: str = Field(
+        default="python3", description="Kernel name for the notebook"
+    )
 
 
 class CreateNotebook(Tool):
@@ -174,7 +226,9 @@ class CreateNotebook(Tool):
             }
 
             nb_path.write_text(json.dumps(notebook, indent=2), encoding="utf-8")
-            return ToolResult(success=True, data={"path": str(nb_path), "cells": len(args.cells)})
+            return ToolResult(
+                success=True, data={"path": str(nb_path), "cells": len(args.cells)}
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -240,7 +294,9 @@ class RunNotebook(Tool):
                         str(executed_path.name),
                         str(nb_path),
                     ]
-                    proc = subprocess.run(cmd, cwd=str(nb_path.parent), capture_output=True, text=True)
+                    proc = subprocess.run(
+                        cmd, cwd=str(nb_path.parent), capture_output=True, text=True
+                    )
                     duration = round(time.time() - start, 2)
                     if proc.returncode == 0 and executed_path.exists():
                         return ToolResult(
@@ -271,8 +327,12 @@ class RunNotebook(Tool):
 
 class RunExperimentsArgs(BaseModel):
     config_path: str = Field(..., description="Path to experiments YAML file")
-    stop_on_fail: bool = Field(default=False, description="Stop after the first failing experiment")
-    results_path: Optional[str] = Field(default=None, description="Optional path to write JSON results")
+    stop_on_fail: bool = Field(
+        default=False, description="Stop after the first failing experiment"
+    )
+    results_path: Optional[str] = Field(
+        default=None, description="Optional path to write JSON results"
+    )
 
 
 class RunExperiments(Tool):
@@ -290,12 +350,16 @@ class RunExperiments(Tool):
             args = self.validate_args(kwargs)
             cfg_path = Path(args.config_path)
             if not cfg_path.exists():
-                return ToolResult(success=False, error=f"Experiments config not found: {cfg_path}")
+                return ToolResult(
+                    success=False, error=f"Experiments config not found: {cfg_path}"
+                )
 
             cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             experiments: List[Dict[str, Any]] = cfg.get("experiments", [])
             if not isinstance(experiments, list) or not experiments:
-                return ToolResult(success=False, error="No experiments defined in config")
+                return ToolResult(
+                    success=False, error="No experiments defined in config"
+                )
 
             # NEW: Global/local requirements for venv bootstrap
             # Accept either a string or list under top-level 'requirements'
@@ -310,8 +374,8 @@ class RunExperiments(Tool):
             all_passed = True
 
             # Determine sandbox mode
-            sandbox_type = get_config('sandbox.type', 'local')
-            use_venv = sandbox_type == 'venv'
+            sandbox_type = get_config("sandbox.type", "local")
+            use_venv = sandbox_type == "venv"
             runner = RunCommand()
 
             # Prepare logs directory and default results path
@@ -320,11 +384,14 @@ class RunExperiments(Tool):
                 logs_dir.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            default_results_path = (cfg_path.parent / "experiments_results.json").resolve()
+            default_results_path = (
+                cfg_path.parent / "experiments_results.json"
+            ).resolve()
 
             # Hardware-aware configuration
             try:
                 from .research_tools import HardwareInfo  # self import safe
+
                 hw = await HardwareInfo().run(detailed=True)
                 hw_data = hw.data if hw.success else {}
                 cpu_count = int(hw_data.get("cpu_count", 1) or 1)
@@ -336,11 +403,14 @@ class RunExperiments(Tool):
                 is_mac = False
 
             from datetime import datetime as _dt
+
             for idx, exp in enumerate(experiments, start=1):
                 name = exp.get("name") or exp.get("id") or f"exp_{len(results)+1}"
                 command = exp.get("command")
                 if not command:
-                    results.append({"name": name, "error": "Missing command", "passed": False})
+                    results.append(
+                        {"name": name, "error": "Missing command", "passed": False}
+                    )
                     all_passed = False
                     if args.stop_on_fail:
                         break
@@ -401,7 +471,9 @@ class RunExperiments(Tool):
                 # Hardware hints: set env vars to let scripts know and to parallelize safely
                 env_prefix = f"EQUITR_CPU_COUNT={cpu_count} EQUITR_MEM_GB={int(mem_gb)} EQUITR_IS_MAC={'1' if is_mac else '0'} "
                 full_cmd = env_prefix + full_cmd
-                tr = await runner.run(command=full_cmd, timeout=timeout, use_venv=use_venv)
+                tr = await runner.run(
+                    command=full_cmd, timeout=timeout, use_venv=use_venv
+                )
                 rc = (tr.data or {}).get("return_code", 1) if tr.success else 1
                 stdout = (tr.data or {}).get("stdout", "") if tr.data else ""
                 stderr = (tr.data or {}).get("stderr", tr.error or "")
@@ -437,7 +509,7 @@ class RunExperiments(Tool):
                     "stdout": stdout[-4000:],
                     "stderr": (stderr or "")[-4000:],
                     "run_id": run_id,
-                    "log_path": str(log_path)
+                    "log_path": str(log_path),
                 }
 
                 results.append(result_entry)
@@ -447,7 +519,9 @@ class RunExperiments(Tool):
 
             # Optionally persist results to disk (JSON)
             try:
-                results_target = getattr(args, "results_path", None) or str(default_results_path)
+                results_target = getattr(args, "results_path", None) or str(
+                    default_results_path
+                )
                 outp = Path(results_target)
                 outp.parent.mkdir(parents=True, exist_ok=True)
                 payload = {"all_passed": all_passed, "results": results}
@@ -458,7 +532,9 @@ class RunExperiments(Tool):
             # Force-update experiments.yaml with last_run info and links
             try:
                 updated_cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-                updated_exps: List[Dict[str, Any]] = updated_cfg.get("experiments", []) or []
+                updated_exps: List[Dict[str, Any]] = (
+                    updated_cfg.get("experiments", []) or []
+                )
                 # Align per index
                 for i, exp in enumerate(updated_exps):
                     if i < len(results):
@@ -475,20 +551,34 @@ class RunExperiments(Tool):
                         updated_exps[i] = exp
                 updated_cfg["experiments"] = updated_exps
                 updated_cfg["last_run_at"] = _dt.utcnow().isoformat()
-                cfg_path.write_text(yaml.safe_dump(updated_cfg, sort_keys=False), encoding="utf-8")
+                cfg_path.write_text(
+                    yaml.safe_dump(updated_cfg, sort_keys=False), encoding="utf-8"
+                )
             except Exception:
                 pass
 
-            return ToolResult(success=True, data={"all_passed": all_passed, "results": results, "results_path": str(outp)})
+            return ToolResult(
+                success=True,
+                data={
+                    "all_passed": all_passed,
+                    "results": results,
+                    "results_path": str(outp),
+                },
+            )
         except subprocess.TimeoutExpired as te:
             return ToolResult(success=False, error=f"Experiment timed out: {te}")
         except Exception as e:
-            return ToolResult(success=False, error=str(e)) 
+            return ToolResult(success=False, error=str(e))
 
 
 class WriteAndRunExperimentScriptArgs(BaseModel):
-    output_path: str = Field(default="run_experiments.py", description="Path to write the experiment runner script")
-    config_path: str = Field(default="docs/experiments.yaml", description="Path to experiments.yaml")
+    output_path: str = Field(
+        default="run_experiments.py",
+        description="Path to write the experiment runner script",
+    )
+    config_path: str = Field(
+        default="docs/experiments.yaml", description="Path to experiments.yaml"
+    )
 
 
 class WriteAndRunExperimentScript(Tool):
@@ -505,6 +595,7 @@ class WriteAndRunExperimentScript(Tool):
         args = self.validate_args(kwargs)
         try:
             from pathlib import Path
+
             script_src = f"""
 import subprocess, sys, json
 from pathlib import Path
@@ -525,18 +616,34 @@ print('EXPERIMENTS_DONE')
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(script_src, encoding="utf-8")
             import subprocess
-            run = subprocess.run([sys.executable, str(out)], capture_output=True, text=True)
-            return ToolResult(success=(run.returncode == 0), data={"stdout": run.stdout, "stderr": run.stderr, "script": str(out)})
+
+            run = subprocess.run(
+                [sys.executable, str(out)], capture_output=True, text=True
+            )
+            return ToolResult(
+                success=(run.returncode == 0),
+                data={"stdout": run.stdout, "stderr": run.stderr, "script": str(out)},
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
 
 class GenerateResearchReportArgs(BaseModel):
     output_path: str = Field(..., description="Path to write the Markdown report")
-    task_description: Optional[str] = Field(default="", description="High-level task description")
-    experiments_config_path: Optional[str] = Field(default=None, description="Path to experiments.yaml (optional)")
-    results_path: Optional[str] = Field(default=None, description="Path to JSON results produced by run_experiments (optional)")
-    research_plan_path: Optional[str] = Field(default=None, description="Path to research_plan.yaml for datasets/hardware (optional)")
+    task_description: Optional[str] = Field(
+        default="", description="High-level task description"
+    )
+    experiments_config_path: Optional[str] = Field(
+        default=None, description="Path to experiments.yaml (optional)"
+    )
+    results_path: Optional[str] = Field(
+        default=None,
+        description="Path to JSON results produced by run_experiments (optional)",
+    )
+    research_plan_path: Optional[str] = Field(
+        default=None,
+        description="Path to research_plan.yaml for datasets/hardware (optional)",
+    )
 
 
 class GenerateResearchReport(Tool):
@@ -577,13 +684,15 @@ class GenerateResearchReport(Tool):
             exp_summary: Dict[str, Any] = {"all_passed": None, "results": []}
             try:
                 if args.results_path and Path(args.results_path).exists():
-                    exp_summary = json.loads(Path(args.results_path).read_text(encoding="utf-8"))
+                    exp_summary = json.loads(
+                        Path(args.results_path).read_text(encoding="utf-8")
+                    )
             except Exception:
                 pass
 
             # Compose report via LLM
             try:
-                supervisor_model = get_config('orchestrator.supervisor_model', 'gpt-4')
+                supervisor_model = get_config("orchestrator.supervisor_model", "gpt-4")
                 provider = LiteLLMProvider(model=supervisor_model)
                 datasets_txt = "\n".join(
                     f"- {d.get('path')} — {d.get('description','')}" for d in datasets
@@ -599,7 +708,10 @@ class GenerateResearchReport(Tool):
                     f"EXPERIMENT SUMMARY (JSON):\n```json\n{json.dumps(exp_summary, indent=2)}\n```\n\n"
                     "Output ONLY GitHub-Flavored Markdown."
                 )
-                messages = [Message(role="system", content=system_prompt), Message(role="user", content=user_prompt)]
+                messages = [
+                    Message(role="system", content=system_prompt),
+                    Message(role="user", content=user_prompt),
+                ]
                 resp = await provider.chat(messages=messages)
                 md = resp.content.strip()
                 if not md.startswith("#"):

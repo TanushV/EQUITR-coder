@@ -8,9 +8,8 @@ on each invocation for simplicity and robustness.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Type
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 class _ArgsSchema(BaseModel):
     tool: str = Field(..., description="Remote MCP tool name to call")
-    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments for the remote tool")
+    arguments: Dict[str, Any] = Field(
+        default_factory=dict, description="Arguments for the remote tool"
+    )
 
 
 class MCPToolProxy(Tool):
@@ -50,7 +51,9 @@ class MCPToolProxy(Tool):
         try:
             args = self.validate_args(kwargs)
             if self._server_cfg.transport != "stdio":
-                return ToolResult(success=False, error="Only 'stdio' transport is supported currently")
+                return ToolResult(
+                    success=False, error="Only 'stdio' transport is supported currently"
+                )
 
             async with connect_stdio(self._server_cfg) as (session, _read, _write):
                 result = await call_server_tool(session, args.tool, args.arguments)
@@ -68,5 +71,3 @@ class MCPToolProxy(Tool):
         except Exception as e:
             logger.exception("MCP tool proxy call failed")
             return ToolResult(success=False, error=str(e))
-
-

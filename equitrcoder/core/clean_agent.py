@@ -28,7 +28,9 @@ class CleanAgent:
         session_manager: Optional[SessionManagerV2] = None,
         max_cost: Optional[float] = None,
         max_iterations: Optional[int] = None,
-        audit_model: Optional[str] = None,  # Model for audit (defaults to same as main model)
+        audit_model: Optional[
+            str
+        ] = None,  # Model for audit (defaults to same as main model)
     ):
         self.agent_id = agent_id
         self.model = model
@@ -55,7 +57,7 @@ class CleanAgent:
         self.current_cost = 0.0
         self.iteration_count = 0
         self.session: Optional[SessionData] = None
-        
+
         # Track detailed LLM interactions for programmatic access
         self.llm_responses: List[Dict[str, Any]] = []
         self.tool_call_history: List[Dict[str, Any]] = []
@@ -65,177 +67,215 @@ class CleanAgent:
         self.on_iteration_callback: Optional[Callable] = None
         self.on_completion_callback: Optional[Callable] = None
         self.on_audit_callback: Optional[Callable] = None
-        
+
         # Build enhanced context once at initialization (without repo map - that's generated dynamically)
         self.context = self._build_enhanced_context()
 
     def _build_enhanced_context(self) -> Dict[str, Any]:
         """Build comprehensive context that includes all required information."""
         enhanced_context = dict(self.base_context)  # Start with original context
-        
+
         # If we have basic docs_result, enhance it with additional context
         if self.base_context:
             # Get full repo map
             from pathlib import Path
-            
+
             def get_repo_map(path=".", max_depth=None, max_tokens=None):
-                max_depth = max_depth or get_config('limits.max_depth', 3)
-                max_tokens = max_tokens or get_config('limits.context_max_tokens', 4000)
+                max_depth = max_depth or get_config("limits.max_depth", 3)
+                max_tokens = max_tokens or get_config("limits.context_max_tokens", 4000)
                 """Generate a comprehensive repo map with functions, limited to max_tokens"""
                 import re
                 import tiktoken
-                
+
                 try:
                     # Use tiktoken to count tokens accurately
                     encoding = tiktoken.get_encoding("cl100k_base")
                 except (ImportError, AttributeError, Exception):
                     # Fallback to rough estimation if tiktoken fails
                     encoding = None
-                
+
                 def count_tokens(text):
                     if encoding:
                         return len(encoding.encode(text))
                     else:
                         # Rough estimation: ~4 chars per token
                         return len(text) // 4
-                
+
                 def extract_functions(file_path):
                     """Extract function/class definitions from code files"""
                     try:
-                        content = file_path.read_text(encoding='utf-8', errors='ignore')
+                        content = file_path.read_text(encoding="utf-8", errors="ignore")
                         functions = []
-                        
+
                         # Python functions and classes
-                        if file_path.suffix == '.py':
+                        if file_path.suffix == ".py":
                             # Find function definitions
-                            func_pattern = r'^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)'
-                            for match in re.finditer(func_pattern, content, re.MULTILINE):
+                            func_pattern = r"^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)"
+                            for match in re.finditer(
+                                func_pattern, content, re.MULTILINE
+                            ):
                                 functions.append(match.group(1).strip())
-                        
+
                         # JavaScript/TypeScript functions
-                        elif file_path.suffix in ['.js', '.ts', '.jsx', '.tsx']:
+                        elif file_path.suffix in [".js", ".ts", ".jsx", ".tsx"]:
                             # Find function definitions
                             func_patterns = [
-                                r'function\s+\w+\s*\([^)]*\)',
-                                r'const\s+\w+\s*=\s*\([^)]*\)\s*=>',
-                                r'class\s+\w+',
-                                r'export\s+function\s+\w+\s*\([^)]*\)'
+                                r"function\s+\w+\s*\([^)]*\)",
+                                r"const\s+\w+\s*=\s*\([^)]*\)\s*=>",
+                                r"class\s+\w+",
+                                r"export\s+function\s+\w+\s*\([^)]*\)",
                             ]
                             for pattern in func_patterns:
-                                for match in re.finditer(pattern, content, re.MULTILINE):
+                                for match in re.finditer(
+                                    pattern, content, re.MULTILINE
+                                ):
                                     functions.append(match.group(0).strip())
-                        
+
                         return functions[:5]  # Limit to 5 functions per file
                     except (OSError, UnicodeDecodeError, Exception):
                         return []
-                
+
                 repo_map = []
                 current_tokens = 0
                 path = Path(path)
-                
+
                 def scan_directory(dir_path, current_depth=0, prefix=""):
                     nonlocal current_tokens
                     if current_depth > max_depth or current_tokens >= max_tokens:
                         return
-                    
+
                     try:
                         items = sorted(dir_path.iterdir())
                         for item in items:
                             if current_tokens >= max_tokens:
                                 break
-                                
-                            if item.name.startswith('.') and item.name not in ['.gitignore', '.env.example']:
+
+                            if item.name.startswith(".") and item.name not in [
+                                ".gitignore",
+                                ".env.example",
+                            ]:
                                 continue
-                            
+
                             if item.is_file():
                                 size = item.stat().st_size
                                 file_line = f"{prefix}📄 {item.name} ({size} bytes)"
-                                
+
                                 # Add functions for code files
-                                if item.suffix in ['.py', '.js', '.ts', '.jsx', '.tsx'] and size < 50000:  # Skip very large files
+                                if (
+                                    item.suffix in [".py", ".js", ".ts", ".jsx", ".tsx"]
+                                    and size < 50000
+                                ):  # Skip very large files
                                     functions = extract_functions(item)
                                     if functions:
-                                        file_line += f" - Functions: {', '.join(functions)}"
-                                
+                                        file_line += (
+                                            f" - Functions: {', '.join(functions)}"
+                                        )
+
                                 # Check token count with buffer
                                 line_tokens = count_tokens(file_line)
-                                if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
-                                    repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                                if (
+                                    current_tokens + line_tokens > max_tokens - 100
+                                ):  # Leave 100 token buffer
+                                    repo_map.append(
+                                        f"{prefix}... (truncated - token limit reached)"
+                                    )
                                     return
-                                
+
                                 repo_map.append(file_line)
                                 current_tokens += line_tokens
-                                
+
                             elif item.is_dir():
                                 dir_line = f"{prefix}📁 {item.name}/"
                                 line_tokens = count_tokens(dir_line)
-                                
-                                if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
-                                    repo_map.append(f"{prefix}... (truncated - token limit reached)")
+
+                                if (
+                                    current_tokens + line_tokens > max_tokens - 100
+                                ):  # Leave 100 token buffer
+                                    repo_map.append(
+                                        f"{prefix}... (truncated - token limit reached)"
+                                    )
                                     return
-                                
+
                                 repo_map.append(dir_line)
                                 current_tokens += line_tokens
                                 scan_directory(item, current_depth + 1, prefix + "  ")
-                                
+
                     except PermissionError:
                         error_line = f"{prefix}❌ Permission denied"
                         if current_tokens + count_tokens(error_line) <= max_tokens:
                             repo_map.append(error_line)
                             current_tokens += count_tokens(error_line)
-                
+
                 scan_directory(path)
                 result = "\n".join(repo_map)
-                
+
                 # Final token check and truncation if needed
                 if count_tokens(result) > max_tokens:
                     # Truncate to fit within token limit
                     lines = repo_map
                     truncated_lines = []
                     tokens_used = 0
-                    
+
                     for line in lines:
                         line_tokens = count_tokens(line + "\n")
                         if tokens_used + line_tokens > max_tokens:
-                            truncated_lines.append("... (truncated - token limit reached)")
+                            truncated_lines.append(
+                                "... (truncated - token limit reached)"
+                            )
                             break
                         truncated_lines.append(line)
                         tokens_used += line_tokens
-                    
+
                     result = "\n".join(truncated_lines)
-                
+
                 return result
-            
+
             # Don't add repo map here - it will be generated dynamically in the system message
-            
+
             # Add requirements and design content if we have paths but not content
-            if "requirements_path" in enhanced_context and "requirements_content" not in enhanced_context:
+            if (
+                "requirements_path" in enhanced_context
+                and "requirements_content" not in enhanced_context
+            ):
                 try:
                     req_path = Path(enhanced_context["requirements_path"])
                     if req_path.exists():
                         enhanced_context["requirements_content"] = req_path.read_text()
                 except Exception:
-                    enhanced_context["requirements_content"] = "Requirements file not found or unreadable"
-            
-            if "design_path" in enhanced_context and "design_content" not in enhanced_context:
+                    enhanced_context["requirements_content"] = (
+                        "Requirements file not found or unreadable"
+                    )
+
+            if (
+                "design_path" in enhanced_context
+                and "design_content" not in enhanced_context
+            ):
                 try:
                     design_path = Path(enhanced_context["design_path"])
                     if design_path.exists():
                         enhanced_context["design_content"] = design_path.read_text()
                 except Exception:
-                    enhanced_context["design_content"] = "Design file not found or unreadable"
-            
+                    enhanced_context["design_content"] = (
+                        "Design file not found or unreadable"
+                    )
+
             # Remove path fields - not needed in context
-            for path_key in ["requirements_path", "design_path", "todos_path", "docs_dir"]:
+            for path_key in [
+                "requirements_path",
+                "design_path",
+                "todos_path",
+                "docs_dir",
+            ]:
                 enhanced_context.pop(path_key, None)
-            
+
             # Add current task group todos if not already present
             if "current_task_group" not in enhanced_context:
                 # Try to extract task group info from agent_id if it follows the pattern
-                if hasattr(self, 'agent_id') and '_agent_' in self.agent_id:
+                if hasattr(self, "agent_id") and "_agent_" in self.agent_id:
                     try:
                         from ..tools.builtin.todo import get_todo_manager
-                        parts = self.agent_id.split('_agent_')
+
+                        parts = self.agent_id.split("_agent_")
                         if len(parts) >= 2:
                             group_id = parts[1]
                             manager = get_todo_manager()
@@ -246,141 +286,161 @@ class CleanAgent:
                                     "specialization": current_group.specialization,
                                     "description": current_group.description,
                                     "dependencies": current_group.dependencies,
-                                    "todos": [todo.model_dump() for todo in current_group.todos]
+                                    "todos": [
+                                        todo.model_dump()
+                                        for todo in current_group.todos
+                                    ],
                                 }
                     except Exception as e:
                         # Todo manager not available, log warning and continue
                         import logging
+
                         logger = logging.getLogger(__name__)
-                        logger.warning(f"Todo manager not available for context enhancement: {e}")
-            
+                        logger.warning(
+                            f"Todo manager not available for context enhancement: {e}"
+                        )
+
             # Add agent profile info if not already present
             if "agent_profile" not in enhanced_context:
                 enhanced_context["agent_profile"] = {
                     "agent_id": self.agent_id,
                     "model": self.model,
-                    "available_tools": list(self.tools.keys())
+                    "available_tools": list(self.tools.keys()),
                 }
-        
+
         return enhanced_context
 
     def _generate_live_repo_map(self, path=".", max_depth=None, max_tokens=None):
-        max_depth = max_depth or get_config('limits.max_depth', 3)
-        max_tokens = max_tokens or get_config('limits.context_max_tokens', 4000)
+        max_depth = max_depth or get_config("limits.max_depth", 3)
+        max_tokens = max_tokens or get_config("limits.context_max_tokens", 4000)
         """Generate a LIVE/dynamic repo map that reflects current file system state."""
         import re
         import tiktoken
         from pathlib import Path
-        
+
         try:
             # Use tiktoken to count tokens accurately
             encoding = tiktoken.get_encoding("cl100k_base")
         except (ImportError, AttributeError, Exception):
             # Fallback to rough estimation if tiktoken fails
             encoding = None
-        
+
         def count_tokens(text):
             if encoding:
                 return len(encoding.encode(text))
             else:
                 # Rough estimation: ~4 chars per token
                 return len(text) // 4
-        
+
         def extract_functions(file_path):
             """Extract function/class definitions from code files"""
             try:
-                content = file_path.read_text(encoding='utf-8', errors='ignore')
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
                 functions = []
-                
+
                 # Python functions and classes
-                if file_path.suffix == '.py':
+                if file_path.suffix == ".py":
                     # Find function definitions
-                    func_pattern = r'^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)'
+                    func_pattern = r"^(def\s+\w+\([^)]*\):|class\s+\w+[^:]*:)"
                     for match in re.finditer(func_pattern, content, re.MULTILINE):
                         functions.append(match.group(1).strip())
-                
+
                 # JavaScript/TypeScript functions
-                elif file_path.suffix in ['.js', '.ts', '.jsx', '.tsx']:
+                elif file_path.suffix in [".js", ".ts", ".jsx", ".tsx"]:
                     # Find function definitions
                     func_patterns = [
-                        r'function\s+\w+\s*\([^)]*\)',
-                        r'const\s+\w+\s*=\s*\([^)]*\)\s*=>',
-                        r'class\s+\w+',
-                        r'export\s+function\s+\w+\s*\([^)]*\)'
+                        r"function\s+\w+\s*\([^)]*\)",
+                        r"const\s+\w+\s*=\s*\([^)]*\)\s*=>",
+                        r"class\s+\w+",
+                        r"export\s+function\s+\w+\s*\([^)]*\)",
                     ]
                     for pattern in func_patterns:
                         for match in re.finditer(pattern, content, re.MULTILINE):
                             functions.append(match.group(0).strip())
-                
+
                 return functions[:5]  # Limit to 5 functions per file
             except (OSError, UnicodeDecodeError, Exception):
                 return []
-        
+
         repo_map = []
         current_tokens = 0
         path = Path(path)
-        
+
         def scan_directory(dir_path, current_depth=0, prefix=""):
             nonlocal current_tokens
             if current_depth > max_depth or current_tokens >= max_tokens:
                 return
-            
+
             try:
                 items = sorted(dir_path.iterdir())
                 for item in items:
                     if current_tokens >= max_tokens:
                         break
-                        
-                    if item.name.startswith('.') and item.name not in ['.gitignore', '.env.example']:
+
+                    if item.name.startswith(".") and item.name not in [
+                        ".gitignore",
+                        ".env.example",
+                    ]:
                         continue
-                    
+
                     if item.is_file():
                         size = item.stat().st_size
                         file_line = f"{prefix}📄 {item.name} ({size} bytes)"
-                        
+
                         # Add functions for code files
-                        if item.suffix in ['.py', '.js', '.ts', '.jsx', '.tsx'] and size < 50000:  # Skip very large files
+                        if (
+                            item.suffix in [".py", ".js", ".ts", ".jsx", ".tsx"]
+                            and size < 50000
+                        ):  # Skip very large files
                             functions = extract_functions(item)
                             if functions:
                                 file_line += f" - Functions: {', '.join(functions)}"
-                        
+
                         # Check token count with buffer
                         line_tokens = count_tokens(file_line)
-                        if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
-                            repo_map.append(f"{prefix}... (truncated - token limit reached)")
+                        if (
+                            current_tokens + line_tokens > max_tokens - 100
+                        ):  # Leave 100 token buffer
+                            repo_map.append(
+                                f"{prefix}... (truncated - token limit reached)"
+                            )
                             return
-                        
+
                         repo_map.append(file_line)
                         current_tokens += line_tokens
-                        
+
                     elif item.is_dir():
                         dir_line = f"{prefix}📁 {item.name}/"
                         line_tokens = count_tokens(dir_line)
-                        
-                        if current_tokens + line_tokens > max_tokens - 100:  # Leave 100 token buffer
-                            repo_map.append(f"{prefix}... (truncated - token limit reached)")
+
+                        if (
+                            current_tokens + line_tokens > max_tokens - 100
+                        ):  # Leave 100 token buffer
+                            repo_map.append(
+                                f"{prefix}... (truncated - token limit reached)"
+                            )
                             return
-                        
+
                         repo_map.append(dir_line)
                         current_tokens += line_tokens
                         scan_directory(item, current_depth + 1, prefix + "  ")
-                        
+
             except PermissionError:
                 error_line = f"{prefix}❌ Permission denied"
                 if current_tokens + count_tokens(error_line) <= max_tokens:
                     repo_map.append(error_line)
                     current_tokens += count_tokens(error_line)
-        
+
         scan_directory(path)
         result = "\n".join(repo_map)
-        
+
         # Final token check and truncation if needed
         if count_tokens(result) > max_tokens:
             # Truncate to fit within token limit
             lines = repo_map
             truncated_lines = []
             tokens_used = 0
-            
+
             for line in lines:
                 line_tokens = count_tokens(line + "\n")
                 if tokens_used + line_tokens > max_tokens:
@@ -388,27 +448,35 @@ class CleanAgent:
                     break
                 truncated_lines.append(line)
                 tokens_used += line_tokens
-            
+
             result = "\n".join(truncated_lines)
-        
+
         return result
 
-    def _preserve_core_context(self, compressed_context: Dict[str, Any]) -> Dict[str, Any]:
+    def _preserve_core_context(
+        self, compressed_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Ensure core context information is preserved during compression."""
         # Define core context keys that must never be compressed
         core_context_keys = [
-            "repo_map", "requirements_content", "design_content", 
-            "current_task_group", "agent_profile", "task_name"
+            "repo_map",
+            "requirements_content",
+            "design_content",
+            "current_task_group",
+            "agent_profile",
+            "task_name",
         ]
-        
+
         # Preserve core context from original enhanced context
         for key in core_context_keys:
             if key in self.context and key not in compressed_context:
                 compressed_context[key] = self.context[key]
-        
+
         return compressed_context
 
-    def add_message(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+    def add_message(
+        self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None
+    ):
         """Add a message to the conversation history."""
         message = {
             "role": role,
@@ -439,7 +507,7 @@ class CleanAgent:
             # Create single comprehensive system message with mandatory context and task
             # Generate LIVE repo map (dynamic, not cached)
             live_repo_map = self._generate_live_repo_map()
-            
+
             # Build mandatory context with live repo map
             mandatory_context = dict(self.context)
             mandatory_context["repo_map"] = live_repo_map
@@ -447,9 +515,10 @@ class CleanAgent:
 
             # Load system prompt from ProfileManager
             from .profile_manager import ProfileManager
+
             pm = ProfileManager()
             system_prompt_template = pm.get_base_system_prompt()
-            
+
             # Check if this agent has a profile-specific system prompt to append
             # This would need to be passed in somehow - for now, just use base prompt
 
@@ -457,9 +526,9 @@ class CleanAgent:
             system_message = system_prompt_template.format(
                 agent_id=self.agent_id,
                 model=self.model,
-                available_tools=', '.join(self.tools.keys()),
+                available_tools=", ".join(self.tools.keys()),
                 mandatory_context_json=mandatory_context_json,
-                task_description=task_description
+                task_description=task_description,
             )
 
             # Add only the single comprehensive system message - no separate user message
@@ -504,57 +573,68 @@ class CleanAgent:
         """Check if context is >75% full and compress if needed, preserving MANDATORY context."""
         try:
             import tiktoken
-            
+
             # Get model max tokens (fallback to 4096 if get_max_tokens unavailable)
             try:
                 from litellm import get_max_tokens
+
                 model_max_tokens = get_max_tokens(self.model)
             except Exception:
                 model_max_tokens = 4096
-            
+
             # Count current tokens
             try:
                 encoding = tiktoken.get_encoding("cl100k_base")
             except Exception:
                 # Fallback to rough estimation
                 encoding = None
-            
+
             def count_tokens(text):
                 if encoding:
                     return len(encoding.encode(text))
                 else:
                     # Rough estimation: ~4 chars per token
                     return len(text) // 4
-            
+
             # MANDATORY CONTEXT - These are IMMUNE to compression
             mandatory_context_keys = [
-                "repo_map", "requirements_content", "design_content", 
-                "current_task_group", "agent_profile", "task_name"
+                "repo_map",
+                "requirements_content",
+                "design_content",
+                "current_task_group",
+                "agent_profile",
+                "task_name",
             ]
-            
+
             # Calculate tokens for MANDATORY context (never compressed)
-            mandatory_context = {k: v for k, v in self.context.items() if k in mandatory_context_keys}
+            mandatory_context = {
+                k: v for k, v in self.context.items() if k in mandatory_context_keys
+            }
             mandatory_tokens = count_tokens(json.dumps(mandatory_context))
-            
+
             # Calculate tokens for conversation messages (can be compressed)
             conversation_tokens = 0
             for msg in messages:
                 conversation_tokens += count_tokens(msg.content)
-            
+
             total_tokens = mandatory_tokens + conversation_tokens
-            
+
             # Check if we're using >75% of context
             usage_percentage = total_tokens / model_max_tokens
-            
+
             if usage_percentage > 0.75:
                 print(f"🗜️ [{self.agent_id}] Context compression triggered:")
-                print(f"   Total tokens: {total_tokens}/{model_max_tokens} ({usage_percentage:.1%})")
-                print(f"   Mandatory context: {mandatory_tokens} tokens (IMMUNE to compression)")
+                print(
+                    f"   Total tokens: {total_tokens}/{model_max_tokens} ({usage_percentage:.1%})"
+                )
+                print(
+                    f"   Mandatory context: {mandatory_tokens} tokens (IMMUNE to compression)"
+                )
                 print(f"   Conversation: {conversation_tokens} tokens (compressible)")
-                
+
                 # CRITICAL: Only compress conversation messages, NEVER mandatory context
                 compressed_messages = []
-                
+
                 # 1. ALWAYS keep system message (contains MANDATORY context)
                 if messages and messages[0].role == "system":
                     # Rebuild system message with MANDATORY context to ensure it's preserved
@@ -563,37 +643,47 @@ class CleanAgent:
                     if "Context provided:" in system_content:
                         base_system = system_content.split("Context provided:")[0]
                         system_content = f"{base_system}Context provided:\n{json.dumps(mandatory_context, indent=2)}"
-                    
-                    compressed_messages.append(Message(role="system", content=system_content))
-                
+
+                    compressed_messages.append(
+                        Message(role="system", content=system_content)
+                    )
+
                 # 2. Keep only recent conversation messages (compressible part)
-                recent_messages = messages[-8:] if len(messages) > 8 else messages[1:]  # Skip system message
-                
+                recent_messages = (
+                    messages[-8:] if len(messages) > 8 else messages[1:]
+                )  # Skip system message
+
                 # 3. Add compression notice
                 if len(messages) > len(recent_messages) + 1:  # +1 for system message
                     compression_notice = Message(
-                        role="system", 
-                        content=f"[CONTEXT COMPRESSED: Keeping last {len(recent_messages)} conversation messages out of {len(messages)-1} total. MANDATORY context (repo map, requirements, design, todos, agent profile) is FULLY PRESERVED and IMMUNE to compression.]"
+                        role="system",
+                        content=f"[CONTEXT COMPRESSED: Keeping last {len(recent_messages)} conversation messages out of {len(messages)-1} total. MANDATORY context (repo map, requirements, design, todos, agent profile) is FULLY PRESERVED and IMMUNE to compression.]",
                     )
                     compressed_messages.append(compression_notice)
-                
+
                 compressed_messages.extend(recent_messages)
-                
+
                 # Calculate new token count
-                new_conversation_tokens = sum(count_tokens(msg.content) for msg in compressed_messages)
+                new_conversation_tokens = sum(
+                    count_tokens(msg.content) for msg in compressed_messages
+                )
                 new_total_tokens = mandatory_tokens + new_conversation_tokens
                 new_usage_percentage = new_total_tokens / model_max_tokens
-                
+
                 print("   After compression:")
                 print(f"     Mandatory context: {mandatory_tokens} tokens (preserved)")
-                print(f"     Conversation: {new_conversation_tokens} tokens (compressed)")
-                print(f"     Total: {new_total_tokens}/{model_max_tokens} ({new_usage_percentage:.1%})")
+                print(
+                    f"     Conversation: {new_conversation_tokens} tokens (compressed)"
+                )
+                print(
+                    f"     Total: {new_total_tokens}/{model_max_tokens} ({new_usage_percentage:.1%})"
+                )
                 print(f"     Saved: {total_tokens - new_total_tokens} tokens")
-                
+
                 return compressed_messages
-            
+
             return messages
-            
+
         except Exception as e:
             print(f"⚠️ Context compression failed: {e}")
             return messages
@@ -637,7 +727,7 @@ class CleanAgent:
             try:
                 # Check and compress context if needed before LLM call
                 messages = self._check_and_compress_context(messages)
-                
+
                 # Call LLM
                 response = await self.provider.chat(
                     messages=messages, tools=tool_schemas if tool_schemas else None
@@ -650,14 +740,11 @@ class CleanAgent:
                     "model": self.model,
                     "content": response.content,
                     "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": tc.function
-                        } for tc in (response.tool_calls or [])
+                        {"id": tc.id, "type": tc.type, "function": tc.function}
+                        for tc in (response.tool_calls or [])
                     ],
                     "usage": getattr(response, "usage", {}),
-                    "cost": getattr(response, "cost", 0.0)
+                    "cost": getattr(response, "cost", 0.0),
                 }
                 self.llm_responses.append(llm_response_data)
 
@@ -672,34 +759,40 @@ class CleanAgent:
                 overall_total = self.current_cost
                 try:
                     if self.session:
-                        overall_total = float(self.session.cost or 0.0) + float(self.current_cost or 0.0)
+                        overall_total = float(self.session.cost or 0.0) + float(
+                            self.current_cost or 0.0
+                        )
                 except Exception:
                     pass
-                print(f"   Cost (this step): ${getattr(response, 'cost', 0.0):.6f} | Agent total: ${self.current_cost:.6f} | Overall total: ${overall_total:.6f}")
+                print(
+                    f"   Cost (this step): ${getattr(response, 'cost', 0.0):.6f} | Agent total: ${self.current_cost:.6f} | Overall total: ${overall_total:.6f}"
+                )
                 print(f"   Usage: {getattr(response, 'usage', {})}")
-                try:
-                    from time import perf_counter
-                except Exception:
-                    perf_counter = None  # type: ignore
-                
+
                 if response.content:
                     print("   Assistant Content (full):")
-                    for line in response.content.split('\n'):
+                    for line in response.content.split("\n"):
                         print(f"     {line}")
-                
+
                 if response.tool_calls:
                     print(f"   Tool Calls ({len(response.tool_calls)}):")
                     for i, tc in enumerate(response.tool_calls, 1):
                         try:
-                            args = json.loads(tc.function.get('arguments', '{}'))
+                            args = json.loads(tc.function.get("arguments", "{}"))
                         except Exception:
-                            args = {"raw": tc.function.get('arguments')}
+                            args = {"raw": tc.function.get("arguments")}
                         print(f"     {i}. {tc.function['name']}")
                         print("        Arguments:")
-                        for key, value in (args.items() if isinstance(args, dict) else [("value", args)]):
+                        for key, value in (
+                            args.items()
+                            if isinstance(args, dict)
+                            else [("value", args)]
+                        ):
                             print(f"          {key}: {value}")
                 else:
-                    print("   ⚠️  NO TOOL CALLS - This violates the mandatory tool use rule!")
+                    print(
+                        "   ⚠️  NO TOOL CALLS - This violates the mandatory tool use rule!"
+                    )
 
                 # Add assistant message
                 assistant_content = response.content or "Working..."
@@ -723,7 +816,7 @@ class CleanAgent:
                             "tool_args": tool_args,
                             "success": False,
                             "result": None,
-                            "error": None
+                            "error": None,
                         }
 
                         if tool_name in self.tools:
@@ -736,20 +829,31 @@ class CleanAgent:
                             )
                             # Accumulate any tool-reported cost
                             try:
-                                if isinstance(tool_result.metadata, dict) and "cost" in tool_result.metadata:
-                                    self.current_cost += float(tool_result.metadata.get("cost") or 0.0)
+                                if (
+                                    isinstance(tool_result.metadata, dict)
+                                    and "cost" in tool_result.metadata
+                                ):
+                                    self.current_cost += float(
+                                        tool_result.metadata.get("cost") or 0.0
+                                    )
                             except Exception:
                                 pass
 
                             # Update tool call tracking
                             tool_call_data["success"] = tool_result.success
-                            tool_call_data["result"] = tool_result.data if tool_result.success else None
-                            tool_call_data["error"] = tool_result.error if not tool_result.success else None
+                            tool_call_data["result"] = (
+                                tool_result.data if tool_result.success else None
+                            )
+                            tool_call_data["error"] = (
+                                tool_result.error if not tool_result.success else None
+                            )
                             tool_call_data["metadata"] = tool_result.metadata or {}
 
                             # Log tool execution result with full args and result
                             status_icon = "✅" if tool_result.success else "❌"
-                            print(f"🔧 [{self.agent_id}] Tool Execution: {status_icon} {tool_name}")
+                            print(
+                                f"🔧 [{self.agent_id}] Tool Execution: {status_icon} {tool_name}"
+                            )
                             print(f"   Args (full): {tool_args}")
                             print(f"   Result (full): {result_content}")
 
@@ -767,17 +871,19 @@ class CleanAgent:
                         else:
                             error_msg = f"Tool {tool_name} not available"
                             tool_call_data["error"] = error_msg
-                            
+
                             # Log tool error
-                            print(f"🔧 [{self.agent_id}] Tool Error: ❌ {tool_name} (not available)")
-                            
+                            print(
+                                f"🔧 [{self.agent_id}] Tool Error: ❌ {tool_name} (not available)"
+                            )
+
                             self.add_message(
                                 "tool",
                                 error_msg,
                                 {"tool_name": tool_name, "error": "Tool not available"},
                             )
                             tool_results.append(f"Error: {error_msg}")
-                        
+
                         self.tool_call_history.append(tool_call_data)
 
                     # Add tool results as user message
@@ -831,8 +937,11 @@ class CleanAgent:
                         except Exception as e:
                             # Failed to check todo completion status, log warning and continue
                             import logging
+
                             logger = logging.getLogger(__name__)
-                            logger.warning(f"Failed to check todo completion status: {e}")
+                            logger.warning(
+                                f"Failed to check todo completion status: {e}"
+                            )
 
                     # Force tool use
                     warning_message = "ERROR: You must use tools in every response! Use list_todos to check remaining work or update_todo to mark tasks complete."
@@ -865,11 +974,21 @@ class CleanAgent:
         """
         try:
             if self.on_audit_callback:
-                self.on_audit_callback({"status": "starting", "model": self.audit_model})
- 
+                self.on_audit_callback(
+                    {"status": "starting", "model": self.audit_model}
+                )
+
             print(f"🔍 Running automatic audit with {self.audit_model}...")
             read_only_tools = [
-                self.tools[name] for name in ("read_file", "list_files", "grep_search", "git_status", "git_diff") if name in self.tools
+                self.tools[name]
+                for name in (
+                    "read_file",
+                    "list_files",
+                    "grep_search",
+                    "git_status",
+                    "git_diff",
+                )
+                if name in self.tools
             ]
             # Include MCP proxy tools if available
             try:
@@ -879,32 +998,42 @@ class CleanAgent:
             except Exception:
                 pass
             if not read_only_tools:
-                return {"success": False, "reason": "No audit tools available", "audit_passed": False}
- 
+                return {
+                    "success": False,
+                    "reason": "No audit tools available",
+                    "audit_passed": False,
+                }
+
             tool_schemas = [t.get_json_schema() for t in read_only_tools]
- 
+
             system_prompt = (
                 "You are an independent code auditor. Explore the repository in depth using the provided read-only tools.\n\n"
                 "AUDIT LOOP INSTRUCTIONS:\n"
                 "• At each turn either CALL a read-only tool or, when satisfied, RETURN results using the virtual tool 'audit_results'.\n"
-                "• The 'audit_results' call must include JSON with: {\"passed\": bool, \"reasons\": str, \"additional_tasks\": list}.\n"
+                '• The \'audit_results\' call must include JSON with: {"passed": bool, "reasons": str, "additional_tasks": list}.\n'
                 "• Fail only if one or more todos have not been completed.\n"
                 "• Keep investigating until confident.\n\n"
                 "You are encouraged to use MCP tools (mcp:*) to fetch external information if relevant."
             )
- 
+
             messages = [Message(role="system", content=system_prompt)]
             # Provide full docs context (read-only, labeled) if available
             try:
                 doc_payload = {}
-                for key in ("requirements_content", "design_content", "docs_dir", "todos_path"):
+                for key in (
+                    "requirements_content",
+                    "design_content",
+                    "docs_dir",
+                    "todos_path",
+                ):
                     if key in (self.context or {}):
                         doc_payload[key] = self.context[key]
                 if doc_payload:
                     messages.append(
                         Message(
                             role="user",
-                            content="FULL DOCUMENTATION CONTEXT (read-only):\n" + json.dumps(doc_payload, indent=2),
+                            content="FULL DOCUMENTATION CONTEXT (read-only):\n"
+                            + json.dumps(doc_payload, indent=2),
                         )
                     )
             except Exception:
@@ -920,20 +1049,25 @@ class CleanAgent:
                         "properties": {
                             "passed": {"type": "boolean"},
                             "reasons": {"type": "string"},
-                            "additional_tasks": {"type": "array", "items": {"type": "string"}},
+                            "additional_tasks": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
                         },
                         "required": ["passed"],
                     },
                 },
             }
             for i in range(1, max_iter + 1):
-                resp = await self.audit_provider.chat(messages=messages, tools=tool_schemas + [audit_results_tool])
+                resp = await self.audit_provider.chat(
+                    messages=messages, tools=tool_schemas + [audit_results_tool]
+                )
                 print(f"\n🧾 [audit] Iteration {i} - Model: {self.audit_model}")
                 print(f"   Usage: {getattr(resp, 'usage', {})}")
                 print(f"   Cost (this step): ${getattr(resp, 'cost', 0.0):.6f}")
                 if resp.content:
                     print("   Assistant Content (full):")
-                    for line in resp.content.split('\n'):
+                    for line in resp.content.split("\n"):
                         print(f"     {line}")
                 if resp.tool_calls:
                     # Expecting at most one tool call per iteration
@@ -946,9 +1080,13 @@ class CleanAgent:
                         extra_tasks = payload.get("additional_tasks", [])
                         content = json.dumps(payload)
                         if self.on_audit_callback:
-                            self.on_audit_callback({
-                                "status": "completed", "passed": audit_passed, "content": content
-                            })
+                            self.on_audit_callback(
+                                {
+                                    "status": "completed",
+                                    "passed": audit_passed,
+                                    "content": content,
+                                }
+                            )
                         return {
                             "success": True,
                             "audit_passed": audit_passed,
@@ -960,14 +1098,22 @@ class CleanAgent:
                     if tool_name in self.tools:
                         tool_args = json.loads(tc.function.get("arguments", "{}"))
                         result = await self.tools[tool_name].run(**tool_args)
-                        messages.append(Message(role="tool", name=tool_name, content=result.json()))
+                        messages.append(
+                            Message(role="tool", name=tool_name, content=result.json())
+                        )
                         continue
                 # non-tool message
                 if resp.content and resp.content.strip().upper().startswith("AUDIT"):
                     messages.append(Message(role="assistant", content=resp.content))
                     audit_passed = resp.content.upper().startswith("AUDIT PASSED")
                     if self.on_audit_callback:
-                        self.on_audit_callback({"status": "completed", "passed": audit_passed, "content": resp.content})
+                        self.on_audit_callback(
+                            {
+                                "status": "completed",
+                                "passed": audit_passed,
+                                "content": resp.content,
+                            }
+                        )
                     return {
                         "success": True,
                         "audit_passed": audit_passed,
@@ -976,7 +1122,11 @@ class CleanAgent:
                     }
                 messages.append(Message(role="assistant", content=resp.content or ""))
             # exceeded iterations
-            return {"success": False, "audit_passed": False, "reason": "Audit loop max iterations"}
+            return {
+                "success": False,
+                "audit_passed": False,
+                "reason": "Audit loop max iterations",
+            }
         except Exception as e:
             if self.on_audit_callback:
                 self.on_audit_callback({"status": "error", "error": str(e)})

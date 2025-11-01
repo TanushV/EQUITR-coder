@@ -163,7 +163,7 @@ class ModelManager:
                 provider_instance = LiteLLMProvider(model=model)
                 await provider_instance.chat(
                     messages=[Message(role="user", content="Test")],
-                    max_tokens=get_config('limits.test_max_tokens', 1)
+                    max_tokens=get_config("limits.test_max_tokens", 1),
                 )
                 availability_status = "verified"
             except Exception as e:

@@ -103,9 +103,9 @@ Ask your first clarifying question.""".format(
             ]
 
             response = await self.provider.chat(
-                messages=messages, 
-                temperature=get_config('llm.temperature', 0.7), 
-                max_tokens=get_config('limits.planning_max_tokens', 400)
+                messages=messages,
+                temperature=get_config("llm.temperature", 0.7),
+                max_tokens=get_config("limits.planning_max_tokens", 400),
             )
 
             ai_content = response.content.strip()
@@ -206,8 +206,8 @@ Format as a clear, detailed markdown document.
 
         messages = [Message(role="user", content=prompt)]
         response = await self.provider.chat(
-            messages=messages, 
-            max_tokens=get_config('limits.requirements_max_tokens', 1000)
+            messages=messages,
+            max_tokens=get_config("limits.requirements_max_tokens", 1000),
         )
         return response.content
 
@@ -256,8 +256,7 @@ Format as a detailed markdown document with specific file paths and code structu
 
         messages = [Message(role="user", content=prompt)]
         response = await self.provider.chat(
-            messages=messages, 
-            max_tokens=get_config('limits.design_max_tokens', 1500)
+            messages=messages, max_tokens=get_config("limits.design_max_tokens", 1500)
         )
         return response.content
 
@@ -293,8 +292,7 @@ GUIDELINES (no numeric caps):
 
         messages = [Message(role="user", content=prompt)]
         response = await self.provider.chat(
-            messages=messages, 
-            max_tokens=get_config('limits.todos_max_tokens', 1000)
+            messages=messages, max_tokens=get_config("limits.todos_max_tokens", 1000)
         )
 
         try:

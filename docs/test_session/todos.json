@@ -1,0 +1,13 @@
+{
+  "task_name": "test_session",
+  "task_groups": [
+    {
+      "group_id": "demo",
+      "specialization": "default",
+      "description": "Demo group",
+      "dependencies": [],
+      "status": "completed",
+      "todos": []
+    }
+  ]
+}

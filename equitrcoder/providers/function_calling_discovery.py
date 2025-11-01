@@ -17,7 +17,9 @@ class FunctionCallingModelDiscovery:
         self._cache = {}
         self._cache_timeout = 3600  # 1 hour cache
 
-    async def discover_models(self, provider: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def discover_models(
+        self, provider: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Discover all available models with function calling support.
 
@@ -94,7 +96,9 @@ class FunctionCallingModelDiscovery:
         else:
             return "unknown"
 
-    async def _get_fallback_models(self, provider: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def _get_fallback_models(
+        self, provider: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get fallback models when live discovery fails."""
         fallback_models = {
             "openai": [

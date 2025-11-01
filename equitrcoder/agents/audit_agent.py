@@ -9,7 +9,6 @@ AuditAgent orchestrates post-task-group completion audits:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import datetime
 import os
@@ -36,7 +35,9 @@ class AuditAgent(BaseAgent):
         max_cost: Optional[float] = None,
         max_iterations: Optional[int] = None,
     ):
-        super().__init__(agent_id=agent_id, max_cost=max_cost, max_iterations=max_iterations)
+        super().__init__(
+            agent_id=agent_id, max_cost=max_cost, max_iterations=max_iterations
+        )
         # Register only the audit-safe tools (mutation gated by token at call-time)
         self.add_tool(CreateGroupTests())
         self.add_tool(GetGroupTestStatuses())
@@ -83,7 +84,10 @@ class AuditAgent(BaseAgent):
             overwrite=False,
         )
         if not create_resp.get("success"):
-            return {"success": False, "error": f"Failed to create tests: {create_resp.get('error')}"}
+            return {
+                "success": False,
+                "error": f"Failed to create tests: {create_resp.get('error')}",
+            }
 
         # 3) Run tests and capture results
         test_status = await self.call_tool(
@@ -99,7 +103,9 @@ class AuditAgent(BaseAgent):
         else:
             status_payload = res_obj
         if isinstance(status_payload, dict):
-            (audit_root / "test_report.json").write_text(json.dumps(status_payload, indent=2), encoding="utf-8")
+            (audit_root / "test_report.json").write_text(
+                json.dumps(status_payload, indent=2), encoding="utf-8"
+            )
 
         # 4) Policy: if tests failed, unmark group and add a follow-up todo
         unmarked = False
@@ -107,25 +113,33 @@ class AuditAgent(BaseAgent):
         try:
             # Detect explicit missing pytest signal from tool payload
             if isinstance(status_payload, dict):
-                missing_pytest = bool(status_payload.get("data", {}).get("missing_pytest", False))
+                missing_pytest = bool(
+                    status_payload.get("data", {}).get("missing_pytest", False)
+                )
         except Exception:
             missing_pytest = False
 
         if not test_status.get("success") and not missing_pytest:
             try:
                 manager.update_task_group_status(group_id, "in_progress")
-                manager.add_todo_to_group(group_id, f"Fix failing audit tests for {group_id}")
+                manager.add_todo_to_group(
+                    group_id, f"Fix failing audit tests for {group_id}"
+                )
                 unmarked = True
             except Exception:
                 pass
         elif missing_pytest:
             try:
-                manager.add_todo_to_group(group_id, "Install pytest to enable audit test execution")
+                manager.add_todo_to_group(
+                    group_id, "Install pytest to enable audit test execution"
+                )
             except Exception:
                 pass
 
         # 5) Produce audit report with doc references and model commentary
-        tests_list_resp = await self.call_tool("audit_list_group_tests", group_id=group_id)
+        tests_list_resp = await self.call_tool(
+            "audit_list_group_tests", group_id=group_id
+        )
         tl_obj = tests_list_resp.get("result")
         if hasattr(tl_obj, "model_dump"):
             tests_list_data = tl_obj.model_dump()
@@ -148,7 +162,12 @@ class AuditAgent(BaseAgent):
             unmarked=unmarked,
         )
         # Append model commentary
-        full_report = report_text + "\n## Model Commentary\n\n" + (commentary or "(no commentary)") + "\n"
+        full_report = (
+            report_text
+            + "\n## Model Commentary\n\n"
+            + (commentary or "(no commentary)")
+            + "\n"
+        )
         (audit_root / "audit.md").write_text(full_report, encoding="utf-8")
 
         return {
@@ -169,7 +188,9 @@ class AuditAgent(BaseAgent):
             return [Path(p).resolve() for p in section_paths]
         if sections_mapping_file and Path(sections_mapping_file).exists():
             try:
-                mapping = json.loads(Path(sections_mapping_file).read_text(encoding="utf-8"))
+                mapping = json.loads(
+                    Path(sections_mapping_file).read_text(encoding="utf-8")
+                )
                 paths = mapping.get(group_id) or mapping.get("default") or []
                 if isinstance(paths, list) and paths:
                     return [Path(p).resolve() for p in paths]
@@ -266,12 +287,22 @@ class AuditAgent(BaseAgent):
         model: Optional[str] = None,
     ) -> str:
         try:
-            req = (docs_dir / "requirements.md").read_text(encoding="utf-8") if (docs_dir / "requirements.md").exists() else ""
-            des = (docs_dir / "design.md").read_text(encoding="utf-8") if (docs_dir / "design.md").exists() else ""
+            req = (
+                (docs_dir / "requirements.md").read_text(encoding="utf-8")
+                if (docs_dir / "requirements.md").exists()
+                else ""
+            )
+            des = (
+                (docs_dir / "design.md").read_text(encoding="utf-8")
+                if (docs_dir / "design.md").exists()
+                else ""
+            )
         except Exception:
             req, des = "", ""
 
-        model_name = model or os.environ.get("EQUITR_AUDIT_MODEL", "moonshot/kimi-k2-0711-preview")
+        model_name = model or os.environ.get(
+            "EQUITR_AUDIT_MODEL", "moonshot/kimi-k2-0711-preview"
+        )
         provider = LiteLLMProvider(model=model_name)
         system = (
             "You are an independent audit model. Evaluate if the completed task group meets the requirements and design. "
@@ -287,9 +318,12 @@ class AuditAgent(BaseAgent):
             "Deliverables:\n- A reasoned verdict on correctness and spec compliance\n- Specific commentary for the agent\n- Optional suggestions for additional tasks\n"
         )
         try:
-            resp = await provider.chat(messages=[Message(role="system", content=system), Message(role="user", content=user)])
+            resp = await provider.chat(
+                messages=[
+                    Message(role="system", content=system),
+                    Message(role="user", content=user),
+                ]
+            )
             return resp.content.strip()
         except Exception:
             return ""
-
-

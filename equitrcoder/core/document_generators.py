@@ -15,7 +15,7 @@ from ..providers.litellm import LiteLLMProvider, Message
 
 class RequirementsGenerator(IGenerator[str], BaseConfigurable):
     """Generates requirements documents from user prompts"""
-    
+
     def __init__(self, model: str = "moonshot/kimi-k2-0711-preview"):
         super().__init__()
         self.model = model
@@ -30,9 +30,9 @@ Create a requirements.md document that includes:
 3. Technical Requirements - How it should be built
 4. Success Criteria - How to know when it's complete
 
-Be specific and actionable. Use markdown format."""
+Be specific and actionable. Use markdown format.""",
         }
-    
+
     async def generate(self, user_prompt: str) -> str:
         """Generate requirements document automatically."""
         system_prompt = """You are a requirements analyst. Your job is to decode the user's prompt into a clear, structured requirements document.
@@ -52,8 +52,10 @@ Be specific and actionable. Use markdown format."""
 
         response = await self.provider.chat(messages=messages)
         return response.content
-    
-    async def generate_interactive(self, user_prompt: str, interaction_callback) -> Tuple[str, List[Dict[str, str]]]:
+
+    async def generate_interactive(
+        self, user_prompt: str, interaction_callback
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """Interactive requirements creation with back-and-forth discussion."""
         conversation_log = []
 
@@ -95,8 +97,10 @@ Available functions:
         ]
 
         while True:
-            response = await self.provider.chat(messages=messages, tools=[finalize_tool])
-            
+            response = await self.provider.chat(
+                messages=messages, tools=[finalize_tool]
+            )
+
             conversation_log.append(
                 {"role": "assistant", "content": response.content or "Processing..."}
             )
@@ -109,7 +113,11 @@ Available functions:
 
             if interaction_callback:
                 user_response = await interaction_callback("AI", response.content)
-                if user_response is None or user_response.lower() in ["quit", "exit", "done"]:
+                if user_response is None or user_response.lower() in [
+                    "quit",
+                    "exit",
+                    "done",
+                ]:
                     final_req = await self.generate(user_prompt)
                     return final_req, conversation_log
 
@@ -123,7 +131,7 @@ Available functions:
 
 class DesignGenerator(IGenerator[str], BaseConfigurable):
     """Generates design documents from requirements"""
-    
+
     def __init__(self, model: str = "moonshot/kimi-k2-0711-preview"):
         super().__init__()
         self.model = model
@@ -139,9 +147,9 @@ Create a design.md document that includes:
 4. Implementation Plan - Step-by-step approach
 5. File Structure - What files/directories will be created
 
-Be technical and specific. Use markdown format."""
+Be technical and specific. Use markdown format.""",
         }
-    
+
     async def generate(self, user_prompt: str, requirements: str) -> str:
         """Generate design document automatically."""
         system_prompt = """You are a system designer. Your job is to create a technical design document based on the requirements.
@@ -165,8 +173,10 @@ Be technical and specific. Use markdown format."""
 
         response = await self.provider.chat(messages=messages)
         return response.content
-    
-    async def generate_interactive(self, user_prompt: str, requirements: str, interaction_callback) -> Tuple[str, List[Dict[str, str]]]:
+
+    async def generate_interactive(
+        self, user_prompt: str, requirements: str, interaction_callback
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """Interactive design creation with back-and-forth discussion."""
         conversation_log = []
 
@@ -211,7 +221,9 @@ Available functions:
         ]
 
         while True:
-            response = await self.provider.chat(messages=messages, tools=[finalize_tool])
+            response = await self.provider.chat(
+                messages=messages, tools=[finalize_tool]
+            )
 
             conversation_log.append(
                 {"role": "assistant", "content": response.content or "Processing..."}
@@ -225,7 +237,11 @@ Available functions:
 
             if interaction_callback:
                 user_response = await interaction_callback("AI", response.content)
-                if user_response is None or user_response.lower() in ["quit", "exit", "done"]:
+                if user_response is None or user_response.lower() in [
+                    "quit",
+                    "exit",
+                    "done",
+                ]:
                     final_design = await self.generate(user_prompt, requirements)
                     return final_design, conversation_log
 
@@ -239,7 +255,7 @@ Available functions:
 
 class TodosGenerator(IGenerator[str], BaseConfigurable):
     """Generates todos documents from requirements and design"""
-    
+
     def __init__(self, model: str = "moonshot/kimi-k2-0711-preview"):
         super().__init__()
         self.model = model
@@ -249,9 +265,9 @@ class TodosGenerator(IGenerator[str], BaseConfigurable):
             "max_categories": 6,
             "min_categories": 3,
             "max_tasks_per_category": 8,
-            "min_tasks_per_category": 2
+            "min_tasks_per_category": 2,
         }
-    
+
     async def generate(self, user_prompt: str, requirements: str, design: str) -> str:
         """Generate a concise todos document with grouped, reasonable tasks using tool calls."""
         system_prompt = """You are a project manager creating a lean, well-organized task breakdown for efficient execution.
@@ -300,7 +316,11 @@ Available tools:
                                         "description": "Whether this task can be worked on simultaneously with other tasks in the category",
                                     },
                                 },
-                                "required": ["title", "description", "can_work_parallel"],
+                                "required": [
+                                    "title",
+                                    "description",
+                                    "can_work_parallel",
+                                ],
                             },
                             "description": "List of tasks in this category",
                         },
@@ -321,7 +341,9 @@ Available tools:
         categories = []
 
         while True:
-            response = await self.provider.chat(messages=messages, tools=[create_todo_tool])
+            response = await self.provider.chat(
+                messages=messages, tools=[create_todo_tool]
+            )
 
             if response.tool_calls:
                 for tool_call in response.tool_calls:
@@ -368,8 +390,10 @@ Available tools:
             todos_content += "\n"
 
         return todos_content
-    
-    async def generate_interactive(self, user_prompt: str, requirements: str, design: str, interaction_callback) -> Tuple[str, List[Dict[str, str]]]:
+
+    async def generate_interactive(
+        self, user_prompt: str, requirements: str, design: str, interaction_callback
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """Interactive todos creation with back-and-forth discussion."""
         conversation_log = []
 
@@ -414,7 +438,9 @@ Available functions:
         ]
 
         while True:
-            response = await self.provider.chat(messages=messages, tools=[finalize_tool])
+            response = await self.provider.chat(
+                messages=messages, tools=[finalize_tool]
+            )
 
             conversation_log.append(
                 {"role": "assistant", "content": response.content or "Processing..."}
@@ -428,7 +454,11 @@ Available functions:
 
             if interaction_callback:
                 user_response = await interaction_callback("AI", response.content)
-                if user_response is None or user_response.lower() in ["quit", "exit", "done"]:
+                if user_response is None or user_response.lower() in [
+                    "quit",
+                    "exit",
+                    "done",
+                ]:
                     final_todos = await self.generate(user_prompt, requirements, design)
                     return final_todos, conversation_log
 

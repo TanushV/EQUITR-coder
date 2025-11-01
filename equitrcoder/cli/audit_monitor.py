@@ -9,12 +9,32 @@ from ..core.audit_monitor import AuditMonitor
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Run the audit monitor to audit groups on completion")
-    p.add_argument("--todo-file", required=True, help="Path to the session-local todos.json")
-    p.add_argument("--task-name", required=True, help="Task/session name used for audit output under docs/<task>")
-    p.add_argument("--auth-token", required=False, default=None, help="Audit auth token. If omitted, uses ENV EQUITR_AUDIT_TOKEN")
-    p.add_argument("--sections-file", required=False, default=None, help="Optional JSON mapping of group_id -> [section paths]")
-    p.add_argument("--poll-interval", type=float, default=10.0, help="Polling interval seconds")
+    p = argparse.ArgumentParser(
+        description="Run the audit monitor to audit groups on completion"
+    )
+    p.add_argument(
+        "--todo-file", required=True, help="Path to the session-local todos.json"
+    )
+    p.add_argument(
+        "--task-name",
+        required=True,
+        help="Task/session name used for audit output under docs/<task>",
+    )
+    p.add_argument(
+        "--auth-token",
+        required=False,
+        default=None,
+        help="Audit auth token. If omitted, uses ENV EQUITR_AUDIT_TOKEN",
+    )
+    p.add_argument(
+        "--sections-file",
+        required=False,
+        default=None,
+        help="Optional JSON mapping of group_id -> [section paths]",
+    )
+    p.add_argument(
+        "--poll-interval", type=float, default=10.0, help="Polling interval seconds"
+    )
     return p.parse_args()
 
 
@@ -22,7 +42,9 @@ async def _amain() -> None:
     args = _parse_args()
     token: Optional[str] = args.auth_token or os.environ.get("EQUITR_AUDIT_TOKEN")
     if not token:
-        print("Warning: no EQUITR_AUDIT_TOKEN set. Use --auth-token or set ENV; write ops require it.")
+        print(
+            "Warning: no EQUITR_AUDIT_TOKEN set. Use --auth-token or set ENV; write ops require it."
+        )
         # Allow monitor to run; tools will gate write ops as needed
 
     monitor = AuditMonitor(
@@ -42,5 +64,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

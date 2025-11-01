@@ -11,7 +11,9 @@ from ..core.unified_config import get_config
 class RepositoryIndexer:
     """Indexes repository files and provides context for the LLM."""
 
-    def __init__(self, repo_path: str = ".", ignore_patterns: Optional[List[str]] = None):
+    def __init__(
+        self, repo_path: str = ".", ignore_patterns: Optional[List[str]] = None
+    ):
         self.repo_path = Path(repo_path).resolve()
         self.ignore_patterns = ignore_patterns or []
         self.analyzer = RepositoryAnalyzer(repo_path)
@@ -293,7 +295,9 @@ class RepositoryIndexer:
 
         # File tree (limited depth)
         context_parts.append("\n## File Tree")
-        tree_str = self._format_tree(file_tree, max_depth=get_config('limits.max_depth', 3))
+        tree_str = self._format_tree(
+            file_tree, max_depth=get_config("limits.max_depth", 3)
+        )
         context_parts.append(tree_str)
 
         # Entry points
@@ -311,7 +315,11 @@ class RepositoryIndexer:
         return "\n".join(context_parts)
 
     def _format_tree(
-        self, tree: Dict[str, Any], prefix: str = "", max_depth: int = 3, current_depth: int = 0
+        self,
+        tree: Dict[str, Any],
+        prefix: str = "",
+        max_depth: int = 3,
+        current_depth: int = 0,
     ) -> str:
         """Format file tree as a string with limited depth."""
         if current_depth >= max_depth:

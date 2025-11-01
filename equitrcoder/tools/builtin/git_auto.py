@@ -17,7 +17,7 @@ class GitAutoCommit:
     def _check_git_repo(self) -> bool:
         """Check if directory is a git repository"""
         try:
-            _result = subprocess.run(
+            subprocess.run(
                 ["git", "rev-parse", "--git-dir"],
                 cwd=self.repo_path,
                 capture_output=True,

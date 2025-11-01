@@ -52,7 +52,9 @@ class CreateFile(Tool):
 
 
 class CreateFilesArgs(BaseModel):
-    files: List[Dict[str, Any]] = Field(..., description="List of {path, content} entries to create atomically")
+    files: List[Dict[str, Any]] = Field(
+        ..., description="List of {path, content} entries to create atomically"
+    )
 
 
 class CreateFiles(Tool):
@@ -75,7 +77,9 @@ class CreateFiles(Tool):
                 rel = str(item.get("path", ""))
                 file_path = (cwd / rel).resolve()
                 if not str(file_path).startswith(str(cwd)):
-                    return ToolResult(success=False, error=f"Path outside project directory: {rel}")
+                    return ToolResult(
+                        success=False, error=f"Path outside project directory: {rel}"
+                    )
             # Second pass: create
             for item in args.files:
                 rel = str(item.get("path", ""))
@@ -84,7 +88,9 @@ class CreateFiles(Tool):
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_text(content, encoding="utf-8")
                 created.append({"path": str(file_path), "bytes_written": len(content)})
-            return ToolResult(success=True, data={"created": created, "count": len(created)})
+            return ToolResult(
+                success=True, data={"created": created, "count": len(created)}
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
@@ -190,7 +196,9 @@ class EditFile(Tool):
 
 
 class EditFilesArgs(BaseModel):
-    edits: List[Dict[str, Any]] = Field(..., description="List of edits: {path, old_content, new_content}")
+    edits: List[Dict[str, Any]] = Field(
+        ..., description="List of edits: {path, old_content, new_content}"
+    )
 
 
 class EditFiles(Tool):
@@ -212,9 +220,14 @@ class EditFiles(Tool):
             for edit in args.edits:
                 file_path = (cwd / str(edit.get("path", ""))).resolve()
                 if not str(file_path).startswith(str(cwd)):
-                    return ToolResult(success=False, error=f"Path outside project directory: {file_path}")
+                    return ToolResult(
+                        success=False,
+                        error=f"Path outside project directory: {file_path}",
+                    )
                 if not file_path.exists():
-                    return ToolResult(success=False, error=f"File {file_path} does not exist")
+                    return ToolResult(
+                        success=False, error=f"File {file_path} does not exist"
+                    )
             # Apply edits
             for edit in args.edits:
                 file_path = (cwd / str(edit.get("path", ""))).resolve()
@@ -222,11 +235,15 @@ class EditFiles(Tool):
                 new_content = str(edit.get("new_content", ""))
                 content = file_path.read_text(encoding="utf-8")
                 if old_content not in content:
-                    return ToolResult(success=False, error=f"Old content not found in {file_path}")
+                    return ToolResult(
+                        success=False, error=f"Old content not found in {file_path}"
+                    )
                 updated = content.replace(old_content, new_content)
                 file_path.write_text(updated, encoding="utf-8")
                 changed.append({"path": str(file_path), "new_size": len(updated)})
-            return ToolResult(success=True, data={"changed": changed, "count": len(changed)})
+            return ToolResult(
+                success=True, data={"changed": changed, "count": len(changed)}
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 

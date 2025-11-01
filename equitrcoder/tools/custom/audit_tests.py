@@ -12,9 +12,8 @@ import json
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Type
 
 from pydantic import BaseModel, Field
 
@@ -96,7 +95,9 @@ def _generate_test_content_for_file(src: Path) -> str:
     lines.append("")
     lines.append("def _load_module_from_path(path_str: str):")
     lines.append("    path = Path(path_str)")
-    lines.append("    spec = importlib.util.spec_from_file_location(path.stem, path_str)")
+    lines.append(
+        "    spec = importlib.util.spec_from_file_location(path.stem, path_str)"
+    )
     lines.append("    mod = importlib.util.module_from_spec(spec)")
     lines.append("    assert spec and spec.loader is not None")
     lines.append("    spec.loader.exec_module(mod)")
@@ -154,9 +155,13 @@ class _AuthMixin:
 
 class CreateGroupTestsArgs(BaseModel):
     group_id: str = Field(..., description="Task group identifier")
-    section_paths: List[str] = Field(..., description="Paths to source files or folders")
+    section_paths: List[str] = Field(
+        ..., description="Paths to source files or folders"
+    )
     auth_token: str = Field(..., description="Audit auth token for write operations")
-    overwrite: bool = Field(default=False, description="Overwrite existing tests if present")
+    overwrite: bool = Field(
+        default=False, description="Overwrite existing tests if present"
+    )
 
 
 class CreateGroupTests(Tool, _AuthMixin):
@@ -175,7 +180,9 @@ class CreateGroupTests(Tool, _AuthMixin):
     async def run(self, **kwargs) -> ToolResult:
         args = self.validate_args(kwargs)
         if not self._check_auth_token(args.auth_token):
-            return ToolResult(success=False, error="Unauthorized: invalid audit auth token")
+            return ToolResult(
+                success=False, error="Unauthorized: invalid audit auth token"
+            )
 
         created: List[str] = []
         skipped: List[str] = []
@@ -212,7 +219,9 @@ class CreateGroupTests(Tool, _AuthMixin):
 
 class GetGroupTestStatusesArgs(BaseModel):
     group_id: str = Field(..., description="Task group identifier")
-    pytest_args: List[str] = Field(default_factory=list, description="Extra pytest CLI args")
+    pytest_args: List[str] = Field(
+        default_factory=list, description="Extra pytest CLI args"
+    )
 
 
 class GetGroupTestStatuses(Tool):
@@ -229,7 +238,14 @@ class GetGroupTestStatuses(Tool):
         args = self.validate_args(kwargs)
         test_dir = _group_test_dir(args.group_id)
         if not test_dir.exists():
-            return ToolResult(success=True, data={"group_id": args.group_id, "exists": False, "summary": "no tests"})
+            return ToolResult(
+                success=True,
+                data={
+                    "group_id": args.group_id,
+                    "exists": False,
+                    "summary": "no tests",
+                },
+            )
 
         cmd = ["python", "-m", "pytest", str(test_dir), "-q"] + list(args.pytest_args)
         try:
@@ -260,7 +276,11 @@ class GetGroupTestStatuses(Tool):
                 "command": " ".join(cmd),
                 "missing_pytest": missing_pytest,
             },
-            error=None if return_code == 0 else (stderr or summary_line or "pytest failed"),
+            error=(
+                None
+                if return_code == 0
+                else (stderr or summary_line or "pytest failed")
+            ),
         )
 
 
@@ -285,17 +305,23 @@ class ListGroupTests(Tool):
         files: List[Dict[str, object]] = []
         for path_str, meta in group_map.items():
             p = Path(path_str)
-            files.append({
-                "path": path_str,
-                "exists": p.exists(),
-                "defective": bool(meta.get("defective", False)),
-            })
-        return ToolResult(success=True, data={"group_id": args.group_id, "tests": files})
+            files.append(
+                {
+                    "path": path_str,
+                    "exists": p.exists(),
+                    "defective": bool(meta.get("defective", False)),
+                }
+            )
+        return ToolResult(
+            success=True, data={"group_id": args.group_id, "tests": files}
+        )
 
 
 class MarkDefectiveTestsArgs(BaseModel):
     group_id: str = Field(..., description="Task group identifier")
-    test_patterns_or_paths: List[str] = Field(..., description="Patterns or exact paths to mark defective")
+    test_patterns_or_paths: List[str] = Field(
+        ..., description="Patterns or exact paths to mark defective"
+    )
     auth_token: str = Field(..., description="Audit auth token for write operations")
 
 
@@ -315,7 +341,9 @@ class MarkDefectiveTests(Tool, _AuthMixin):
     async def run(self, **kwargs) -> ToolResult:
         args = self.validate_args(kwargs)
         if not self._check_auth_token(args.auth_token):
-            return ToolResult(success=False, error="Unauthorized: invalid audit auth token")
+            return ToolResult(
+                success=False, error="Unauthorized: invalid audit auth token"
+            )
 
         registry = _load_registry()
         group_map = registry.get(args.group_id, {})
@@ -341,13 +369,17 @@ class MarkDefectiveTests(Tool, _AuthMixin):
         registry[args.group_id] = group_map
         _save_registry(registry)
 
-        return ToolResult(success=True, data={"group_id": args.group_id, "marked_defective": affected})
+        return ToolResult(
+            success=True, data={"group_id": args.group_id, "marked_defective": affected}
+        )
 
 
 class RemoveDefectiveTestsArgs(BaseModel):
     group_id: str = Field(..., description="Task group identifier")
     auth_token: str = Field(..., description="Audit auth token for write operations")
-    remove_files: bool = Field(default=False, description="If true, delete archived files permanently")
+    remove_files: bool = Field(
+        default=False, description="If true, delete archived files permanently"
+    )
 
 
 class RemoveDefectiveTests(Tool, _AuthMixin):
@@ -366,7 +398,9 @@ class RemoveDefectiveTests(Tool, _AuthMixin):
     async def run(self, **kwargs) -> ToolResult:
         args = self.validate_args(kwargs)
         if not self._check_auth_token(args.auth_token):
-            return ToolResult(success=False, error="Unauthorized: invalid audit auth token")
+            return ToolResult(
+                success=False, error="Unauthorized: invalid audit auth token"
+            )
 
         registry = _load_registry()
         group_map = registry.get(args.group_id, {})
@@ -391,6 +425,11 @@ class RemoveDefectiveTests(Tool, _AuthMixin):
                     except Exception:
                         pass
 
-        return ToolResult(success=True, data={"group_id": args.group_id, "removed": removed, "deleted_files": bool(args.remove_files)})
-
-
+        return ToolResult(
+            success=True,
+            data={
+                "group_id": args.group_id,
+                "removed": removed,
+                "deleted_files": bool(args.remove_files),
+            },
+        )

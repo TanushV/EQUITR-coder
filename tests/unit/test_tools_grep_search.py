@@ -45,11 +45,15 @@ async def test_grep_search_case_sensitivity(tmp_path: Path):
     (tmp_path / "case.py").write_text("Token\ntoken\n", encoding="utf-8")
 
     tool = GrepSearch()
-    res_insensitive = await tool.run(pattern=r"token", path=str(tmp_path), case_sensitive=False)
+    res_insensitive = await tool.run(
+        pattern=r"token", path=str(tmp_path), case_sensitive=False
+    )
     assert res_insensitive.success is True
     assert res_insensitive.data["total_matches"] == 2
 
-    res_sensitive = await tool.run(pattern=r"token", path=str(tmp_path), case_sensitive=True)
+    res_sensitive = await tool.run(
+        pattern=r"token", path=str(tmp_path), case_sensitive=True
+    )
     assert res_sensitive.success is True
     assert res_sensitive.data["total_matches"] == 1
 
@@ -65,4 +69,4 @@ async def test_grep_search_path_safety(tmp_path: Path):
     # traversal should be rejected
     res_trav = await tool.run(pattern=r".", path="../")
     assert res_trav.success is False
-    assert "Path traversal" in (res_trav.error or "") 
+    assert "Path traversal" in (res_trav.error or "")

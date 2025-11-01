@@ -11,11 +11,13 @@ from ..tools.builtin.todo import TodoManager
 
 class TodoParser:
     """Parses todos from documents and creates them in the todo system"""
-    
+
     def __init__(self, todo_manager: TodoManager):
         self.todo_manager = todo_manager
-    
-    async def parse_and_create_todos(self, todos_content: str, task_folder: Optional[str] = None) -> int:
+
+    async def parse_and_create_todos(
+        self, todos_content: str, task_folder: Optional[str] = None
+    ) -> int:
         """Parse the todos document and create todos only for this specific task.
         Uses a single group derived from task_folder or 'general'."""
         print(f"📝 Parsing todos content (length: {len(todos_content)} chars)")
@@ -46,17 +48,21 @@ class TodoParser:
                 task_description = line[5:].strip()  # Remove '- [ ] '
                 if task_description:
                     try:
-                        self.todo_manager.add_todo_to_group(group_id=group_id, title=task_description)
+                        self.todo_manager.add_todo_to_group(
+                            group_id=group_id, title=task_description
+                        )
                         print(f"✅ Created todo {todo_count + 1}: {task_description}")
                         todo_count += 1
                     except Exception as e:
-                        print(f"❌ Warning: Could not create todo '{task_description}': {e}")
+                        print(
+                            f"❌ Warning: Could not create todo '{task_description}': {e}"
+                        )
                 else:
                     print(f"⚠️ Empty task description on line {i + 1}: '{line}'")
 
         print(f"📝 Total todos created for this isolated task: {todo_count}")
         return todo_count
-    
+
     def parse_categories(self, todos_content: str) -> List[Dict[str, Any]]:
         """Parse todos content into categories for parallel agent distribution."""
         categories: List[Dict[str, Any]] = []
@@ -68,10 +74,9 @@ class TodoParser:
             if line.startswith("## "):
                 # Save previous category
                 if current_category and current_todos:
-                    categories.append({
-                        "name": current_category, 
-                        "todos": current_todos.copy()
-                    })
+                    categories.append(
+                        {"name": current_category, "todos": current_todos.copy()}
+                    )
                 # Start new category
                 current_category = line[3:].strip()  # Remove '## '
                 current_todos = []
@@ -81,14 +86,13 @@ class TodoParser:
 
         # Save last category
         if current_category and current_todos:
-            categories.append({
-                "name": current_category, 
-                "todos": current_todos.copy()
-            })
+            categories.append({"name": current_category, "todos": current_todos.copy()})
 
         return categories
-    
-    def create_agent_todos_content(self, categories: List[Dict[str, Any]], agent_idx: int, num_agents: int) -> str:
+
+    def create_agent_todos_content(
+        self, categories: List[Dict[str, Any]], agent_idx: int, num_agents: int
+    ) -> str:
         """Create todos content for a specific agent based on category distribution."""
         # Assign categories to this agent (round-robin distribution)
         agent_categories: List[Dict[str, Any]] = []
@@ -106,7 +110,7 @@ class TodoParser:
 
         for category in agent_categories:
             content += f"## {category['name']}\n"
-            for todo in category['todos']:
+            for todo in category["todos"]:
                 content += f"{todo}\n"
             content += "\n"
 

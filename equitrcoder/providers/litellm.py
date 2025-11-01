@@ -98,11 +98,15 @@ class LiteLLMProvider:
         # Global rate limiting (shared across all providers)
         # Defaults can be overridden via environment variables
         try:
-            self.global_min_interval = float(os.environ.get("EQUITR_LLM_GLOBAL_MIN_INTERVAL", "2.0"))
+            self.global_min_interval = float(
+                os.environ.get("EQUITR_LLM_GLOBAL_MIN_INTERVAL", "2.0")
+            )
         except Exception:
             self.global_min_interval = 2.0
         try:
-            self.global_max_concurrency = int(os.environ.get("EQUITR_LLM_GLOBAL_MAX_CONCURRENCY", "2"))
+            self.global_max_concurrency = int(
+                os.environ.get("EQUITR_LLM_GLOBAL_MAX_CONCURRENCY", "2")
+            )
         except Exception:
             self.global_max_concurrency = 2
 
@@ -175,36 +179,84 @@ class LiteLLMProvider:
             except Exception as e:
                 last_exception = e
                 error_msg = str(e).lower()
-                if any(k in error_msg for k in [
-                    "authentication", "unauthorized", "invalid key", "api key", "invalid_api_key"
-                ]):
+                if any(
+                    k in error_msg
+                    for k in [
+                        "authentication",
+                        "unauthorized",
+                        "invalid key",
+                        "api key",
+                        "invalid_api_key",
+                    ]
+                ):
                     print(f"❌ Authentication error, not retrying: {e}")
                     raise e
-                if any(k in error_msg for k in [
-                    "model not found", "invalid model", "model does not exist", "unsupported model"
-                ]):
+                if any(
+                    k in error_msg
+                    for k in [
+                        "model not found",
+                        "invalid model",
+                        "model does not exist",
+                        "unsupported model",
+                    ]
+                ):
                     print(f"❌ Model error, not retrying: {e}")
                     raise e
-                is_rate_limit = any(k in error_msg for k in [
-                    "rate limit", "quota", "429", "too many requests", "retry-after"
-                ])
-                is_server_error = any(k in error_msg for k in [
-                    "500", "502", "503", "504", "internal server error", "bad gateway", "service unavailable", "gateway timeout", "connection", "timeout", "network"
-                ])
-                is_json_error = any(k in error_msg for k in ["json", "parsing", "decode", "invalid response format"])
+                is_rate_limit = any(
+                    k in error_msg
+                    for k in [
+                        "rate limit",
+                        "quota",
+                        "429",
+                        "too many requests",
+                        "retry-after",
+                    ]
+                )
+                is_server_error = any(
+                    k in error_msg
+                    for k in [
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "internal server error",
+                        "bad gateway",
+                        "service unavailable",
+                        "gateway timeout",
+                        "connection",
+                        "timeout",
+                        "network",
+                    ]
+                )
+                is_json_error = any(
+                    k in error_msg
+                    for k in ["json", "parsing", "decode", "invalid response format"]
+                )
                 should_retry = is_rate_limit or is_server_error or is_json_error
                 if not should_retry:
                     print(f"❌ Non-retryable error: {str(e)[:100]}...")
                     raise e
                 if attempt >= self.max_retries:
-                    print(f"❌ Max retries ({self.max_retries}) reached for the same request")
+                    print(
+                        f"❌ Max retries ({self.max_retries}) reached for the same request"
+                    )
                     raise e
-                delay = min(self.base_delay * (self.backoff_multiplier ** attempt), self.max_delay)
+                delay = min(
+                    self.base_delay * (self.backoff_multiplier**attempt), self.max_delay
+                )
                 jitter = random.uniform(0.1, 0.3) * delay
                 total_delay = delay + jitter
-                error_type = "Rate limit" if is_rate_limit else ("Server error" if is_server_error else "JSON error")
-                print(f"⚠️  {error_type} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)[:80]}...")
-                print(f"⏱️  Retrying SAME request in {total_delay:.1f}s with exponential backoff...")
+                error_type = (
+                    "Rate limit"
+                    if is_rate_limit
+                    else ("Server error" if is_server_error else "JSON error")
+                )
+                print(
+                    f"⚠️  {error_type} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)[:80]}..."
+                )
+                print(
+                    f"⏱️  Retrying SAME request in {total_delay:.1f}s with exponential backoff..."
+                )
                 await asyncio.sleep(total_delay)
         raise last_exception
 
@@ -223,9 +275,13 @@ class LiteLLMProvider:
         """Global gate enforcing max concurrency and minimum interval across all providers."""
         # Enforce global min interval (coarse-grained) by sleeping between tokens
         # Use a simple timestamp shared across processes via _RateLimitGlobals
-        sleep_needed = _RateLimitGlobals.seconds_until_next_allowed(self.global_min_interval)
+        sleep_needed = _RateLimitGlobals.seconds_until_next_allowed(
+            self.global_min_interval
+        )
         if sleep_needed > 0:
-            print(f"⏱️  Global rate limiting: waiting {sleep_needed:.1f}s (min interval {self.global_min_interval}s)")
+            print(
+                f"⏱️  Global rate limiting: waiting {sleep_needed:.1f}s (min interval {self.global_min_interval}s)"
+            )
             await asyncio.sleep(sleep_needed)
         # Acquire concurrency slot (async-compatible via thread pool semaphore pattern)
         acquired = await _RateLimitGlobals.acquire_slot_async()
@@ -261,16 +317,24 @@ class LiteLLMProvider:
             # Cache key based on model + messages + tools
             if self._enable_cache:
                 try:
-                    import hashlib, json as _json
+                    import hashlib
+                    import json as _json
+
                     cache_payload = {
                         "model": self.model,
                         "messages": [
-                            msg if isinstance(msg, dict) else {"role": msg.role, "content": msg.content}
+                            (
+                                msg
+                                if isinstance(msg, dict)
+                                else {"role": msg.role, "content": msg.content}
+                            )
                             for msg in messages
                         ],
                         "tools": tools or [],
                     }
-                    cache_key = hashlib.sha256(_json.dumps(cache_payload, sort_keys=True).encode("utf-8")).hexdigest()
+                    cache_key = hashlib.sha256(
+                        _json.dumps(cache_payload, sort_keys=True).encode("utf-8")
+                    ).hexdigest()
                     if cache_key in self._cache:
                         return self._cache[cache_key]
                 except Exception:
@@ -282,7 +346,10 @@ class LiteLLMProvider:
                 if isinstance(msg, dict):
                     formatted_messages.append(msg)
                     continue
-                formatted_msg: Dict[str, Any] = {"role": msg.role, "content": msg.content}
+                formatted_msg: Dict[str, Any] = {
+                    "role": msg.role,
+                    "content": msg.content,
+                }
                 if getattr(msg, "tool_call_id", None):
                     formatted_msg["tool_call_id"] = msg.tool_call_id
                 if getattr(msg, "name", None):
@@ -298,9 +365,15 @@ class LiteLLMProvider:
                 **kwargs,
             }
             # Only include temperature when supported; OpenAI o-series and gpt-5 ignore temperature
-            effective_temp = temperature if temperature is not None else self.temperature
+            effective_temp = (
+                temperature if temperature is not None else self.temperature
+            )
             if effective_temp is not None:
-                if not (self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1") or self.model.startswith("o3")):
+                if not (
+                    self.model.startswith("gpt-5")
+                    or self.model.startswith("gpt-4.1")
+                    or self.model.startswith("o3")
+                ):
                     params["temperature"] = effective_temp
             # Token parameter handling: avoid sending unsupported keys by default
             # Only include token limits when explicitly requested
@@ -316,16 +389,21 @@ class LiteLLMProvider:
 
             # Enable reasoning/thinking when supported by the model
             try:
-                supports_reason = hasattr(litellm, "supports_reasoning") and litellm.supports_reasoning(model=self.model)
+                supports_reason = hasattr(
+                    litellm, "supports_reasoning"
+                ) and litellm.supports_reasoning(model=self.model)
             except Exception:
                 supports_reason = False
             if supports_reason:
                 # Prefer modern reasoning params for GPT-5 and o-series; fall back to legacy where needed
                 reasoning_effort = "high"
                 try:
-                    from ..core.unified_config import get_config  # local import to avoid cycles
-                    enable_thinking = get_config('llm.enable_thinking', True)
-                    budget_tokens = get_config('llm.reasoning_budget_tokens', 1024)
+                    from ..core.unified_config import (
+                        get_config,
+                    )  # local import to avoid cycles
+
+                    enable_thinking = get_config("llm.enable_thinking", True)
+                    budget_tokens = get_config("llm.reasoning_budget_tokens", 1024)
                 except Exception:
                     enable_thinking = True
                     budget_tokens = 1024
@@ -337,7 +415,10 @@ class LiteLLMProvider:
                     params["reasoning_effort"] = reasoning_effort
                     if enable_thinking and "thinking" not in params:
                         try:
-                            params["thinking"] = {"type": "enabled", "budget_tokens": int(budget_tokens)}
+                            params["thinking"] = {
+                                "type": "enabled",
+                                "budget_tokens": int(budget_tokens),
+                            }
                         except Exception:
                             # Fallback silently if budget invalid
                             params["thinking"] = {"type": "enabled"}
@@ -364,7 +445,9 @@ class LiteLLMProvider:
                     params["tools"] = functions
                     params["tool_choice"] = "auto"
                 else:
-                    print(f"⚠️ Model {self.model} does not support function calling, tools will be ignored")
+                    print(
+                        f"⚠️ Model {self.model} does not support function calling, tools will be ignored"
+                    )
 
             # Decide API: use Responses API for GPT-5 family and similar if available
             # Prefer Responses API when available to allow mid-reasoning tool use.
@@ -378,14 +461,20 @@ class LiteLLMProvider:
 
             if should_try_responses:
                 # Map params -> responses params
-                responses_params: Dict[str, Any] = {k: v for k, v in params.items() if k != "messages"}
+                responses_params: Dict[str, Any] = {
+                    k: v for k, v in params.items() if k != "messages"
+                }
                 responses_params["input"] = formatted_messages
                 # Tokens: prefer max_output_tokens for responses
                 if "max_completion_tokens" in responses_params:
-                    responses_params["max_output_tokens"] = responses_params.pop("max_completion_tokens")
+                    responses_params["max_output_tokens"] = responses_params.pop(
+                        "max_completion_tokens"
+                    )
                 # Call responses API (safe fallback to chat.completions on error)
                 try:
-                    response = await self._exponential_backoff_retry(self._make_responses_request, **responses_params)
+                    response = await self._exponential_backoff_retry(
+                        self._make_responses_request, **responses_params
+                    )
                 except Exception:
                     response = None
 
@@ -411,10 +500,22 @@ class LiteLLMProvider:
                                         function_data = function_data.dict()
                                     elif not isinstance(function_data, dict):
                                         function_data = {
-                                            "name": getattr(function_data, "name", str(function_data)),
-                                            "arguments": getattr(function_data, "arguments", "{}"),
+                                            "name": getattr(
+                                                function_data,
+                                                "name",
+                                                str(function_data),
+                                            ),
+                                            "arguments": getattr(
+                                                function_data, "arguments", "{}"
+                                            ),
                                         }
-                                    tool_calls.append(ToolCall(id=getattr(tc, "id", ""), type=getattr(tc, "type", "function"), function=function_data))
+                                    tool_calls.append(
+                                        ToolCall(
+                                            id=getattr(tc, "id", ""),
+                                            type=getattr(tc, "type", "function"),
+                                            function=function_data,
+                                        )
+                                    )
                     except Exception:
                         pass
 
@@ -424,23 +525,36 @@ class LiteLLMProvider:
                         output_items = getattr(response, "output", None)
                         if output_items:
                             import json as _json  # local import to avoid global dependency
+
                             for item in output_items:
                                 item_type = str(getattr(item, "type", "") or "").lower()
                                 # Aggregate text content from message/content segments
-                                if hasattr(item, "content") and getattr(item, "content"):
+                                if hasattr(item, "content") and getattr(
+                                    item, "content"
+                                ):
                                     for piece in getattr(item, "content", []) or []:
                                         text_value = getattr(piece, "text", None)
                                         if isinstance(text_value, str) and text_value:
                                             content_parts.append(text_value)
                                 # Detect tool use segments
                                 if item_type in ("tool_use", "tool_call"):
-                                    call_id = getattr(item, "id", None) or getattr(item, "tool_call_id", None) or f"call_{len(tool_calls)+1}"
+                                    call_id = (
+                                        getattr(item, "id", None)
+                                        or getattr(item, "tool_call_id", None)
+                                        or f"call_{len(tool_calls)+1}"
+                                    )
                                     function_name = (
                                         getattr(item, "name", None)
-                                        or getattr(getattr(item, "function", None), "name", None)
+                                        or getattr(
+                                            getattr(item, "function", None),
+                                            "name",
+                                            None,
+                                        )
                                         or "tool"
                                     )
-                                    raw_args = getattr(item, "arguments", None) or getattr(item, "input", None)
+                                    raw_args = getattr(
+                                        item, "arguments", None
+                                    ) or getattr(item, "input", None)
                                     if isinstance(raw_args, str):
                                         arguments_str = raw_args
                                     else:
@@ -448,15 +562,28 @@ class LiteLLMProvider:
                                             arguments_str = _json.dumps(raw_args or {})
                                         except Exception:
                                             arguments_str = "{}"
-                                    function_payload = {"name": function_name, "arguments": arguments_str}
-                                    tool_calls.append(ToolCall(id=str(call_id), type="function", function=function_payload))
+                                    function_payload = {
+                                        "name": function_name,
+                                        "arguments": arguments_str,
+                                    }
+                                    tool_calls.append(
+                                        ToolCall(
+                                            id=str(call_id),
+                                            type="function",
+                                            function=function_payload,
+                                        )
+                                    )
                     except Exception:
                         pass
 
                 # Usage mapping
                 usage: Dict[str, Any] = {}
                 try:
-                    if response is not None and hasattr(response, "usage") and response.usage:
+                    if (
+                        response is not None
+                        and hasattr(response, "usage")
+                        and response.usage
+                    ):
                         raw_usage = response.usage
                         if hasattr(raw_usage, "model_dump"):
                             u = raw_usage.model_dump()
@@ -469,9 +596,20 @@ class LiteLLMProvider:
                                 "total_tokens": getattr(raw_usage, "total_tokens", 0),
                             }
                         usage = {
-                            "prompt_tokens": int(u.get("input_tokens", u.get("prompt_tokens", 0)) or 0),
-                            "completion_tokens": int(u.get("output_tokens", u.get("completion_tokens", 0)) or 0),
-                            "total_tokens": int(u.get("total_tokens", 0) or (int(u.get("input_tokens", 0) or 0) + int(u.get("output_tokens", 0) or 0))),
+                            "prompt_tokens": int(
+                                u.get("input_tokens", u.get("prompt_tokens", 0)) or 0
+                            ),
+                            "completion_tokens": int(
+                                u.get("output_tokens", u.get("completion_tokens", 0))
+                                or 0
+                            ),
+                            "total_tokens": int(
+                                u.get("total_tokens", 0)
+                                or (
+                                    int(u.get("input_tokens", 0) or 0)
+                                    + int(u.get("output_tokens", 0) or 0)
+                                )
+                            ),
                         }
                 except Exception:
                     usage = {}
@@ -479,13 +617,17 @@ class LiteLLMProvider:
                 content = ("\n".join(content_parts)).strip()
                 cost = self._calculate_cost(usage, self.model)
                 if response is not None:
-                    resp = ChatResponse(content=content, tool_calls=tool_calls, usage=usage, cost=cost)
+                    resp = ChatResponse(
+                        content=content, tool_calls=tool_calls, usage=usage, cost=cost
+                    )
                     if self._enable_cache and cache_key:
                         self._cache[cache_key] = resp
                     return resp
 
             # Default: classic Chat Completions path
-            response = await self._exponential_backoff_retry(self._make_completion_request, **params)
+            response = await self._exponential_backoff_retry(
+                self._make_completion_request, **params
+            )
 
             choice = response.choices[0]
             message = choice.message
@@ -504,7 +646,9 @@ class LiteLLMProvider:
                             "name": getattr(function_data, "name", str(function_data)),
                             "arguments": getattr(function_data, "arguments", "{}"),
                         }
-                    tool_calls.append(ToolCall(id=tc.id, type=tc.type, function=function_data))
+                    tool_calls.append(
+                        ToolCall(id=tc.id, type=tc.type, function=function_data)
+                    )
 
             usage: Dict[str, Any] = {}
             if hasattr(response, "usage") and response.usage:
@@ -515,12 +659,16 @@ class LiteLLMProvider:
                 else:
                     usage = {
                         "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                        "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                        "completion_tokens": getattr(
+                            response.usage, "completion_tokens", 0
+                        ),
                         "total_tokens": getattr(response.usage, "total_tokens", 0),
                     }
 
             cost = self._calculate_cost(usage, self.model)
-            resp = ChatResponse(content=content, tool_calls=tool_calls, usage=usage, cost=cost)
+            resp = ChatResponse(
+                content=content, tool_calls=tool_calls, usage=usage, cost=cost
+            )
             if self._enable_cache and cache_key:
                 self._cache[cache_key] = resp
             return resp
@@ -571,6 +719,7 @@ class LiteLLMProvider:
 
 class _RateLimitGlobals:
     """Module-level global rate limiting primitives."""
+
     _semaphore: Optional[asyncio.Semaphore] = None
     _lock = threading.Lock()
     _last_request_ts: float = 0.0
@@ -631,7 +780,10 @@ class _RateLimitGlobals:
                 if isinstance(msg, dict):
                     formatted_messages.append(msg)
                     continue
-                formatted_msg: Dict[str, Any] = {"role": msg.role, "content": msg.content}
+                formatted_msg: Dict[str, Any] = {
+                    "role": msg.role,
+                    "content": msg.content,
+                }
                 if getattr(msg, "tool_call_id", None):
                     formatted_msg["tool_call_id"] = msg.tool_call_id
                 if getattr(msg, "name", None):
@@ -647,9 +799,13 @@ class _RateLimitGlobals:
                 **kwargs,
             }
             # Only include temperature when supported; some Canary models accept default only
-            effective_temp = temperature if temperature is not None else self.temperature
+            effective_temp = (
+                temperature if temperature is not None else self.temperature
+            )
             if effective_temp is not None:
-                if not (self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1")):
+                if not (
+                    self.model.startswith("gpt-5") or self.model.startswith("gpt-4.1")
+                ):
                     params["temperature"] = effective_temp
             # Token parameter handling: avoid sending unsupported keys by default
             # Only include token limits when explicitly requested
@@ -663,17 +819,24 @@ class _RateLimitGlobals:
 
             # Enable reasoning/thinking when supported by the model
             try:
-                supports_reason = hasattr(litellm, "supports_reasoning") and litellm.supports_reasoning(model=self.model)
+                supports_reason = hasattr(
+                    litellm, "supports_reasoning"
+                ) and litellm.supports_reasoning(model=self.model)
             except Exception:
                 supports_reason = False
             if supports_reason:
                 # Default to medium effort; allow overrides via provider_kwargs or config
                 reasoning_effort = self.provider_kwargs.get("reasoning_effort")
                 try:
-                    from ..core.unified_config import get_config  # local import to avoid cycles
-                    reasoning_effort = reasoning_effort or get_config('llm.reasoning_effort', None)
-                    enable_thinking = get_config('llm.enable_thinking', True)
-                    budget_tokens = get_config('llm.reasoning_budget_tokens', 1024)
+                    from ..core.unified_config import (
+                        get_config,
+                    )  # local import to avoid cycles
+
+                    reasoning_effort = reasoning_effort or get_config(
+                        "llm.reasoning_effort", None
+                    )
+                    enable_thinking = get_config("llm.enable_thinking", True)
+                    budget_tokens = get_config("llm.reasoning_budget_tokens", 1024)
                 except Exception:
                     enable_thinking = True
                     budget_tokens = 1024
@@ -682,7 +845,10 @@ class _RateLimitGlobals:
                 params["reasoning_effort"] = reasoning_effort
                 if enable_thinking and "thinking" not in params:
                     try:
-                        params["thinking"] = {"type": "enabled", "budget_tokens": int(budget_tokens)}
+                        params["thinking"] = {
+                            "type": "enabled",
+                            "budget_tokens": int(budget_tokens),
+                        }
                     except Exception:
                         # Fallback silently if budget invalid
                         params["thinking"] = {"type": "enabled"}
@@ -708,9 +874,13 @@ class _RateLimitGlobals:
                     params["tools"] = functions
                     params["tool_choice"] = "auto"
                 else:
-                    print(f"⚠️ Model {self.model} does not support function calling, tools will be ignored")
+                    print(
+                        f"⚠️ Model {self.model} does not support function calling, tools will be ignored"
+                    )
 
-            response = await self._exponential_backoff_retry(self._make_completion_request, **params)
+            response = await self._exponential_backoff_retry(
+                self._make_completion_request, **params
+            )
 
             choice = response.choices[0]
             message = choice.message
@@ -729,7 +899,9 @@ class _RateLimitGlobals:
                             "name": getattr(function_data, "name", str(function_data)),
                             "arguments": getattr(function_data, "arguments", "{}"),
                         }
-                    tool_calls.append(ToolCall(id=tc.id, type=tc.type, function=function_data))
+                    tool_calls.append(
+                        ToolCall(id=tc.id, type=tc.type, function=function_data)
+                    )
 
             usage: Dict[str, Any] = {}
             if hasattr(response, "usage") and response.usage:
@@ -740,19 +912,25 @@ class _RateLimitGlobals:
                 else:
                     usage = {
                         "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                        "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                        "completion_tokens": getattr(
+                            response.usage, "completion_tokens", 0
+                        ),
                         "total_tokens": getattr(response.usage, "total_tokens", 0),
                     }
 
             cost = self._calculate_cost(usage, self.model)
-            return ChatResponse(content=content, tool_calls=tool_calls, usage=usage, cost=cost)
+            return ChatResponse(
+                content=content, tool_calls=tool_calls, usage=usage, cost=cost
+            )
 
         except Exception as e:
             error_msg = self._format_error(e)
             print(f"❌ LiteLLM request failed: {error_msg}")
             raise Exception(f"LiteLLM request failed: {error_msg}")
 
-    async def embedding(self, text: Union[str, List[str]], model: Optional[str] = None, **kwargs) -> List[List[float]]:
+    async def embedding(
+        self, text: Union[str, List[str]], model: Optional[str] = None, **kwargs
+    ) -> List[List[float]]:
         try:
             embedding_model = model or self._get_embedding_model()
             if isinstance(text, str):

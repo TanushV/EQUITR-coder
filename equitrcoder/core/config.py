@@ -177,7 +177,9 @@ class ConfigManager:
             # Optionally derive from limits.context_max_tokens or llm.max_tokens if available
             try:
                 limits_cfg = config_data.get("limits", {}) or {}
-                candidate_tokens = limits_cfg.get("context_max_tokens") or config_data.get("llm", {}).get("max_tokens")
+                candidate_tokens = limits_cfg.get(
+                    "context_max_tokens"
+                ) or config_data.get("llm", {}).get("max_tokens")
                 if isinstance(candidate_tokens, (int, float)) and candidate_tokens > 0:
                     # Convert tokens to characters using a conservative multiplier
                     estimated_chars = int(candidate_tokens * 8)

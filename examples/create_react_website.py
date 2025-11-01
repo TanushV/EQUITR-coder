@@ -30,10 +30,17 @@ Requirements:
 - Tests: basic component test(s)
 """
 
+
 async def main() -> None:
     # Ensure API key(s) exist
-    if not (os.getenv("OPENAI_API_KEY") or os.getenv("MOONSHOT_API_KEY") or os.getenv("ANTHROPIC_API_KEY")):
-        print("⚠️  No API keys found. Set OPENAI_API_KEY, MOONSHOT_API_KEY, or ANTHROPIC_API_KEY.")
+    if not (
+        os.getenv("OPENAI_API_KEY")
+        or os.getenv("MOONSHOT_API_KEY")
+        or os.getenv("ANTHROPIC_API_KEY")
+    ):
+        print(
+            "⚠️  No API keys found. Set OPENAI_API_KEY, MOONSHOT_API_KEY, or ANTHROPIC_API_KEY."
+        )
         return
 
     # Project directory (unique per run)
@@ -69,4 +76,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

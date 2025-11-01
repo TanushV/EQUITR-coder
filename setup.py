@@ -7,14 +7,18 @@ from pathlib import Path
 
 # Read README
 readme_path = Path(__file__).parent / "README.md"
-long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+long_description = (
+    readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+)
 
 # Read requirements
 requirements_path = Path(__file__).parent / "requirements.txt"
 requirements = []
 if requirements_path.exists():
-    requirements = requirements_path.read_text().strip().split('\n')
-    requirements = [req.strip() for req in requirements if req.strip() and not req.startswith('#')]
+    requirements = requirements_path.read_text().strip().split("\n")
+    requirements = [
+        req.strip() for req in requirements if req.strip() and not req.startswith("#")
+    ]
 
 setup(
     name="equitrcoder",
@@ -57,11 +61,11 @@ setup(
         ],
         "all": [
             "fastapi>=0.104.0",
-            "uvicorn>=0.24.0", 
+            "uvicorn>=0.24.0",
             "textual>=0.45.0",
             "rich>=13.0.0",
             "mcp>=0.1.0",
-        ]
+        ],
     },
     entry_points={
         "console_scripts": [

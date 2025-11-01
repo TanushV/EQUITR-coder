@@ -11,11 +11,21 @@ from ..base import Tool, ToolResult
 
 class GrepSearchArgs(BaseModel):
     pattern: str = Field(..., description="Regex pattern to search for")
-    path: str = Field(default=".", description="Base directory to search from (relative or absolute)")
-    include: Optional[str] = Field(default=None, description="Glob pattern to include (e.g., '*.py')")
-    exclude: Optional[str] = Field(default=None, description="Glob pattern to exclude (e.g., 'node_modules/*')")
-    case_sensitive: bool = Field(default=False, description="Whether the search is case sensitive")
-    max_results: int = Field(default=200, ge=1, le=5000, description="Maximum number of matches to return")
+    path: str = Field(
+        default=".", description="Base directory to search from (relative or absolute)"
+    )
+    include: Optional[str] = Field(
+        default=None, description="Glob pattern to include (e.g., '*.py')"
+    )
+    exclude: Optional[str] = Field(
+        default=None, description="Glob pattern to exclude (e.g., 'node_modules/*')"
+    )
+    case_sensitive: bool = Field(
+        default=False, description="Whether the search is case sensitive"
+    )
+    max_results: int = Field(
+        default=200, ge=1, le=5000, description="Maximum number of matches to return"
+    )
 
     @field_validator("path")
     @classmethod
@@ -28,7 +38,9 @@ class GrepSearchArgs(BaseModel):
         try:
             posix_in = v.replace("\\", "/").strip()
             if posix_in.startswith("/etc") or posix_in.startswith("/private/etc"):
-                raise ValueError("Path traversal not allowed. Use a safe project or temp directory.")
+                raise ValueError(
+                    "Path traversal not allowed. Use a safe project or temp directory."
+                )
         except Exception:
             pass
         if ".." in v:
@@ -51,7 +63,9 @@ class GrepSearchArgs(BaseModel):
             ]
             for bp in blocked_prefixes:
                 if real_posix == bp or real_posix.startswith(bp + "/"):
-                    raise ValueError("Path traversal not allowed. Use a safe project or temp directory.")
+                    raise ValueError(
+                        "Path traversal not allowed. Use a safe project or temp directory."
+                    )
         return v
 
 
@@ -66,9 +80,7 @@ class GrepSearch(Tool):
         return "grep_search"
 
     def get_description(self) -> str:
-        return (
-            "Search recursively for a regex pattern in text files with optional include/exclude filters."
-        )
+        return "Search recursively for a regex pattern in text files with optional include/exclude filters."
 
     def get_args_schema(self) -> Type[BaseModel]:
         return GrepSearchArgs
@@ -80,7 +92,10 @@ class GrepSearch(Tool):
             try:
                 norm = (args.path or ".").replace("\\", "/").strip()
                 if norm.startswith("/etc") or norm.startswith("/private/etc"):
-                    return ToolResult(success=False, error="Path traversal not allowed. Use a safe project or temp directory")
+                    return ToolResult(
+                        success=False,
+                        error="Path traversal not allowed. Use a safe project or temp directory",
+                    )
             except Exception:
                 pass
         except Exception as e:
@@ -88,7 +103,10 @@ class GrepSearch(Tool):
 
         base_path = Path(args.path)
         if not base_path.exists() or not base_path.is_dir():
-            return ToolResult(success=False, error=f"Directory {base_path} does not exist or is not a directory")
+            return ToolResult(
+                success=False,
+                error=f"Directory {base_path} does not exist or is not a directory",
+            )
 
         # Compile regex
         flags = 0 if args.case_sensitive else re.IGNORECASE
@@ -98,7 +116,17 @@ class GrepSearch(Tool):
             return ToolResult(success=False, error=f"Invalid regex pattern: {e}")
 
         # Directories to skip
-        skip_dirs = {".git", ".hg", ".svn", ".venv", "venv", "node_modules", "dist", "build", "__pycache__"}
+        skip_dirs = {
+            ".git",
+            ".hg",
+            ".svn",
+            ".venv",
+            "venv",
+            "node_modules",
+            "dist",
+            "build",
+            "__pycache__",
+        }
 
         matches: List[Dict[str, Any]] = []
         files_scanned = 0
@@ -151,11 +179,9 @@ class GrepSearch(Tool):
                     # Search line by line for performance and accurate line numbers
                     for i, line in enumerate(content.splitlines(), start=1):
                         if regex.search(line):
-                            matches.append({
-                                "path": str(entry),
-                                "line_number": i,
-                                "line": line
-                            })
+                            matches.append(
+                                {"path": str(entry), "line_number": i, "line": line}
+                            )
                             if len(matches) >= args.max_results:
                                 break
             except PermissionError:
@@ -171,4 +197,4 @@ class GrepSearch(Tool):
                 "total_matches": len(matches),
                 "files_scanned": files_scanned,
             },
-        ) 
+        )

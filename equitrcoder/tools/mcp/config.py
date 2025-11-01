@@ -20,8 +20,12 @@ class MCPServerConfig(BaseModel):
     """Configuration for a single MCP server instance."""
 
     command: str = Field(..., description="Executable to launch the MCP server")
-    args: List[str] = Field(default_factory=list, description="Arguments for the server command")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables for the server process")
+    args: List[str] = Field(
+        default_factory=list, description="Arguments for the server command"
+    )
+    env: Dict[str, str] = Field(
+        default_factory=dict, description="Environment variables for the server process"
+    )
     transport: str = Field(
         default="stdio",
         description="Transport type for MCP connection (supported: 'stdio').",
@@ -55,7 +59,9 @@ def _candidate_paths() -> List[Path]:
     candidates.append(Path("~/.EQUITR-coder/mcp_servers.json").expanduser())
 
     # Project packaged default
-    packaged_default = Path(__file__).resolve().parents[2] / "config" / "mcp_servers.json"
+    packaged_default = (
+        Path(__file__).resolve().parents[2] / "config" / "mcp_servers.json"
+    )
     candidates.append(packaged_default)
 
     return candidates
@@ -92,5 +98,3 @@ def load_mcp_config() -> Tuple[Optional[MCPServersFile], Optional[Path], Optiona
         return cfg, path, None
     except ValidationError as ve:
         return None, path, f"Invalid MCP servers config: {ve}"
-
-

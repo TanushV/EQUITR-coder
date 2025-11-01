@@ -33,8 +33,8 @@ TASK_DESCRIPTION = (
     "game objects - no sprites or images needed. Provide README and usage instructions."
 )
 
-NUM_AGENTS = get_config('limits.max_workers', 5)
-MAX_COST_USD = get_config('limits.max_cost', 30.0)  # Increased for multiple agents
+NUM_AGENTS = get_config("limits.max_workers", 5)
+MAX_COST_USD = get_config("limits.max_cost", 30.0)  # Increased for multiple agents
 # Force the exact models requested regardless of config overrides
 SUPERVISOR_MODEL = "gpt-5"
 WORKER_MODEL = "gpt-5-mini"
@@ -51,6 +51,7 @@ TEAM_PROFILES = [
 # -----------------------------------------------------------------------------
 # Helper: enable maximal logging (LLM responses + tool calls)
 # -----------------------------------------------------------------------------
+
 
 def configure_logging(log_dir: Path) -> None:
     """Configure rich logging; write everything to file and echo INFO to stdout."""
@@ -75,6 +76,7 @@ def configure_logging(log_dir: Path) -> None:
 # Main async task
 # -----------------------------------------------------------------------------
 
+
 async def main() -> None:
     base_dir = Path("generated_projects")
     time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -94,14 +96,16 @@ async def main() -> None:
         description=TASK_NAME,
         max_workers=NUM_AGENTS,
         max_cost=MAX_COST_USD,
-        max_iterations=get_config('limits.max_iterations', 50),
+        max_iterations=get_config("limits.max_iterations", 50),
         supervisor_model=SUPERVISOR_MODEL,
         worker_model=WORKER_MODEL,
         auto_commit=True,
         team=TEAM_PROFILES,
     )
 
-    logging.info("🚀 Starting multi-agent task with specialized team: %s", TEAM_PROFILES)
+    logging.info(
+        "🚀 Starting multi-agent task with specialized team: %s", TEAM_PROFILES
+    )
     logging.info("📋 Task name: %s", TASK_NAME)
 
     result = await coder.execute_task(
@@ -116,4 +120,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

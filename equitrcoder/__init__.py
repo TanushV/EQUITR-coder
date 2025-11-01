@@ -23,7 +23,7 @@ Quick Start:
         "Build a web server with authentication",
         auto_commit=True  # Automatic git commits
     )
-    
+
     # Multi-agent with parallel phases and auto-commits
     from equitrcoder.modes.multi_agent_mode import run_multi_agent_parallel
     result = await run_multi_agent_parallel(
@@ -31,7 +31,7 @@ Quick Start:
         num_agents=3,
         auto_commit=True  # Automatic git commits after each phase
     )
-    
+
     # Professional programmatic interface
     from equitrcoder import EquitrCoder, TaskConfiguration
     coder = EquitrCoder(git_enabled=True)

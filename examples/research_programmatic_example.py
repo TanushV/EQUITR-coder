@@ -9,9 +9,7 @@ import json
 
 
 TASK_NAME = "Time series forecasting research (synthetic dataset)"
-TASK_DESCRIPTION = (
-    "Use the provided synthetic time series dataset to plan, run, and report forecasting experiments."
-)
+TASK_DESCRIPTION = "Use the provided synthetic time series dataset to plan, run, and report forecasting experiments."
 
 LOG_BASENAME = "research_run.log"
 SUMMARY_BASENAME = "research_run_summary.json"
@@ -62,6 +60,7 @@ async def main():
         y1 = 0.0
         y2 = 0.0
         import math
+
         for t in range(total_points):
             trend = trend_coef * t
             season = 1.4 * math.sin(2 * math.pi * t / seasonal_period)
@@ -95,24 +94,42 @@ async def main():
         team=["ml_researcher", "data_engineer", "experiment_runner"],
         research_context={
             "datasets": [
-                {"path": str(dataset_path), "description": "Synthetic univariate time series (trend+seasonality+AR+noise)"}
+                {
+                    "path": str(dataset_path),
+                    "description": "Synthetic univariate time series (trend+seasonality+AR+noise)",
+                }
             ],
             # Provide simple, cross-platform experiments that always pass
             "experiments": [
-                {"name": "smoke", "command": "python -c \"print('ok')\"", "timeout": 120}
-            ]
+                {
+                    "name": "smoke",
+                    "command": "python -c \"print('ok')\"",
+                    "timeout": 120,
+                }
+            ],
         },
     )
     logging.info("Starting research task: %s", TASK_NAME)
-    logging.info("Config: max_workers=%d, max_cost=%.2f, supervisor_model=%s, worker_model=%s, team=%s",
-                 config.max_workers, config.max_cost, config.supervisor_model, config.worker_model, ",".join(config.team))
+    logging.info(
+        "Config: max_workers=%d, max_cost=%.2f, supervisor_model=%s, worker_model=%s, team=%s",
+        config.max_workers,
+        config.max_cost,
+        config.supervisor_model,
+        config.worker_model,
+        ",".join(config.team),
+    )
     result = await coder.execute_task(TASK_DESCRIPTION, config)
     print("Success:", result.success)
     print("Cost:", result.cost)
     print("Execution Time:", result.execution_time)
     if result.error:
         print("Error:", result.error)
-    logging.info("Task finished. Success=%s, Cost=%.4f, Execution Time=%.2fs", result.success, result.cost, result.execution_time)
+    logging.info(
+        "Task finished. Success=%s, Cost=%.4f, Execution Time=%.2fs",
+        result.success,
+        result.cost,
+        result.execution_time,
+    )
     if result.error:
         logging.error("Error: %s", result.error)
 
@@ -130,7 +147,11 @@ async def main():
             "worker_model": "gpt-4o-mini",
             "team": ["ml_researcher", "data_engineer", "experiment_runner"],
             "experiments": [
-                {"name": "smoke", "command": "python -c \"print('ok')\"", "timeout": 120}
+                {
+                    "name": "smoke",
+                    "command": "python -c \"print('ok')\"",
+                    "timeout": 120,
+                }
             ],
         },
         "result": {
@@ -152,4 +173,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

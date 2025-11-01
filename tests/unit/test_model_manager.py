@@ -34,11 +34,9 @@ class TestModelManager:
         """Test function calling support detection."""
         # Should support function calling
         assert self.model_manager._supports_function_calling("gpt-4")
-        assert (
-            self.model_manager._supports_function_calling("openai/gpt-3.5-turbo")
-        )
-        assert (
-            self.model_manager._supports_function_calling("anthropic/claude-3-sonnet")
+        assert self.model_manager._supports_function_calling("openai/gpt-3.5-turbo")
+        assert self.model_manager._supports_function_calling(
+            "anthropic/claude-3-sonnet"
         )
 
         # Should not support function calling (unknown models)

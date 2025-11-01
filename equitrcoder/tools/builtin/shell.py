@@ -36,12 +36,22 @@ class RunCommand(Tool):
             args = self.validate_args(kwargs)
 
             # Enforce sandbox: disallow attempts to cd outside CWD
-            cwd = Path.cwd().resolve()
-            disallowed_patterns = [" cd /", " cd ~", " cd ..", "cd ../", "cd ../../", "cd /..", "cd ~/"]
+            disallowed_patterns = [
+                " cd /",
+                " cd ~",
+                " cd ..",
+                "cd ../",
+                "cd ../../",
+                "cd /..",
+                "cd ~/",
+            ]
             cmd_lower = args.command.lower()
             for pat in disallowed_patterns:
                 if pat in cmd_lower:
-                    return ToolResult(success=False, error="Changing directories outside project is not allowed")
+                    return ToolResult(
+                        success=False,
+                        error="Changing directories outside project is not allowed",
+                    )
 
             # Security check - block dangerous commands
             dangerous_commands = [
@@ -87,7 +97,9 @@ class RunCommand(Tool):
             else:
                 # Fallback to cmd.exe on Windows, sh on POSIX
                 if os.name == "nt":
-                    shell_exe = os.environ.get("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
+                    shell_exe = os.environ.get(
+                        "COMSPEC", "C:\\Windows\\System32\\cmd.exe"
+                    )
                     shell_args = ["/d", "/c", command]
                 else:
                     shell_exe = shutil.which("sh") or "/bin/sh"
