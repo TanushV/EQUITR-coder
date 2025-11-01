@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional
 
 import pathspec
 
-from .analyzer import RepositoryAnalyzer
 from ..core.unified_config import get_config
+from .analyzer import RepositoryAnalyzer
 
 
 class RepositoryIndexer:

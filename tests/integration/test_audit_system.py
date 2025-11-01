@@ -1,21 +1,20 @@
-import os
 import json
+import os
 import shutil
 from pathlib import Path
 
 import pytest
 
-
+from equitrcoder.agents.audit_agent import AuditAgent
+from equitrcoder.providers.litellm import ChatResponse
+from equitrcoder.tools.base import ToolResult
+from equitrcoder.tools.builtin.todo import set_global_todo_file
 from equitrcoder.tools.custom.audit_tests import (
     CreateGroupTests,
     ListGroupTests,
     MarkDefectiveTests,
     RemoveDefectiveTests,
 )
-from equitrcoder.tools.base import ToolResult
-from equitrcoder.agents.audit_agent import AuditAgent
-from equitrcoder.tools.builtin.todo import set_global_todo_file
-from equitrcoder.providers.litellm import ChatResponse
 
 
 @pytest.fixture(autouse=True)

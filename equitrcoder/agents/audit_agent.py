@@ -10,12 +10,12 @@ AuditAgent orchestrates post-task-group completion audits:
 from __future__ import annotations
 
 import json
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .base_agent import BaseAgent
+from ..providers.litellm import LiteLLMProvider, Message
 from ..tools.builtin.todo import (
     get_todo_manager,
     set_global_todo_file,
@@ -25,7 +25,7 @@ from ..tools.custom.audit_tests import (
     GetGroupTestStatuses,
     ListGroupTests,
 )
-from ..providers.litellm import LiteLLMProvider, Message
+from .base_agent import BaseAgent
 
 
 class AuditAgent(BaseAgent):

@@ -6,7 +6,7 @@ iteration budget as audit, while keeping a distinct system prompt and accepting
 explicit context (including full docs) for the supervisor.
 """
 
-from typing import List, Optional, Type, Dict, Any
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel, Field
 
@@ -158,7 +158,9 @@ class AskSupervisor(Tool):
         tool_schemas: List[Dict[str, Any]] = []
         tools_by_name: Dict[str, Any] = {}
         try:
-            from ...tools.discovery import discover_tools as _discover_tools  # type: ignore
+            from ...tools.discovery import (
+                discover_tools as _discover_tools,  # type: ignore
+            )
         except Exception:
             _discover_tools = None  # type: ignore
 

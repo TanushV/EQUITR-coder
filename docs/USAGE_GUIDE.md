@@ -18,8 +18,10 @@ The TUI will run the full researcher flow and the final Markdown report is gener
 
 - Single:
   - `equitrcoder single "Implement feature X" --model moonshot/kimi-k2-0711-preview`
-- Multi:
+- Multi (parallel by default):
   - `equitrcoder multi "Implement system Y" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3 --team backend_dev,frontend_dev,qa_engineer`
+- Multi (sequential execution):
+  - `equitrcoder multi "Implement system Y" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3 --team backend_dev,frontend_dev,qa_engineer --execution-mode sequential`
 - Research (ML only):
   - `equitrcoder research "Evaluate model on dataset" --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview --workers 3 --team ml_researcher,data_engineer,experiment_runner`
   - Team defaults: `ml_researcher,data_engineer,experiment_runner`

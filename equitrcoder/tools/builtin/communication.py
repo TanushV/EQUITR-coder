@@ -1,10 +1,11 @@
 # equitrcoder/tools/builtin/communication.py
 
-from typing import List, Optional, Type, Dict, Any
+from typing import Any, Dict, List, Optional, Type
+
 from pydantic import BaseModel, Field
 
-from ..base import Tool, ToolResult
 from ...core.global_message_pool import global_message_pool
+from ..base import Tool, ToolResult
 
 
 class SendMessageArgs(BaseModel):
@@ -84,8 +85,8 @@ def create_communication_tools_for_agent(
 
     docs_context: full docs_result dict to provide to ask_supervisor for rich context.
     """
-    from .ask_supervisor import AskSupervisor
     from ...providers.litellm import LiteLLMProvider
+    from .ask_supervisor import AskSupervisor
 
     supervisor_provider = LiteLLMProvider(model=supervisor_model)
 

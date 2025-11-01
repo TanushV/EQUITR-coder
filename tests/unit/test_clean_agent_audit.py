@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
-import pytest
 
+import pytest
 
 from equitrcoder.core.clean_agent import CleanAgent
 from equitrcoder.tools.base import Tool, ToolResult

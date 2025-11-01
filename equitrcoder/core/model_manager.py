@@ -8,9 +8,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ..providers.litellm import LiteLLMProvider
+from ..providers.litellm import LiteLLMProvider, Message
 from .unified_config import get_config
-from ..providers.litellm import Message
 
 
 @dataclass

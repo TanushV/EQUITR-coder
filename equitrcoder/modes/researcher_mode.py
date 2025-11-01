@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -9,13 +10,13 @@ from typing import Any, Callable, Dict, List, Optional
 import yaml
 
 from ..core.clean_orchestrator import CleanOrchestrator
-from ..providers.litellm import LiteLLMProvider, Message
 from ..modes.multi_agent_mode import MultiAgentMode
-from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
-from ..utils.git_manager import GitManager
+from ..providers.litellm import LiteLLMProvider, Message
+from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
 
 # Tools used programmatically
-from ..tools.custom.research_tools import RunExperiments, HardwareInfo
+from ..tools.custom.research_tools import HardwareInfo, RunExperiments
+from ..utils.git_manager import GitManager
 
 
 class ResearcherMode:
@@ -60,6 +61,7 @@ class ResearcherMode:
         session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Main entry for researcher mode."""
+        original_cwd = os.getcwd()
         try:
             project_dir = Path(project_path).resolve()
 
@@ -151,9 +153,6 @@ class ResearcherMode:
             )  # Use the session-local todo file
 
             # Change to project directory so tools work with correct relative paths
-            import os
-
-            original_cwd = os.getcwd()
             os.chdir(str(project_dir))
 
             try:
@@ -306,10 +305,9 @@ class ResearcherMode:
                 # Report path will be part of artifacts written by the experiment_runner task
                 # Final audit after phases (regardless of experiment outcomes)
                 try:
-                    from ..tools.discovery import discover_tools
-
                     # Reuse CleanAgent audit pathway directly for a single audit
                     from ..core.clean_agent import CleanAgent
+                    from ..tools.discovery import discover_tools
 
                     audit_agent = CleanAgent(
                         agent_id="final_research_auditor",

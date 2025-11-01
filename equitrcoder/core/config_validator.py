@@ -7,8 +7,9 @@ and implements configuration hot-reloading capability.
 
 import logging
 import os
-from typing import Dict, Any, List
-from .unified_config import get_config_manager, ValidationResult
+from typing import Any, Dict, List
+
+from .unified_config import ValidationResult, get_config_manager
 
 logger = logging.getLogger(__name__)
 

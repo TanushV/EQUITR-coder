@@ -13,15 +13,15 @@ Features:
 """
 
 import io
-import time
 import logging
-from typing import List, Dict, Any, Optional, Union
-from dataclasses import dataclass
-from datetime import datetime
 import threading
+import time
 
 # import weakref  # Unused
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 

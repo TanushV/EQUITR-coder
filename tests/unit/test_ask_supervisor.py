@@ -1,4 +1,5 @@
 import json
+
 import pytest
 
 from equitrcoder.tools.base import Tool, ToolResult

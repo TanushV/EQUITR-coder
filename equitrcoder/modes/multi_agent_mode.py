@@ -8,15 +8,16 @@ from datetime import datetime
 
 # from pathlib import Path  # Unused
 from typing import Any, Callable, Dict, List, Optional
+
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
-from ..tools.discovery import discover_tools
 from ..core.global_message_pool import global_message_pool
-from ..tools.builtin.communication import create_communication_tools_for_agent
-from ..tools.builtin.todo import set_global_todo_file, get_todo_manager
-from ..utils.git_manager import GitManager
 from ..core.profile_manager import ProfileManager
 from ..core.unified_config import get_config_manager
+from ..tools.builtin.communication import create_communication_tools_for_agent
+from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
+from ..tools.discovery import discover_tools
+from ..utils.git_manager import GitManager
 
 
 class MultiAgentMode:

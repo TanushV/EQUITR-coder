@@ -11,9 +11,10 @@ Tests the configuration validation system including:
 
 import os
 import tempfile
-import yaml
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+import yaml
 
 from equitrcoder.core.config_validator import (
     ConfigurationValidator,

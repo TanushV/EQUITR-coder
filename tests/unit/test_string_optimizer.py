@@ -9,22 +9,23 @@ Tests the string optimization system including:
 - Memory efficiency
 """
 
-import pytest
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from equitrcoder.core.string_optimizer import (
-    OptimizedStringBuilder,
     ContextBuilder,
-    StringTemplateEngine,
+    OptimizedStringBuilder,
     StringOperationMonitor,
     StringOperationStats,
-    get_string_monitor,
-    get_template_engine,
-    optimized_join,
+    StringTemplateEngine,
     build_context_efficiently,
     efficient_concatenate,
     efficient_format,
+    get_string_monitor,
+    get_template_engine,
+    optimized_join,
 )
 
 

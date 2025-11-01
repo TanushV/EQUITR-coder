@@ -72,7 +72,8 @@ async def main():
         max_cost=10.0,
         supervisor_model="gpt-4",
         worker_model="gpt-3.5-turbo",
-        auto_commit=True
+        auto_commit=True,
+        run_parallel=True  # Set to False to run sequentially
     )
     
     # Execute complex task

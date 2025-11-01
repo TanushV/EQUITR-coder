@@ -25,21 +25,30 @@ Expected output:
 🔄 Iterations: 7
 ```
 
-## Multi-Agent Parallel
+## Multi-Agent (Parallel or Sequential)
 
-Run with supervisor/worker models and specialized team profiles:
+Run with supervisor/worker models and specialized team profiles. Parallel execution is the default; add `--execution-mode sequential` to run groups one at a time:
 
 ```
+# Parallel phases (default)
 equitrcoder multi "Build a FastAPI + React app" \
   --supervisor-model moonshot/kimi-k2-0711-preview \
   --worker-model moonshot/kimi-k2-0711-preview \
   --workers 3 \
   --team backend_dev,frontend_dev,qa_engineer
+
+# Sequential execution
+equitrcoder multi "Build a FastAPI + React app" \
+  --supervisor-model moonshot/kimi-k2-0711-preview \
+  --worker-model moonshot/kimi-k2-0711-preview \
+  --workers 3 \
+  --team backend_dev,frontend_dev,qa_engineer \
+  --execution-mode sequential
 ```
 
-Expected output:
+Expected output (parallel example):
 ```
-🤖 Starting multi-agent task with 3 agents: Build a FastAPI + React app
+🤖 Starting multi-agent parallel task with 3 agents: Build a FastAPI + React app
 ============================================================
 [ASSISTANT] Planning task groups...
 🔧 Using tool: list_task_groups

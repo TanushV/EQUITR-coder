@@ -11,18 +11,19 @@ Tests the configuration management system including:
 
 import os
 import tempfile
-import yaml
-import pytest
-from unittest.mock import patch
 
 # from pathlib import Path  # Unused
 from datetime import timedelta
+from unittest.mock import patch
+
+import pytest
+import yaml
 
 from equitrcoder.core.unified_config import (
-    UnifiedConfigManager,
     ConfigurationData,
-    get_config_manager,
+    UnifiedConfigManager,
     get_config,
+    get_config_manager,
     set_config,
 )
 

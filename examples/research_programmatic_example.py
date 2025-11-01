@@ -1,12 +1,12 @@
 import asyncio
+import json
+import logging
+import os
+import random
 from datetime import datetime
 from pathlib import Path
-from equitrcoder.programmatic.interface import EquitrCoder, ResearchTaskConfiguration
-import random
-import os
-import logging
-import json
 
+from equitrcoder.programmatic.interface import EquitrCoder, ResearchTaskConfiguration
 
 TASK_NAME = "Time series forecasting research (synthetic dataset)"
 TASK_DESCRIPTION = "Use the provided synthetic time series dataset to plan, run, and report forecasting experiments."

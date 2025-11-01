@@ -10,24 +10,25 @@ Tests the dependency injection system including:
 - Scoped services
 """
 
-import pytest
 from abc import ABC, abstractmethod
 
+import pytest
+
 from equitrcoder.core.dependency_injection import (
-    DependencyInjectionContainer,
-    ServiceLifetime,
-    ServiceDescriptor,
-    DependencyScope,
     CircularDependencyError,
+    DependencyInjectionContainer,
+    DependencyScope,
+    ServiceDescriptor,
+    ServiceLifetime,
     ServiceNotRegisteredError,
-    injectable,
-    inject,
-    get_container,
     configure_container,
-    reset_container,
+    get_container,
+    inject,
+    injectable,
+    register_instance,
     register_singleton,
     register_transient,
-    register_instance,
+    reset_container,
     resolve,
 )
 

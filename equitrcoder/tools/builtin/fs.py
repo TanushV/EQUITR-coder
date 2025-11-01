@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Type, List, Dict, Any
+from typing import Any, Dict, List, Type
 
 from pydantic import BaseModel, Field
 

@@ -14,13 +14,13 @@ Features:
 """
 
 import logging
-import traceback
 import threading
-from typing import Any, Dict, List, Optional, Callable
+import traceback
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from collections import deque
+from typing import Any, Callable, Dict, List, Optional
 
 # import inspect  # Unused
 # import sys  # Unused

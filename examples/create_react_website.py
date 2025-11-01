@@ -10,11 +10,11 @@ interactive features. It demonstrates the standardized pattern:
 
 import asyncio
 import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-from equitrcoder.programmatic import EquitrCoder, TaskConfiguration
 from equitrcoder.core.unified_config import get_config
+from equitrcoder.programmatic import EquitrCoder, TaskConfiguration
 
 TASK_NAME = "Dog Hat Store (React)"
 

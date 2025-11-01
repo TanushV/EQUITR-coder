@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
 
-
 # Registry paths (under repo)
 REGISTRY_DIR = Path("tests") / "audit"
 REGISTRY_FILE = REGISTRY_DIR / "_registry.json"

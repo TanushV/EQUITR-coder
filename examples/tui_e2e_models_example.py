@@ -1,9 +1,9 @@
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
-import os
 
-from textual.widgets import Input, Button
+from textual.widgets import Button, Input
 
 from equitrcoder.ui.advanced_tui import EquitrTUI
 

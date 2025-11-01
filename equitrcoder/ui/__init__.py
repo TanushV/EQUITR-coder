@@ -1,7 +1,7 @@
 """UI components for the EQUITR Coder (unified advanced TUI only)."""
 
 try:
-    from .advanced_tui import EquitrTUI, launch_tui, launch_advanced_tui  # noqa: F401
+    from .advanced_tui import EquitrTUI, launch_advanced_tui, launch_tui  # noqa: F401
 
     __all__ = ["EquitrTUI", "launch_tui", "launch_advanced_tui"]
 except Exception:

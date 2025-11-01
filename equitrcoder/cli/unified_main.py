@@ -8,11 +8,12 @@ import sys
 
 from ..modes.multi_agent_mode import (
     run_multi_agent_parallel,
+    run_multi_agent_sequential,
 )
+from ..modes.researcher_mode import run_researcher_mode
 from ..modes.single_agent_mode import run_single_agent_mode
 from ..tools.discovery import discover_tools
 from ..ui import launch_tui as launch_unified_tui
-from ..modes.researcher_mode import run_researcher_mode
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -54,6 +55,12 @@ def create_parser() -> argparse.ArgumentParser:
     multi_parser.add_argument("--worker-model", help="Model for worker agents")
     multi_parser.add_argument(
         "--max-cost", type=float, default=10.0, help="Global cost limit"
+    )
+    multi_parser.add_argument(
+        "--execution-mode",
+        choices=["parallel", "sequential"],
+        default="parallel",
+        help="Multi-agent execution strategy (parallel phases or sequential execution)",
     )
 
     # Researcher mode command
@@ -202,8 +209,9 @@ async def run_multi_agent(args) -> int:
             "on_tool_call": on_tool_call,
         }
 
+        mode_label = "parallel" if args.execution_mode == "parallel" else "sequential"
         print(
-            f"🤖 Starting multi-agent task with {args.workers} agents: {args.coordination_task}"
+            f"🤖 Starting multi-agent {mode_label} task with {args.workers} agents: {args.coordination_task}"
         )
         print("=" * 60)
 
@@ -214,16 +222,21 @@ async def run_multi_agent(args) -> int:
         supervisor_model = args.supervisor_model or "moonshot/kimi-k2-0711-preview"
         worker_model = args.worker_model or "moonshot/kimi-k2-0711-preview"
 
-        result = await run_multi_agent_parallel(
+        runner = (
+            run_multi_agent_parallel
+            if args.execution_mode == "parallel"
+            else run_multi_agent_sequential
+        )
+
+        result = await runner(
             task_description=args.coordination_task,
             team=team,
             num_agents=args.workers,
             agent_model=worker_model,
             orchestrator_model=supervisor_model,  # Use supervisor for orchestrator
             audit_model=supervisor_model,
-            max_cost_per_agent=args.max_cost / args.workers,
+            max_cost_per_agent=args.max_cost / max(1, args.workers),
             max_iterations_per_agent=50,  # Add missing parameter
-            run_parallel=True,
             auto_commit=True,
             callbacks=callbacks,
         )
@@ -231,9 +244,13 @@ async def run_multi_agent(args) -> int:
         print("=" * 60)
         if result["success"]:
             print("✅ Multi-agent task completed successfully!")
-            print(f"💰 Total cost: ${result.get('total_cost', 0):.4f}")
-            print(f"🔄 Total iterations: {result.get('total_iterations', 0)}")
-            print(f"👥 Agents used: {result.get('num_agents', 0)}")
+            cost = result.get("cost", result.get("total_cost"))
+            if cost is not None:
+                print(f"💰 Total cost: ${float(cost):.4f}")
+            total_phases = result.get("total_phases")
+            if total_phases is not None:
+                print(f"🧭 Phases executed: {total_phases}")
+            print(f"👥 Agents requested: {args.workers}")
             return 0
         else:
             print(f"❌ Multi-agent task failed: {result.get('error', 'Unknown error')}")

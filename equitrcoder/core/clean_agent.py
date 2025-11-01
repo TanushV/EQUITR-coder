@@ -85,6 +85,7 @@ class CleanAgent:
                 max_tokens = max_tokens or get_config("limits.context_max_tokens", 4000)
                 """Generate a comprehensive repo map with functions, limited to max_tokens"""
                 import re
+
                 import tiktoken
 
                 try:
@@ -315,8 +316,9 @@ class CleanAgent:
         max_tokens = max_tokens or get_config("limits.context_max_tokens", 4000)
         """Generate a LIVE/dynamic repo map that reflects current file system state."""
         import re
-        import tiktoken
         from pathlib import Path
+
+        import tiktoken
 
         try:
             # Use tiktoken to count tokens accurately

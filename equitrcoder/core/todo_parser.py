@@ -5,7 +5,8 @@ This module handles parsing todos from documents and integrating them
 with the todo management system. Single responsibility: todo parsing and creation.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from ..tools.builtin.todo import TodoManager
 
 

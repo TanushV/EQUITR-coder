@@ -14,14 +14,14 @@ Features:
 - Component lifecycle management
 """
 
-import threading
 import inspect
-from typing import Any, Dict, Type, TypeVar, Callable, Optional, List, Set
+import logging
+import threading
 
 # Removed unused ABC imports
 from dataclasses import dataclass
 from enum import Enum
-import logging
+from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar
 
 logger = logging.getLogger(__name__)
 

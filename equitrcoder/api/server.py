@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Optional
 
 try:
     import uvicorn
-    from fastapi import FastAPI as _FastAPI, HTTPException as _HTTPException
+    from fastapi import FastAPI as _FastAPI
+    from fastapi import HTTPException as _HTTPException
     from fastapi.middleware.cors import CORSMiddleware
 
     HAS_FASTAPI = True
@@ -15,11 +16,12 @@ except Exception:  # pragma: no cover - import guard for mypy
 
 from pydantic import BaseModel
 
+from ..modes.multi_agent_mode import run_multi_agent_parallel
+from ..modes.single_agent_mode import run_single_agent_mode
+
 # Import orchestrators lazily inside functions to avoid mypy errors when optional
 # modules are not present in minimal environments.
 from ..tools.discovery import discover_tools
-from ..modes.single_agent_mode import run_single_agent_mode
-from ..modes.multi_agent_mode import run_multi_agent_parallel
 
 
 class TaskRequest(BaseModel):

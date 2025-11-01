@@ -55,11 +55,17 @@ Troubleshooting:
   ```bash
 equitrcoder single "Build a small API" --model moonshot/kimi-k2-0711-preview
   ```
-- Multi:
+- Multi (parallel phases):
   ```bash
 equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
   --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
   --team backend_dev,frontend_dev,qa_engineer
+  ```
+- Multi (sequential execution):
+  ```bash
+equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
+  --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
+  --team backend_dev,frontend_dev,qa_engineer --execution-mode sequential
   ```
 - Research (ML only):
   ```bash

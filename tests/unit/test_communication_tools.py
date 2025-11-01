@@ -2,8 +2,8 @@ import pytest
 
 from equitrcoder.core.global_message_pool import global_message_pool
 from equitrcoder.tools.builtin.communication import (
-    SendMessage,
     ReceiveMessages,
+    SendMessage,
 )
 
 

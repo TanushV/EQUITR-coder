@@ -1,19 +1,20 @@
 # equitrcoder/programmatic/interface.py
 
 from dataclasses import dataclass
-from typing import Optional, Union, List, Dict, Any
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+from ..core.model_manager import model_manager
+from ..core.session import SessionManagerV2
 from ..core.unified_config import get_config_manager
-from ..modes.single_agent_mode import run_single_agent_mode
 from ..modes.multi_agent_mode import (
     run_multi_agent_parallel,
     run_multi_agent_sequential,
 )
 from ..modes.researcher_mode import run_researcher_mode
+from ..modes.single_agent_mode import run_single_agent_mode
 from ..utils.git_manager import GitManager
-from ..core.session import SessionManagerV2
-from ..core.model_manager import model_manager
 
 
 @dataclass

@@ -9,8 +9,8 @@ Features:
 - Real-time updates and proper event handling
 """
 
-import sys
 import shlex
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -21,8 +21,6 @@ except ImportError:
     def get_valid_models(*args, **kwargs):
         return []
 
-
-from ..core.unified_config import get_config
 
 from rich.syntax import Syntax
 from rich.text import Text
@@ -36,10 +34,11 @@ from textual.widgets import (
     Label,
     ListItem,
     RichLog,
-    Static,
     Select,
+    Static,
 )
 
+from ..core.unified_config import get_config
 from ..core.unified_config import get_config_manager as _get_cm
 from ..programmatic import (
     EquitrCoder,
@@ -49,7 +48,7 @@ from ..programmatic import (
     create_multi_agent_coder,
     create_single_agent_coder,
 )
-from ..tools.builtin.todo import todo_manager
+from ..tools.builtin.todo import get_todo_manager
 
 config_manager = _get_cm()
 TEXTUAL_AVAILABLE = True
@@ -1420,7 +1419,8 @@ class EquitrTUI(App):
         try:
             # Build grouped todos view from manager
             groups = []
-            for group in todo_manager.plan.task_groups:
+            manager = get_todo_manager()
+            for group in manager.plan.task_groups:
                 group_entry = {
                     "group_id": group.group_id,
                     "description": group.description,

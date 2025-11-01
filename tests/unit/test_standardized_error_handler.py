@@ -9,22 +9,23 @@ Tests the error handling system including:
 - Error escalation
 """
 
-import pytest
 import threading
 from datetime import datetime
 
+import pytest
+
 from equitrcoder.core.standardized_error_handler import (
-    StandardizedErrorHandler,
-    ErrorSeverity,
-    ErrorCategory,
     ContextualError,
+    ErrorCategory,
+    ErrorSeverity,
+    EscalationResult,
     HandledError,
     RecoveryAction,
-    EscalationResult,
-    get_error_handler,
+    StandardizedErrorHandler,
     configure_error_handler,
-    handle_error,
     create_contextual_exception,
+    get_error_handler,
+    handle_error,
     handle_errors,
 )
 

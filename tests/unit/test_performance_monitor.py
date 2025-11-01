@@ -10,23 +10,24 @@ Tests the performance monitoring system including:
 - Optimization recommendations
 """
 
-import pytest
 import time
-from unittest.mock import patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from equitrcoder.core.performance_monitor import (
-    PerformanceMetrics,
-    PerformanceBaseline,
-    PerformanceAlert,
     MemoryProfiler,
-    PerformanceProfiler,
+    PerformanceAlert,
+    PerformanceBaseline,
+    PerformanceMetrics,
     PerformanceOptimizationEngine,
-    get_performance_engine,
+    PerformanceProfiler,
     configure_performance_engine,
+    get_performance_engine,
+    get_performance_report,
     monitor_performance,
     profile_performance,
-    get_performance_report,
 )
 
 

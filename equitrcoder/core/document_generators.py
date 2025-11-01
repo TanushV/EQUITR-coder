@@ -9,8 +9,8 @@ All generators implement the standardized IGenerator interface.
 import json
 from typing import Dict, List, Tuple
 
-from .interfaces import IGenerator, BaseConfigurable
 from ..providers.litellm import LiteLLMProvider, Message
+from .interfaces import BaseConfigurable, IGenerator
 
 
 class RequirementsGenerator(IGenerator[str], BaseConfigurable):

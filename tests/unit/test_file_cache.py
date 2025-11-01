@@ -10,24 +10,25 @@ Tests the file caching system including:
 - Thread safety
 """
 
-import pytest
-import tempfile
 import json
-import yaml
-import time
+import tempfile
 import threading
+import time
 from pathlib import Path
 
+import pytest
+import yaml
+
 from equitrcoder.core.file_cache import (
-    FileCache,
     CacheEntry,
     CacheStats,
-    get_file_cache,
-    configure_file_cache,
+    FileCache,
     cached_file_read,
-    invalidate_file_cache,
-    get_cache_stats,
     clear_file_cache,
+    configure_file_cache,
+    get_cache_stats,
+    get_file_cache,
+    invalidate_file_cache,
 )
 
 

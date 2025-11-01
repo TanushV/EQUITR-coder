@@ -1,8 +1,8 @@
 """Utility functions for LiteLLM model compatibility and function calling support."""
 
+import os
 from typing import Any, Dict, List
 
-import os
 import litellm
 
 

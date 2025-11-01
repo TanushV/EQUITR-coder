@@ -2,12 +2,12 @@ import asyncio
 import logging
 import os
 import random
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import litellm
-import threading
 
 
 @dataclass

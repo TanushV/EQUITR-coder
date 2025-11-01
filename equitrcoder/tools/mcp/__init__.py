@@ -8,8 +8,8 @@ or from a path specified in `EQUITR_MCP_SERVERS`.
 from .config import (
     MCPServerConfig,
     MCPServersFile,
-    load_mcp_config,
     find_mcp_config_path,
+    load_mcp_config,
 )
 
 __all__ = [

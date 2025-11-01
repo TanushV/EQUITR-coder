@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from ..base import Tool, ToolResult
 from .config import MCPServerConfig
-from .runtime_client import connect_stdio, call_server_tool
+from .runtime_client import call_server_tool, connect_stdio
 
 logger = logging.getLogger(__name__)
 

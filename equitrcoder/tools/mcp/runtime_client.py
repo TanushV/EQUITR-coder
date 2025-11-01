@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import AsyncIterator, Dict, Tuple
 from contextlib import asynccontextmanager
+from typing import AsyncIterator, Dict, Tuple
 
 try:
+    from mcp import types as mcp_types
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
-    from mcp import types as mcp_types
 
     HAS_MCP = True
 except Exception:  # pragma: no cover - optional dependency

@@ -41,6 +41,8 @@ Quick Start:
 
 __version__ = "2.3.0"
 
+from typing import List, Optional
+
 # Core agent classes
 from .agents import BaseAgent
 
@@ -65,7 +67,6 @@ from .programmatic import (
 
 # Tools
 from .tools.base import Tool, ToolResult
-from typing import Optional, List
 from .tools.discovery import discover_tools
 
 # Git Management

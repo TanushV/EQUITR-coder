@@ -1,13 +1,15 @@
 # equitrcoder/modes/single_agent_mode.py
 
+import os
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
+
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
-from ..tools.discovery import discover_tools
-from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
-from ..utils.git_manager import GitManager  # <-- NEW IMPORT
 from ..core.unified_config import get_config_manager
+from ..tools.builtin.todo import get_todo_manager, set_global_todo_file
+from ..tools.discovery import discover_tools
+from ..utils.git_manager import GitManager
 
 
 class SingleAgentMode:
@@ -62,6 +64,7 @@ class SingleAgentMode:
         task_name: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        original_cwd = os.getcwd()
         try:
             orchestrator = CleanOrchestrator(model=self.orchestrator_model)
             docs_result = await orchestrator.create_docs(
@@ -112,9 +115,6 @@ class SingleAgentMode:
             set_global_todo_file(docs_result["todos_path"])
 
             # Change to project directory so tools work with correct relative paths
-            import os
-
-            original_cwd = os.getcwd()
             os.chdir(project_path)
 
             total_cost = 0.0
