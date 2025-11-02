@@ -14,6 +14,35 @@ from ..modes.researcher_mode import run_researcher_mode
 from ..modes.single_agent_mode import run_single_agent_mode
 from ..tools.discovery import discover_tools
 from ..ui import launch_tui as launch_unified_tui
+from ..utils import ScaffoldError, scaffold
+
+
+def _print_context_usage(status: dict) -> None:
+    info = status.get("context_usage") if isinstance(status, dict) else None
+    if not info:
+        return
+
+    try:
+        usage_pct = float(info.get("usage_percentage", 0.0)) * 100
+        model_tokens = info.get("model_max_tokens")
+        tokens_until = info.get("tokens_until_compression")
+        threshold_pct = float(info.get("compression_threshold", 0.75)) * 100
+
+        if info.get("compression_triggered"):
+            post_pct = float(info.get("post_usage_percentage", 0.0)) * 100
+            freed = info.get("tokens_freed", 0)
+            post_total = info.get("post_total_tokens")
+            print(
+                f"   Context usage: {usage_pct:.1f}% of {model_tokens} tokens -> "
+                f"compressed to {post_pct:.1f}% ({post_total} tokens, freed {freed} tokens)"
+            )
+        else:
+            print(
+                f"   Context usage: {usage_pct:.1f}% of {model_tokens} tokens | "
+                f"{tokens_until} tokens until {threshold_pct:.0f}% compression threshold"
+            )
+    except Exception:
+        pass
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -94,6 +123,72 @@ def create_parser() -> argparse.ArgumentParser:
         help="TUI starting mode",
     )
 
+    # Extension scaffolding commands
+    init_ext_parser = subparsers.add_parser(
+        "init-extension", help="Initialize extension workspace directories"
+    )
+    init_ext_parser.add_argument(
+        "--root",
+        help="Target directory for extensions (defaults to ~/.EQUITR-coder/extensions)",
+    )
+
+    tool_scaffold_parser = subparsers.add_parser(
+        "create-tool", help="Scaffold a custom tool in the extensions directory"
+    )
+    tool_scaffold_parser.add_argument(
+        "name", help="Name for the tool (snake-case recommended)"
+    )
+    tool_scaffold_parser.add_argument(
+        "--root",
+        help="Target directory for extensions (defaults to ~/.EQUITR-coder/extensions)",
+    )
+    tool_scaffold_parser.add_argument(
+        "--description",
+        help="Short description for the tool",
+    )
+    tool_scaffold_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing files if they already exist",
+    )
+
+    profile_scaffold_parser = subparsers.add_parser(
+        "create-agent",
+        help="Scaffold a custom agent profile in the extensions directory",
+    )
+    profile_scaffold_parser.add_argument("name", help="Name for the agent/profile")
+    profile_scaffold_parser.add_argument(
+        "--root",
+        help="Target directory for extensions (defaults to ~/.EQUITR-coder/extensions)",
+    )
+    profile_scaffold_parser.add_argument(
+        "--description",
+        help="Short description for the agent profile",
+    )
+    profile_scaffold_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing files if they already exist",
+    )
+
+    mode_scaffold_parser = subparsers.add_parser(
+        "create-mode", help="Scaffold a custom execution mode"
+    )
+    mode_scaffold_parser.add_argument("name", help="Name for the mode")
+    mode_scaffold_parser.add_argument(
+        "--root",
+        help="Target directory for extensions (defaults to ~/.EQUITR-coder/extensions)",
+    )
+    mode_scaffold_parser.add_argument(
+        "--description",
+        help="Short description for the mode",
+    )
+    mode_scaffold_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing files if they already exist",
+    )
+
     # API command
     api_parser = subparsers.add_parser("api", help="Start API server")
     api_parser.add_argument("--host", default="localhost", help="Host to bind to")
@@ -130,6 +225,7 @@ async def run_single_agent(args) -> int:
 
         def on_iteration(iteration, status):
             print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
+            _print_context_usage(status)
 
         def on_tool_call(tool_data):
             if tool_data.get("success", True):
@@ -195,6 +291,7 @@ async def run_multi_agent(args) -> int:
 
         def on_iteration(iteration, status):
             print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
+            _print_context_usage(status)
 
         def on_tool_call(tool_data):
             if tool_data.get("success", True):
@@ -274,6 +371,7 @@ async def run_research(args) -> int:
 
         def on_iteration(iteration, status):
             print(f"🔄 Iteration {iteration}: Cost=${status.get('cost', 0):.4f}")
+            _print_context_usage(status)
 
         def on_tool_call(tool_data):
             if tool_data.get("success", True):
@@ -360,6 +458,80 @@ def run_api(args) -> int:
         return 1
     except Exception as e:
         print(f"❌ API Error: {e}")
+        return 1
+
+
+def run_init_extension(args) -> int:
+    """Initialize the extension workspace."""
+
+    try:
+        directories = scaffold.ensure_extension_structure(args.root)
+        print("✅ Extension workspace ready:")
+        for key, path in directories.items():
+            print(f"  - {key}: {path}")
+        return 0
+    except Exception as e:
+        print(f"❌ Extension init error: {e}")
+        return 1
+
+
+def run_create_tool(args) -> int:
+    """Create a custom tool skeleton."""
+
+    try:
+        path = scaffold.scaffold_tool(
+            args.name,
+            root=args.root,
+            description=args.description,
+            force=args.force,
+        )
+        print(f"✅ Created tool scaffold at {path}")
+        return 0
+    except ScaffoldError as e:
+        print(f"❌ {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Tool scaffold error: {e}")
+        return 1
+
+
+def run_create_agent(args) -> int:
+    """Create a custom agent/profile skeleton."""
+
+    try:
+        path = scaffold.scaffold_profile(
+            args.name,
+            root=args.root,
+            description=args.description,
+            force=args.force,
+        )
+        print(f"✅ Created agent profile at {path}")
+        return 0
+    except ScaffoldError as e:
+        print(f"❌ {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Agent scaffold error: {e}")
+        return 1
+
+
+def run_create_mode(args) -> int:
+    """Create a custom mode skeleton."""
+
+    try:
+        path = scaffold.scaffold_mode(
+            args.name,
+            root=args.root,
+            description=args.description,
+            force=args.force,
+        )
+        print(f"✅ Created mode scaffold at {path}")
+        return 0
+    except ScaffoldError as e:
+        print(f"❌ {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Mode scaffold error: {e}")
         return 1
 
 
@@ -488,6 +660,14 @@ def main() -> int:
             return run_tui(args)
         elif args.command == "api":
             return run_api(args)
+        elif args.command == "init-extension":
+            return run_init_extension(args)
+        elif args.command == "create-tool":
+            return run_create_tool(args)
+        elif args.command == "create-agent":
+            return run_create_agent(args)
+        elif args.command == "create-mode":
+            return run_create_mode(args)
         elif args.command == "tools":
             return run_tools(args)
         elif args.command == "models":

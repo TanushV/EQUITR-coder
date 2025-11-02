@@ -2,6 +2,22 @@
 
 This guide explains how to create custom execution modes for EQUITR Coder. All modes must follow the unified architecture to ensure consistency and feature parity.
 
+## Quick Start
+
+1. Initialise your extension workspace (if you have not already):
+   ```bash
+   equitrcoder init-extension
+   ```
+2. Scaffold a new mode:
+   ```bash
+   equitrcoder create-mode focus_mode --description "Runs targeted verification"
+   ```
+   This creates a template under `~/.EQUITR-coder/extensions/modes/focus_mode_mode.py`.
+3. From the TUI the command `/scaffold mode focus_mode` generates the same file.
+
+Edit the generated module to customise the orchestration logic, then reference the
+mode by name when launching EQUITR Coder.
+
 ## Core Architecture Requirements
 
 Every mode MUST implement these components:
@@ -15,6 +31,10 @@ Every mode MUST implement these components:
 ---
 
 ## 1. Basic Mode Structure
+
+> **Note:** When EQUITR Coder is installed via `pip`, place new modes in
+> `~/.EQUITR-coder/extensions/modes/`. The in-repo paths below remain valid for
+> contributors editing the source tree directly.
 
 ### File Organization
 

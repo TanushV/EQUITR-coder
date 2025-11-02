@@ -24,6 +24,33 @@ orchestrator:
   use_multi_agent: false
   max_iterations: 20
 
+profiles:
+  default: default
+  available:
+    - ml_researcher
+    - app_developer
+
+  settings:
+    profiles_directory: "equitrcoder/profiles"
+    allow_empty_additional_tools: true
+    profile_search_paths:
+      - "{project}/.equitr/profiles"
+      - "{home}/extensions/profiles"
+
+extensions:
+  tools:
+    - "{project}/.equitr/tools"
+    - "{home}/extensions/tools"
+  profiles:
+    - "{project}/.equitr/profiles"
+    - "{home}/extensions/profiles"
+  modes:
+    - "{project}/.equitr/modes"
+    - "{home}/extensions/modes"
+  mcp:
+    - "{project}/.equitr/mcp"
+    - "{home}/extensions/mcp"
+
 session:
   session_dir: "~/.equitr/sessions"
   max_context: 32000
@@ -129,7 +156,23 @@ repository:
   max_files: 1000            # Max files to index
 ```
 
-### 5. Git Configuration
+### 5. Extension Search Paths
+
+Extensions (custom tools, profiles, modes, and MCP connectors) are resolved by
+combining multiple directories in priority order:
+
+1. Environment overrides (`EQUITR_TOOLS_PATH`, `EQUITR_PROFILES_PATH`,
+   `EQUITR_MODES_PATH`, `EQUITR_MCP_PATH`)
+2. Global extension roots (`EQUITR_EXTENSIONS_DIR`)
+3. Project-local `.equitr/<kind>/` directories
+4. User workspace (`~/.EQUITR-coder/extensions/<kind>`)
+5. Packaged defaults bundled with EQUITR Coder
+
+Use the `extensions` section in `default.yaml` to add additional directories or
+change the order. This keeps package installs clean by moving customisations to
+user-accessible folders.
+
+### 6. Git Configuration
 
 ```yaml
 git:
@@ -154,6 +197,12 @@ export ANTHROPIC_API_KEY="sk-..."
 export EQUITR_CONFIG_PATH="/custom/path/config.yaml"
 export EQUITR_SESSION_DIR="/custom/sessions"
 export EQUITR_PROFILE="production"
+export EQUITR_HOME="/opt/equitr"
+export EQUITR_EXTENSIONS_DIR="/opt/equitr/extensions"
+export EQUITR_TOOLS_PATH="/project/.equitr/tools"
+export EQUITR_PROFILES_PATH="/project/.equitr/profiles"
+export EQUITR_MODES_PATH="/project/.equitr/modes"
+export EQUITR_MCP_PATH="/project/.equitr/mcp"
 
 # Model Configuration
 export EQUITR_MODEL="gpt-4o"

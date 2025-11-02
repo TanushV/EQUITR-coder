@@ -39,7 +39,7 @@ Quick Start:
     result = await coder.execute_task("Build an API", config)
 """
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 from typing import List, Optional
 
@@ -52,6 +52,11 @@ from .core.config import Config, config_manager
 
 # Core functionality
 from .core.session import SessionData, SessionManagerV2
+from .modes.loader import (
+    get_available_modes,
+    get_mode_callable,
+    mode_loader,
+)
 from .modes.multi_agent_mode import run_multi_agent_parallel, run_multi_agent_sequential
 from .modes.single_agent_mode import run_single_agent_mode
 
@@ -84,6 +89,9 @@ __all__ = [
     "run_single_agent_mode",
     "run_multi_agent_sequential",
     "run_multi_agent_parallel",
+    "mode_loader",
+    "get_available_modes",
+    "get_mode_callable",
     # Utilities
     "RestrictedFileSystem",
     # Core

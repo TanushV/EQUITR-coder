@@ -45,6 +45,8 @@ class MultiAgentMode:
         self.profile_manager = ProfileManager()
         self.system_prompts = self._load_system_prompts()
         self.global_cost = 0.0  # Track total cost across all agents and supervisor
+        self.agent_results: List[Dict[str, Any]] = []
+        self.context_usage: Dict[str, Dict[str, Any]] = {}
         self.start_time = datetime.now()
         print(
             f"🎭 Multi-Agent Mode ({'Parallel Phased' if run_parallel else 'Sequential Group'}): Auto-commit is {'ON' if self.auto_commit else 'OFF'}"
@@ -94,6 +96,8 @@ class MultiAgentMode:
                     "success": False,
                     "error": f"Documentation failed: {docs_result['error']}",
                     "stage": "planning",
+                    "agent_results": self.agent_results,
+                    "context_usage": {"by_agent": self.context_usage},
                 }
 
             # --- NEW GIT MANAGER INITIALIZATION ---
@@ -108,6 +112,8 @@ class MultiAgentMode:
             original_cwd = os.getcwd()
             os.chdir(project_path)
 
+            self.agent_results.clear()
+            self.context_usage.clear()
             phase_num = 1
             while not get_todo_manager().are_all_tasks_complete():
                 runnable_groups = get_todo_manager().get_next_runnable_groups()
@@ -143,6 +149,8 @@ class MultiAgentMode:
                         "error": f"A task in phase {phase_num} failed.",
                         "stage": "execution",
                         "cost": self.global_cost,
+                        "agent_results": self.agent_results,
+                        "context_usage": {"by_agent": self.context_usage},
                     }
 
                 # --- COMMIT AFTER EACH TASK GROUP ---
@@ -191,10 +199,17 @@ class MultiAgentMode:
                 "cost": self.global_cost,
                 "execution_time": total_seconds,
                 "final_audit": audit_result,
+                "agent_results": self.agent_results,
+                "context_usage": {"by_agent": self.context_usage},
             }
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {
+                "success": False,
+                "error": str(e),
+                "agent_results": self.agent_results,
+                "context_usage": {"by_agent": self.context_usage},
+            }
         finally:
             # Restore original working directory
             try:
@@ -297,6 +312,24 @@ class MultiAgentMode:
         start_time = datetime.now()
         result = await agent.run(group_task_desc, session_id=session_id)
         end_time = datetime.now()
+
+        self.agent_results.append(
+            {
+                "group_id": group.group_id,
+                "specialization": group.specialization,
+                "agent_id": agent_id,
+                "iterations": result.get("iterations"),
+                "cost": result.get("cost"),
+                "success": result.get("success"),
+                "context_usage_summary": result.get("context_usage_summary", {}),
+                "context_usage_history": list(result.get("context_usage_history", [])),
+                "execution_result": result.get("execution_result", {}),
+            }
+        )
+        self.context_usage[agent_id] = {
+            "history": list(result.get("context_usage_history", [])),
+            "summary": result.get("context_usage_summary", {}),
+        }
 
         # Log detailed agent completion with comprehensive metrics
         agent_cost = result.get("cost", 0.0)

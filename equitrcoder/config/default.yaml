@@ -55,3 +55,24 @@ profiles:
   available:
     - ml_researcher
     - app_developer
+
+  settings:
+    profiles_directory: "equitrcoder/profiles"
+    allow_empty_additional_tools: true
+    profile_search_paths:
+      - "{project}/.equitr/profiles"
+      - "{home}/extensions/profiles"
+
+extensions:
+  tools:
+    - "{project}/.equitr/tools"
+    - "{home}/extensions/tools"
+  profiles:
+    - "{project}/.equitr/profiles"
+    - "{home}/extensions/profiles"
+  modes:
+    - "{project}/.equitr/modes"
+    - "{home}/extensions/modes"
+  mcp:
+    - "{project}/.equitr/mcp"
+    - "{home}/extensions/mcp"

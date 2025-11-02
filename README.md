@@ -79,6 +79,15 @@ Troubleshooting:
     --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview \
     --workers 3 --max-cost 12 --team ml_researcher,data_engineer,experiment_runner
   ```
+- Extensions:
+
+  ```bash
+  equitrcoder init-extension
+  equitrcoder create-tool smoke_tester --description "Runs smoke tests"
+  equitrcoder create-mode focus_mode
+  ```
+  Templates are written to `~/.EQUITR-coder/extensions/` by default so your
+  site-packages install stays untouched.
 - Tools management:
 
   ```bash

@@ -57,6 +57,9 @@ class ConfigurationData:
     # Profile Configuration
     profiles: Dict[str, Any] = field(default_factory=dict)
 
+    # Extension search paths
+    extensions: Dict[str, Any] = field(default_factory=dict)
+
     # System Prompts
     prompts: Dict[str, Any] = field(default_factory=dict)
 
@@ -145,6 +148,29 @@ class UnifiedConfigManager(IConfigurable):
                     "worker_model": {"type": "string"},
                 },
             },
+            "profiles": {
+                "properties": {
+                    "settings": {
+                        "type": "object",
+                        "properties": {
+                            "profiles_directory": {"type": "string"},
+                            "allow_empty_additional_tools": {"type": "boolean"},
+                            "profile_search_paths": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                    }
+                }
+            },
+            "extensions": {
+                "properties": {
+                    "tools": {"type": "array", "items": {"type": "string"}},
+                    "profiles": {"type": "array", "items": {"type": "string"}},
+                    "modes": {"type": "array", "items": {"type": "string"}},
+                    "mcp": {"type": "array", "items": {"type": "string"}},
+                }
+            },
             "limits": {
                 "properties": {
                     "max_cost": {"type": "number", "minimum": 0},
@@ -194,6 +220,7 @@ class UnifiedConfigManager(IConfigurable):
                 repository=merged_config.get("repository", {}),
                 orchestrator=merged_config.get("orchestrator", {}),
                 profiles=configs["profiles"],
+                extensions=merged_config.get("extensions", {}),
                 prompts=configs["prompts"],
                 limits=self._extract_limits(merged_config),
                 logging=merged_config.get("logging", self._get_default_logging()),
@@ -444,6 +471,34 @@ class UnifiedConfigManager(IConfigurable):
         """Validate a single field against its schema"""
         field_type = schema.get("type")
 
+        if field_type is None:
+            return None
+
+        if field_type == "array":
+            if not isinstance(value, list):
+                return f"{field_path}: expected array, got {type(value).__name__}"
+            item_schema = schema.get("items")
+            if item_schema:
+                for idx, item in enumerate(value):
+                    item_error = self._validate_field(
+                        f"{field_path}[{idx}]", item, item_schema
+                    )
+                    if item_error:
+                        return item_error
+            return None
+        elif field_type == "object":
+            if not isinstance(value, dict):
+                return f"{field_path}: expected object, got {type(value).__name__}"
+            properties = schema.get("properties", {})
+            for key, subschema in properties.items():
+                if key in value:
+                    nested_error = self._validate_field(
+                        f"{field_path}.{key}", value[key], subschema
+                    )
+                    if nested_error:
+                        return nested_error
+            return None
+
         if field_type == "string" and not isinstance(value, str):
             return f"{field_path}: expected string, got {type(value).__name__}"
         elif field_type == "integer" and not isinstance(value, int):
@@ -522,6 +577,12 @@ class UnifiedConfigManager(IConfigurable):
                 "supervisor_model": "o3",
                 "worker_model": "moonshot/kimi-k2-0711-preview",
             },
+            extensions={
+                "tools": ["{home}/extensions/tools"],
+                "profiles": ["{home}/extensions/profiles"],
+                "modes": ["{home}/extensions/modes"],
+                "mcp": ["{home}/extensions/mcp"],
+            },
             limits={
                 "max_cost": 5.0,
                 "max_workers": 3,
@@ -576,6 +637,7 @@ class UnifiedConfigManager(IConfigurable):
             "repository": self._config_data.repository,
             "orchestrator": self._config_data.orchestrator,
             "profiles": self._config_data.profiles,
+            "extensions": self._config_data.extensions,
             "prompts": self._config_data.prompts,
             "limits": self._config_data.limits,
             "logging": self._config_data.logging,

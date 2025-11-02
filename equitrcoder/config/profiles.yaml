@@ -34,6 +34,9 @@ default_tools:
 settings:
   profiles_directory: "equitrcoder/profiles"
   allow_empty_additional_tools: true  # Profiles can have no additional tools
+  profile_search_paths:
+    - "{project}/.equitr/profiles"
+    - "{home}/extensions/profiles"
   
 metadata:
   version: "1.0"

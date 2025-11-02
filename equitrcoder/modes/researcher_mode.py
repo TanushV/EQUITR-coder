@@ -220,6 +220,8 @@ class ResearcherMode:
                             "error": f"A task in phase {phase_num} failed.",
                             "stage": "execution",
                             "cost": self.global_cost,
+                            "agent_results": ma.agent_results,
+                            "context_usage": {"by_agent": ma.context_usage},
                         }
 
                     # Commit after each group if enabled
@@ -261,6 +263,8 @@ class ResearcherMode:
                             "error": "Experiment execution phase failed.",
                             "stage": "experiments",
                             "cost": self.global_cost,
+                            "agent_results": ma.agent_results,
+                            "context_usage": {"by_agent": ma.context_usage},
                         }
                 else:
                     # If no explicit experiment group is runnable (e.g., empty plan), attempt a direct experiments run
@@ -275,6 +279,8 @@ class ResearcherMode:
                                 "error": f"Direct experiments run failed: {run_res.error}",
                                 "stage": "experiments",
                                 "cost": self.global_cost,
+                                "agent_results": ma.agent_results,
+                                "context_usage": {"by_agent": ma.context_usage},
                             }
                         # Try to generate a research report as a final artifact
                         try:
@@ -295,12 +301,16 @@ class ResearcherMode:
                             "error": f"Experiments fallback failed: {e}",
                             "stage": "experiments",
                             "cost": self.global_cost,
+                            "agent_results": ma.agent_results,
+                            "context_usage": {"by_agent": ma.context_usage},
                         }
 
                 final = {
                     "success": True,
                     "docs_result": docs_result,
                     "cost": self.global_cost,
+                    "agent_results": ma.agent_results,
+                    "context_usage": {"by_agent": ma.context_usage},
                 }
                 # Report path will be part of artifacts written by the experiment_runner task
                 # Final audit after phases (regardless of experiment outcomes)
@@ -340,7 +350,11 @@ class ResearcherMode:
                     pass
 
         except Exception as e:
-            return {"success": False, "error": str(e), "mode": "researcher"}
+            error_payload = {"success": False, "error": str(e), "mode": "researcher"}
+            if "ma" in locals():
+                error_payload["agent_results"] = ma.agent_results
+                error_payload["context_usage"] = {"by_agent": ma.context_usage}
+            return error_payload
 
     async def _collect_research_context(self, initial_task: str) -> Dict[str, Any]:
         """Interactive conversation to gather datasets, hardware, and experiments."""

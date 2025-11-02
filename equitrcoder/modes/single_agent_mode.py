@@ -2,7 +2,7 @@
 
 import os
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..core.clean_agent import CleanAgent
 from ..core.clean_orchestrator import CleanOrchestrator
@@ -31,6 +31,7 @@ class SingleAgentMode:
         self.max_iterations = max_iterations
         self.auto_commit = auto_commit  # <-- NEW PROPERTY
         self.system_prompts = self._load_system_prompts()
+        self.agent_runs: List[Dict[str, Any]] = []
         print(
             f"🎭 Single Agent Mode (Dependency-Aware): Auto-commit is {'ON' if self.auto_commit else 'OFF'}"
         )
@@ -117,8 +118,10 @@ class SingleAgentMode:
             # Change to project directory so tools work with correct relative paths
             os.chdir(project_path)
 
+            self.agent_runs.clear()
             total_cost = 0.0
             group_num = 1
+            last_agent_result: Optional[Dict[str, Any]] = None
             while not get_todo_manager().are_all_tasks_complete():
                 runnable_groups = get_todo_manager().get_next_runnable_groups()
                 if not runnable_groups:
@@ -158,6 +161,25 @@ class SingleAgentMode:
                 start_time = datetime.now()
                 agent_result = await agent.run(group_task_desc, session_id=session_id)
                 end_time = datetime.now()
+                last_agent_result = agent_result
+
+                self.agent_runs.append(
+                    {
+                        "group_id": group_to_run.group_id,
+                        "specialization": group_to_run.specialization,
+                        "agent_id": agent.agent_id,
+                        "iterations": agent_result.get("iterations"),
+                        "cost": agent_result.get("cost"),
+                        "success": agent_result.get("success"),
+                        "context_usage_summary": agent_result.get(
+                            "context_usage_summary", {}
+                        ),
+                        "context_usage_history": list(
+                            agent_result.get("context_usage_history", [])
+                        ),
+                        "execution_result": agent_result.get("execution_result", {}),
+                    }
+                )
 
                 # Log detailed group completion with comprehensive metrics
                 group_cost = agent_result.get("cost", 0.0)
@@ -236,10 +258,43 @@ class SingleAgentMode:
                 "docs_result": docs_result,
                 "cost": total_cost,
                 "final_audit": audit_result,
+                "execution_result": (
+                    last_agent_result.get("execution_result", {})
+                    if last_agent_result
+                    else {}
+                ),
+                "agent_runs": self.agent_runs,
+                "context_usage_history": [
+                    entry
+                    for run in self.agent_runs
+                    for entry in run.get("context_usage_history", [])
+                ],
+                "context_usage": {
+                    "by_group": {
+                        run["group_id"]: run.get("context_usage_summary", {})
+                        for run in self.agent_runs
+                        if run.get("context_usage_summary")
+                    },
+                    "latest": (
+                        last_agent_result.get("context_usage_summary", {})
+                        if last_agent_result
+                        else {}
+                    ),
+                },
             }
 
         except Exception as e:
-            return {"success": False, "error": str(e), "mode": "single_agent"}
+            return {
+                "success": False,
+                "error": str(e),
+                "mode": "single_agent",
+                "agent_runs": self.agent_runs,
+                "context_usage_history": [
+                    entry
+                    for run in self.agent_runs
+                    for entry in run.get("context_usage_history", [])
+                ],
+            }
         finally:
             # Restore original working directory
             try:

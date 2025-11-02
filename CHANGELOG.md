@@ -1,6 +1,131 @@
 # CHANGELOG
 
-## v2.2.0 (2025-08-08) - Production-Ready Architecture & Technical Debt Resolution
+## v2.4.0 (2025-11-02) - External Extension System & Pip-Friendly Customization
+
+### 🚀 Major Features
+
+#### External Extension System
+- **Extension Path Resolution**: Hierarchical discovery system for tools, profiles, modes, and MCP servers with environment variable and project-local overrides
+- **User Extension Workspace**: Automatic setup of `~/.EQUITR-coder/extensions/` directory for pip-installed customizations
+- **Scaffolding CLI**: New commands `init-extension`, `create-tool`, `create-agent`, `create-mode` for rapid extension development
+- **TUI Scaffolding**: Interactive `/scaffold` commands in the advanced TUI for extension creation
+- **Mode Loader**: Pluggable mode discovery supporting built-in, external, and module-spec modes
+
+### 🛠️ Core System Changes
+
+#### Extension Discovery Architecture
+- **Path Resolution**: `equitrcoder/utils/paths.py` provides centralized path management with precedence: environment overrides → project `.equitr/` → user home → packaged defaults
+- **Enhanced Tool Discovery**: `equitrcoder/tools/discovery.py` now scans extension directories for Python modules and packages
+- **Profile Manager Updates**: `equitrcoder/core/profile_manager.py` merges profiles from multiple sources with proper precedence
+- **Mode Registry**: New `equitrcoder/modes/loader.py` enables dynamic mode loading from external sources
+- **Configuration Schema**: Extended `default.yaml` and unified config to include extension search paths
+
+#### CLI & TUI Enhancements
+- **New CLI Commands**: `equitrcoder init-extension`, `create-tool`, `create-agent`, `create-mode` with template generation
+- **TUI Scaffold Commands**: `/scaffold init|tool|agent|mode` in advanced TUI with live feedback
+- **Extension Templates**: Ready-to-edit Python classes and YAML configurations with proper imports and structure
+
+### 📋 API Changes
+
+#### New Module Exports
+```python
+from equitrcoder import (
+    # New extension utilities
+    get_equitr_home,
+    get_extension_search_paths,
+    get_user_extensions_root,
+    scaffold_tool,
+    scaffold_profile,
+    scaffold_mode,
+    ScaffoldError,
+
+    # Enhanced mode system
+    mode_loader,
+    get_available_modes,
+    get_mode_callable,
+)
+```
+
+#### New CLI Commands
+```bash
+# Initialize extension workspace
+equitrcoder init-extension [--root PATH]
+
+# Create extension templates
+equitrcoder create-tool my_tool [--description "Tool description"]
+equitrcoder create-agent qa_specialist [--description "Agent profile"]
+equitrcoder create-mode custom_mode [--description "Execution mode"]
+```
+
+#### TUI Commands
+```bash
+# In advanced TUI
+/scaffold init
+/scaffold tool smoke_tester --force
+/scaffold agent qa_specialist "Responsible for regression testing"
+/scaffold mode focus_mode "Runs targeted verification"
+```
+
+### 🎯 Usage Examples
+
+#### Setting Up Extensions
+```bash
+# Initialize user extension workspace
+equitrcoder init-extension
+
+# Create a custom tool
+equitrcoder create-tool smoke_tester --description "Runs smoke tests"
+# Edit ~/.EQUITR-coder/extensions/tools/smoke_tester.py
+
+# Create a custom agent profile
+equitrcoder create-agent qa_specialist --description "Quality assurance specialist"
+# Edit ~/.EQUITR-coder/extensions/profiles/qa-specialist.yaml
+
+# Create a custom mode
+equitrcoder create-mode focus_mode --description "Targeted verification mode"
+# Edit ~/.EQUITR-coder/extensions/modes/focus_mode_mode.py
+```
+
+#### Environment Configuration
+```bash
+# Override extension locations
+export EQUITR_EXTENSIONS_DIR="/opt/equitr/extensions"
+export EQUITR_TOOLS_PATH="/project/tools"
+export EQUITR_PROFILES_PATH="/shared/profiles"
+```
+
+#### Project-Local Extensions
+```bash
+# Create .equitr/ in project root
+mkdir .equitr
+equitrcoder init-extension --root .equitr
+
+# Add to .gitignore
+echo ".equitr/" >> .gitignore
+```
+
+### 📚 Documentation Updates
+- **CONFIGURATION_GUIDE.md**: Added extension search paths section with environment variables
+- **ADDING_CUSTOM_TOOLS.md**: Updated with quick start guide and extension workflow
+- **CREATING_MODES.md**: Added extension creation guide and scaffolding instructions
+- **TUI_GUIDE.md**: Documented new `/scaffold` commands
+- **README.md**: Added extension examples and CLI reference
+
+### 🔧 Technical Improvements
+- **Pip-Friendly**: All customizations work with pip installations without modifying site-packages
+- **Hierarchical Discovery**: Multiple search paths with clear precedence rules
+- **Template Generation**: Consistent scaffolding with proper imports and error handling
+- **Dynamic Loading**: Runtime discovery of extensions without restarts
+- **Path Resolution**: Cross-platform path handling with environment variable expansion
+
+### 🚨 Compatibility Notes
+- **Backward Compatible**: Existing in-repo customizations continue to work
+- **Migration Path**: Existing custom tools/profiles can be moved to user extension directories
+- **No Breaking Changes**: All existing APIs remain functional
+
+---
+
+## v2.3.0 (2025-10-26) - Production-Ready Architecture & Technical Debt Resolution
 
 ### 🏗️ Major Architecture Improvements
 - **Unified Configuration Management**: Complete consolidation of all YAML configuration files with intelligent caching, schema validation, and hot-reloading capability

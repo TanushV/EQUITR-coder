@@ -1,43 +1,88 @@
-import os
+import copy
+import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 
-# from pathlib import Path  # Unused
+from ..utils.paths import get_extension_search_paths
 from .unified_config import get_config_manager
+
+logger = logging.getLogger(__name__)
 
 
 class ProfileManager:
     def __init__(self, profiles_dir: str = "equitrcoder/profiles"):
-        # Resolve profiles_dir relative to package root if a relative path was provided
-        from pathlib import Path as _Path
+        self._config_manager = get_config_manager()
+        base_dir = Path(__file__).resolve().parent.parent
+        manual_path = Path(profiles_dir)
+        if not manual_path.is_absolute():
+            manual_path = (
+                base_dir / (profiles_dir.replace("equitrcoder/", ""))
+            ).resolve()
 
-        base_dir = _Path(__file__).resolve().parent.parent  # equitrcoder/
-        p = _Path(profiles_dir)
-        if not p.is_absolute():
-            p = (base_dir / (profiles_dir.replace("equitrcoder/", ""))).resolve()
-        self.profiles_dir = str(p)
+        self.profile_dirs = self._build_profile_dirs(manual_path)
+        self.profiles_dir = (
+            str(self.profile_dirs[0]) if self.profile_dirs else str(manual_path)
+        )
         self.profiles = self._load_profiles()
         self.profiles_config = self._load_profiles_config()
         self.system_prompt_config = self._load_system_prompt_config()
         self.default_tools = self.profiles_config.get("default_tools", [])
 
+    def _build_profile_dirs(self, manual_path: Path) -> List[Path]:
+        config = self._config_manager.get_cached_config()
+        configured_paths: List[str] = []
+
+        if isinstance(config.extensions, dict):
+            configured_paths.extend(config.extensions.get("profiles", []) or [])
+
+        profiles_settings = {}
+        if isinstance(config.profiles, dict):
+            profiles_settings = config.profiles.get("settings", {}) or {}
+            configured_paths.extend(
+                profiles_settings.get("profile_search_paths", []) or []
+            )
+
+        extension_paths = get_extension_search_paths(
+            "profiles",
+            configured_paths=configured_paths,
+            project_root=Path.cwd(),
+        )
+
+        directories: List[Path] = []
+        if manual_path.exists() and not any(
+            manual_path.resolve() == p.resolve() for p in extension_paths
+        ):
+            directories.append(manual_path.resolve())
+
+        for path in extension_paths:
+            resolved = Path(path).resolve()
+            if resolved.exists() and resolved not in directories:
+                directories.append(resolved)
+
+        return directories
+
     def _load_profiles(self) -> Dict[str, Any]:
         """Load individual profile files from the profiles directory."""
         profiles = {}
-        for filename in os.listdir(self.profiles_dir):
-            if filename.endswith(".yaml") or filename.endswith(".yml"):
-                profile_name = os.path.splitext(filename)[0]
-                filepath = os.path.join(self.profiles_dir, filename)
+        for directory in self.profile_dirs:
+            if not directory.exists():
+                continue
+
+            yaml_files = list(directory.glob("*.yml")) + list(directory.glob("*.yaml"))
+            for filepath in sorted(yaml_files):
+                profile_name = filepath.stem
+                if profile_name in profiles:
+                    continue
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    profile_data = yaml.safe_load(f)
+                    profile_data = yaml.safe_load(f) or {}
                     profiles[profile_name] = profile_data
         return profiles
 
     def _load_profiles_config(self) -> Dict[str, Any]:
         """Load the profiles configuration from unified configuration."""
-        config_manager = get_config_manager()
-        config_data = config_manager.get_cached_config()
+        config_data = self._config_manager.get_cached_config()
 
         # Get profiles configuration from unified config
         profiles_config = config_data.profiles
@@ -72,17 +117,17 @@ class ProfileManager:
 
     def _load_system_prompt_config(self) -> Dict[str, Any]:
         """Load the system prompt configuration from unified configuration."""
-        config_manager = get_config_manager()
-        config_data = config_manager.get_cached_config()
+        config_data = self._config_manager.get_cached_config()
 
         # Get prompts configuration from unified config
         prompts_config = config_data.prompts
 
-        # Return with fallbacks
-        return (
-            prompts_config
-            if prompts_config
-            else {
+        merged_prompts: Dict[str, Any] = (
+            copy.deepcopy(prompts_config) if isinstance(prompts_config, dict) else {}
+        )
+
+        if not merged_prompts:
+            merged_prompts = {
                 "base_system_prompt": (
                     "You are {agent_id}, an AI coding agent powered by {model}.\n\n"
                     "Tools available: {available_tools}\n\n"
@@ -92,7 +137,30 @@ class ProfileManager:
                     "Current assignment and operating directives:\n{task_description}"
                 )
             }
-        )
+
+        for directory in reversed(self.profile_dirs):
+            for candidate_name in ("system_prompt.yaml", "system_prompt.yml"):
+                candidate = directory / candidate_name
+                if not candidate.exists():
+                    continue
+                try:
+                    with open(candidate, "r", encoding="utf-8") as handle:
+                        data = yaml.safe_load(handle) or {}
+                        if isinstance(data, dict):
+                            self._merge_dicts(merged_prompts, data)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to load system prompt override {candidate}: {exc}"
+                    )
+
+        return merged_prompts
+
+    def _merge_dicts(self, base: Dict[str, Any], override: Dict[str, Any]) -> None:
+        for key, value in override.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                self._merge_dicts(base[key], value)
+            else:
+                base[key] = value
 
     def get_default_tools(self) -> List[str]:
         """Get the default tools that all agents should have."""

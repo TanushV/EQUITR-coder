@@ -61,6 +61,16 @@ class CleanAgent:
         # Track detailed LLM interactions for programmatic access
         self.llm_responses: List[Dict[str, Any]] = []
         self.tool_call_history: List[Dict[str, Any]] = []
+        self.context_usage_history: List[Dict[str, Any]] = []
+        self._context_usage_snapshot: Optional[Dict[str, Any]] = None
+        try:
+            self.context_compression_threshold = float(
+                get_config("limits.context_compression_threshold", 0.75)
+            )
+            if not (0.0 < self.context_compression_threshold < 1.0):
+                self.context_compression_threshold = 0.75
+        except Exception:
+            self.context_compression_threshold = 0.75
 
         # Callbacks
         self.on_message_callback: Optional[Callable] = None
@@ -560,6 +570,9 @@ class CleanAgent:
                 "messages": self.messages,
                 "llm_responses": self.llm_responses,
                 "tool_calls": self.tool_call_history,
+                "context_usage_history": self.context_usage_history,
+                "context_usage_summary": self._build_context_usage_summary(),
+                "latest_context_usage": self._context_usage_snapshot,
             }
 
         except Exception as e:
@@ -569,14 +582,15 @@ class CleanAgent:
                 "agent_id": self.agent_id,
                 "cost": self.current_cost,
                 "iterations": self.iteration_count,
+                "context_usage_history": self.context_usage_history,
+                "latest_context_usage": self._context_usage_snapshot,
             }
 
     def _check_and_compress_context(self, messages: List[Message]) -> List[Message]:
-        """Check if context is >75% full and compress if needed, preserving MANDATORY context."""
+        """Track context usage and compress when exceeding configured threshold."""
         try:
             import tiktoken
 
-            # Get model max tokens (fallback to 4096 if get_max_tokens unavailable)
             try:
                 from litellm import get_max_tokens
 
@@ -584,21 +598,16 @@ class CleanAgent:
             except Exception:
                 model_max_tokens = 4096
 
-            # Count current tokens
             try:
                 encoding = tiktoken.get_encoding("cl100k_base")
             except Exception:
-                # Fallback to rough estimation
                 encoding = None
 
-            def count_tokens(text):
+            def count_tokens(text: str) -> int:
                 if encoding:
                     return len(encoding.encode(text))
-                else:
-                    # Rough estimation: ~4 chars per token
-                    return len(text) // 4
+                return len(text) // 4
 
-            # MANDATORY CONTEXT - These are IMMUNE to compression
             mandatory_context_keys = [
                 "repo_map",
                 "requirements_content",
@@ -608,23 +617,44 @@ class CleanAgent:
                 "task_name",
             ]
 
-            # Calculate tokens for MANDATORY context (never compressed)
             mandatory_context = {
                 k: v for k, v in self.context.items() if k in mandatory_context_keys
             }
             mandatory_tokens = count_tokens(json.dumps(mandatory_context))
 
-            # Calculate tokens for conversation messages (can be compressed)
-            conversation_tokens = 0
-            for msg in messages:
-                conversation_tokens += count_tokens(msg.content)
-
+            conversation_tokens = sum(count_tokens(msg.content) for msg in messages)
             total_tokens = mandatory_tokens + conversation_tokens
 
-            # Check if we're using >75% of context
-            usage_percentage = total_tokens / model_max_tokens
+            threshold = getattr(self, "context_compression_threshold", 0.75)
+            try:
+                threshold = float(threshold)
+            except Exception:
+                threshold = 0.75
+            if not (0.0 < threshold < 1.0):
+                threshold = 0.75
 
-            if usage_percentage > 0.75:
+            threshold_tokens = int(model_max_tokens * threshold)
+            usage_percentage = total_tokens / max(model_max_tokens, 1)
+            tokens_until_compression = max(0, threshold_tokens - total_tokens)
+
+            usage_info: Dict[str, Any] = {
+                "timestamp": datetime.now().isoformat(),
+                "model": self.model,
+                "agent_id": self.agent_id,
+                "model_max_tokens": model_max_tokens,
+                "compression_threshold": threshold,
+                "threshold_tokens": threshold_tokens,
+                "mandatory_tokens": mandatory_tokens,
+                "conversation_tokens": conversation_tokens,
+                "total_tokens": total_tokens,
+                "usage_percentage": usage_percentage,
+                "tokens_until_compression": tokens_until_compression,
+                "compression_triggered": False,
+            }
+
+            messages_to_return = messages
+
+            if usage_percentage > threshold:
                 print(f"🗜️ [{self.agent_id}] Context compression triggered:")
                 print(
                     f"   Total tokens: {total_tokens}/{model_max_tokens} ({usage_percentage:.1%})"
@@ -634,43 +664,42 @@ class CleanAgent:
                 )
                 print(f"   Conversation: {conversation_tokens} tokens (compressible)")
 
-                # CRITICAL: Only compress conversation messages, NEVER mandatory context
-                compressed_messages = []
+                compressed_messages: List[Message] = []
 
-                # 1. ALWAYS keep system message (contains MANDATORY context)
                 if messages and messages[0].role == "system":
-                    # Rebuild system message with MANDATORY context to ensure it's preserved
                     system_content = messages[0].content
-                    # Extract the part before context and rebuild with current mandatory context
                     if "Context provided:" in system_content:
                         base_system = system_content.split("Context provided:")[0]
-                        system_content = f"{base_system}Context provided:\n{json.dumps(mandatory_context, indent=2)}"
+                        system_content = (
+                            f"{base_system}Context provided:\n"
+                            f"{json.dumps(mandatory_context, indent=2)}"
+                        )
 
                     compressed_messages.append(
                         Message(role="system", content=system_content)
                     )
 
-                # 2. Keep only recent conversation messages (compressible part)
-                recent_messages = (
-                    messages[-8:] if len(messages) > 8 else messages[1:]
-                )  # Skip system message
+                recent_messages = messages[-8:] if len(messages) > 8 else messages[1:]
 
-                # 3. Add compression notice
-                if len(messages) > len(recent_messages) + 1:  # +1 for system message
+                if len(messages) > len(recent_messages) + 1:
                     compression_notice = Message(
                         role="system",
-                        content=f"[CONTEXT COMPRESSED: Keeping last {len(recent_messages)} conversation messages out of {len(messages)-1} total. MANDATORY context (repo map, requirements, design, todos, agent profile) is FULLY PRESERVED and IMMUNE to compression.]",
+                        content=(
+                            f"[CONTEXT COMPRESSED: Keeping last {len(recent_messages)} "
+                            f"conversation messages out of {len(messages)-1} total. "
+                            "MANDATORY context (repo map, requirements, design, todos, "
+                            "agent profile) is FULLY PRESERVED and IMMUNE to compression.]"
+                        ),
                     )
                     compressed_messages.append(compression_notice)
 
                 compressed_messages.extend(recent_messages)
 
-                # Calculate new token count
                 new_conversation_tokens = sum(
                     count_tokens(msg.content) for msg in compressed_messages
                 )
                 new_total_tokens = mandatory_tokens + new_conversation_tokens
-                new_usage_percentage = new_total_tokens / model_max_tokens
+                new_usage_percentage = new_total_tokens / max(model_max_tokens, 1)
 
                 print("   After compression:")
                 print(f"     Mandatory context: {mandatory_tokens} tokens (preserved)")
@@ -682,13 +711,86 @@ class CleanAgent:
                 )
                 print(f"     Saved: {total_tokens - new_total_tokens} tokens")
 
-                return compressed_messages
+                usage_info.update(
+                    {
+                        "compression_triggered": True,
+                        "post_conversation_tokens": new_conversation_tokens,
+                        "post_total_tokens": new_total_tokens,
+                        "post_usage_percentage": new_usage_percentage,
+                        "tokens_freed": total_tokens - new_total_tokens,
+                    }
+                )
+                tokens_until_compression = max(0, threshold_tokens - new_total_tokens)
+                usage_info["tokens_until_compression"] = tokens_until_compression
+                messages_to_return = compressed_messages
 
-            return messages
+            self._context_usage_snapshot = dict(usage_info)
+            self.context_usage_history.append(dict(usage_info))
+            if len(self.context_usage_history) > 1000:
+                self.context_usage_history = self.context_usage_history[-1000:]
+
+            return messages_to_return
 
         except Exception as e:
             print(f"⚠️ Context compression failed: {e}")
             return messages
+
+    def _log_context_usage(self, usage_info: Optional[Dict[str, Any]]) -> None:
+        if not usage_info:
+            return
+
+        try:
+            model_max_tokens = usage_info.get("model_max_tokens")
+            usage_pct = float(usage_info.get("usage_percentage", 0.0)) * 100
+            tokens_until = usage_info.get("tokens_until_compression")
+            threshold_pct = float(usage_info.get("compression_threshold", 0.75)) * 100
+
+            if usage_info.get("compression_triggered"):
+                post_pct = float(usage_info.get("post_usage_percentage", 0.0)) * 100
+                saved = usage_info.get("tokens_freed", 0)
+                post_total = usage_info.get("post_total_tokens")
+                print(
+                    "   Context usage: "
+                    f"{usage_pct:.1f}% of {model_max_tokens} tokens -> "
+                    f"compressed to {post_pct:.1f}% ({post_total} tokens, freed {saved} tokens)"
+                )
+            else:
+                print(
+                    "   Context usage: "
+                    f"{usage_pct:.1f}% of {model_max_tokens} tokens | "
+                    f"{tokens_until} tokens until {threshold_pct:.0f}% compression threshold"
+                )
+        except Exception:
+            # Logging should never break execution
+            pass
+
+    def _build_context_usage_summary(self) -> Dict[str, Any]:
+        if not self.context_usage_history:
+            return {}
+
+        compressions = sum(
+            1
+            for entry in self.context_usage_history
+            if entry.get("compression_triggered")
+        )
+        peak_usage = max(
+            float(entry.get("usage_percentage", 0.0))
+            for entry in self.context_usage_history
+        )
+        last_entry = self.context_usage_history[-1]
+        return {
+            "total_entries": len(self.context_usage_history),
+            "compression_events": compressions,
+            "peak_usage_percentage": round(peak_usage * 100, 2),
+            "last_usage_percentage": round(
+                float(last_entry.get("usage_percentage", 0.0)) * 100, 2
+            ),
+            "last_tokens_until_compression": last_entry.get("tokens_until_compression"),
+            "model_max_tokens": last_entry.get("model_max_tokens"),
+            "compression_threshold_percentage": round(
+                float(last_entry.get("compression_threshold", 0.75)) * 100, 2
+            ),
+        }
 
     async def _execution_loop(self) -> Dict[str, Any]:
         """Main execution loop - runs until todos are completed or limits reached."""
@@ -716,20 +818,24 @@ class CleanAgent:
                     "final_message": "Cost limit reached",
                 }
 
+            messages = self._check_and_compress_context(messages)
+            context_usage_snapshot = (
+                dict(self._context_usage_snapshot)
+                if self._context_usage_snapshot
+                else None
+            )
+
             if self.on_iteration_callback:
-                self.on_iteration_callback(
-                    iteration,
-                    {
-                        "cost": self.current_cost,
-                        "max_cost": self.max_cost,
-                        "can_continue": True,
-                    },
-                )
+                status_payload = {
+                    "cost": self.current_cost,
+                    "max_cost": self.max_cost,
+                    "can_continue": True,
+                }
+                if context_usage_snapshot:
+                    status_payload["context_usage"] = context_usage_snapshot
+                self.on_iteration_callback(iteration, status_payload)
 
             try:
-                # Check and compress context if needed before LLM call
-                messages = self._check_and_compress_context(messages)
-
                 # Call LLM
                 response = await self.provider.chat(
                     messages=messages, tools=tool_schemas if tool_schemas else None
@@ -748,6 +854,8 @@ class CleanAgent:
                     "usage": getattr(response, "usage", {}),
                     "cost": getattr(response, "cost", 0.0),
                 }
+                if context_usage_snapshot:
+                    llm_response_data["context_usage"] = context_usage_snapshot
                 self.llm_responses.append(llm_response_data)
 
                 # Update cost
@@ -770,6 +878,7 @@ class CleanAgent:
                     f"   Cost (this step): ${getattr(response, 'cost', 0.0):.6f} | Agent total: ${self.current_cost:.6f} | Overall total: ${overall_total:.6f}"
                 )
                 print(f"   Usage: {getattr(response, 'usage', {})}")
+                self._log_context_usage(context_usage_snapshot)
 
                 if response.content:
                     print("   Assistant Content (full):")

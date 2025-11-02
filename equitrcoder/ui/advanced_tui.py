@@ -49,6 +49,7 @@ from ..programmatic import (
     create_single_agent_coder,
 )
 from ..tools.builtin.todo import get_todo_manager
+from ..utils import ScaffoldError, scaffold
 
 config_manager = _get_cm()
 TEXTUAL_AVAILABLE = True
@@ -1114,6 +1115,110 @@ class EquitrTUI(App):
                         main_window.add_status_update(f"Failed to pause: {e}", "error")
                 return
             self.show_help()
+            return
+        if cmd == "scaffold":
+            if not args:
+                if main_window:
+                    main_window.add_status_update(
+                        "Usage: /scaffold [init|tool|agent|mode] <name> [description] [--root PATH] [--force]",
+                        "warning",
+                    )
+                return
+
+            subcommand = args[0].lower()
+            option_tokens = args[1:]
+            parsed_args: List[str] = []
+            root_override: Optional[str] = None
+            force_override = False
+
+            option_iter = iter(option_tokens)
+            for token in option_iter:
+                if token == "--force":
+                    force_override = True
+                elif token == "--root":
+                    try:
+                        root_override = next(option_iter)
+                    except StopIteration:
+                        if main_window:
+                            main_window.add_status_update(
+                                "--root option requires a path", "error"
+                            )
+                        return
+                else:
+                    parsed_args.append(token)
+
+            try:
+                if subcommand == "init":
+                    directories = scaffold.ensure_extension_structure(root_override)
+                    if main_window:
+                        main_window.add_status_update(
+                            f"Extension workspace ready at {directories['root']}",
+                            "success",
+                        )
+                    return
+
+                if subcommand == "tool":
+                    if not parsed_args:
+                        raise ScaffoldError("Tool name is required")
+                    name = parsed_args[0]
+                    description_text = " ".join(parsed_args[1:]) or None
+                    path = scaffold.scaffold_tool(
+                        name,
+                        root=root_override,
+                        description=description_text,
+                        force=force_override,
+                    )
+                    if main_window:
+                        main_window.add_status_update(
+                            f"Created tool scaffold at {path}", "success"
+                        )
+                    return
+
+                if subcommand == "agent":
+                    if not parsed_args:
+                        raise ScaffoldError("Agent name is required")
+                    name = parsed_args[0]
+                    description_text = " ".join(parsed_args[1:]) or None
+                    path = scaffold.scaffold_profile(
+                        name,
+                        root=root_override,
+                        description=description_text,
+                        force=force_override,
+                    )
+                    if main_window:
+                        main_window.add_status_update(
+                            f"Created agent profile at {path}", "success"
+                        )
+                    return
+
+                if subcommand == "mode":
+                    if not parsed_args:
+                        raise ScaffoldError("Mode name is required")
+                    name = parsed_args[0]
+                    description_text = " ".join(parsed_args[1:]) or None
+                    path = scaffold.scaffold_mode(
+                        name,
+                        root=root_override,
+                        description=description_text,
+                        force=force_override,
+                    )
+                    if main_window:
+                        main_window.add_status_update(
+                            f"Created mode scaffold at {path}", "success"
+                        )
+                    return
+
+                if main_window:
+                    main_window.add_status_update(
+                        "Supported scaffold commands: init, tool, agent, mode",
+                        "warning",
+                    )
+            except ScaffoldError as exc:
+                if main_window:
+                    main_window.add_status_update(str(exc), "error")
+            except Exception as exc:
+                if main_window:
+                    main_window.add_status_update(f"Scaffold error: {exc}", "error")
             return
         if cmd == "tasks":
             if not args:

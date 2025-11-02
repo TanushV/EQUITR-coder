@@ -34,6 +34,18 @@ The advanced TUI provides an interactive interface for running single, multi-age
 /set mode multi-parallel
 ```
 
+### Extension Scaffolding Commands
+```
+/scaffold init
+/scaffold tool smoke_tester --force
+/scaffold agent qa_specialist Responsible for regression testing
+/scaffold mode focus_mode Runs targeted verification passes
+```
+- `init` ensures the extension workspace exists (defaults to `~/.EQUITR-coder/extensions/`).
+- `tool`, `agent`, and `mode` create ready-to-edit templates respecting the same
+  directory layout as the new CLI commands (`equitrcoder create-tool`, etc.).
+- Use `--root <path>` to target a specific project and `--force` to overwrite files.
+
 ### Execution Logs
 ```
 [USER] Create a minimal Mario-style platformer using Pygame

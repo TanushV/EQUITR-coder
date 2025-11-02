@@ -11,6 +11,24 @@ EQUITR Coder has three types of tools:
 
 Custom tools are automatically discovered and made available to agents based on their profiles.
 
+## Quick Start
+
+1. Initialise your extension workspace (only once):
+   ```bash
+   equitrcoder init-extension
+   ```
+2. Scaffold a new tool skeleton:
+   ```bash
+   equitrcoder create-tool my_custom_tool --description "Runs smoke tests"
+   ```
+   The template is written to `~/.EQUITR-coder/extensions/tools/my_custom_tool.py`.
+3. Alternatively, from the TUI run `/scaffold tool my_custom_tool`.
+
+The generated file contains a ready-to-edit class with the correct imports and
+metadata. Any Python files placed in `~/.EQUITR-coder/extensions/tools/` (or the
+project-local `.equitr/tools/` directory) are discovered automatically the next
+time EQUITR Coder runs.
+
 ### MCP Tools via JSON-configured servers
 
 You can add external MCP servers without writing Python code by adding them to the MCP JSON config (see MCP Integration Guide). Each server becomes a tool `mcp:<serverName>` that forwards calls to the server's tools.
@@ -19,6 +37,10 @@ You can add external MCP servers without writing Python code by adding them to t
 ---
 
 ## 1. Tool Structure
+
+> **Note:** When EQUITR Coder is installed via `pip`, place new tools in
+> `~/.EQUITR-coder/extensions/tools/`. The in-repo path (`equitrcoder/tools/custom/`)
+> shown below is still valid for contributors working directly from the source tree.
 
 ### Basic Tool Template
 

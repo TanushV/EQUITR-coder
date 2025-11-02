@@ -78,6 +78,7 @@ class ExecutionResult:
     conversation_history: Optional[List[dict]] = None
     tool_call_history: Optional[List[dict]] = None
     llm_responses: Optional[List[dict]] = None
+    context_usage: Optional[Dict[str, Any]] = None
 
 
 class EquitrCoder:
@@ -226,6 +227,18 @@ class EquitrCoder:
                 if isinstance(result_data.get("execution_result"), dict)
                 else {}
             )
+            context_usage_payload = result_data.get("context_usage")
+            if context_usage_payload is not None and not isinstance(
+                context_usage_payload, dict
+            ):
+                context_usage_payload = None
+            context_usage_payload = dict(context_usage_payload or {})
+            if result_data.get("context_usage_history") is not None:
+                context_usage_payload.setdefault(
+                    "history", result_data.get("context_usage_history")
+                )
+            if not context_usage_payload:
+                context_usage_payload = None
             return ExecutionResult(
                 success=result_data.get("success", False),
                 content=str(result_data),
@@ -239,6 +252,7 @@ class EquitrCoder:
                 conversation_history=exec_result.get("messages", []),
                 tool_call_history=exec_result.get("tool_calls", []),
                 llm_responses=exec_result.get("llm_responses", []),
+                context_usage=context_usage_payload,
             )
         except Exception as e:
             return ExecutionResult(
@@ -345,6 +359,22 @@ class EquitrCoder:
             conversation_history = None
             tool_call_history = None
             llm_responses = None
+            context_usage_payload = result_data.get("context_usage")
+            if context_usage_payload is not None and not isinstance(
+                context_usage_payload, dict
+            ):
+                context_usage_payload = None
+            context_usage_payload = dict(context_usage_payload or {})
+            if result_data.get("context_usage_history") is not None:
+                context_usage_payload.setdefault(
+                    "history", result_data.get("context_usage_history")
+                )
+            if result_data.get("agent_results") is not None:
+                context_usage_payload.setdefault(
+                    "agent_results", result_data.get("agent_results")
+                )
+            if not context_usage_payload:
+                context_usage_payload = None
             return ExecutionResult(
                 success=result_data.get("success", False),
                 content=str(result_data),
@@ -361,6 +391,7 @@ class EquitrCoder:
                 conversation_history=conversation_history,
                 tool_call_history=tool_call_history,
                 llm_responses=llm_responses,
+                context_usage=context_usage_payload,
             )
         except Exception as e:
             return ExecutionResult(
