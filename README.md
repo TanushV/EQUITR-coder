@@ -5,8 +5,9 @@ Modular AI coding assistant supporting single and multi-agent workflows and an M
 ## Quick Start
 
 - Install (latest from PyPI):
+
   ```bash
-pip install equitrcoder
+  pip install equitrcoder
   ```
 - Optional extras:
   - API server: `pip install "equitrcoder[api]"`
@@ -33,8 +34,9 @@ export OPENROUTER_API_KEY=...
 ## TUI (Interactive)
 
 - Launch TUI:
+
   ```bash
-equitrcoder tui
+  equitrcoder tui
   ```
 - Startup screen: pick Supervisor, Worker, Mode, and enter your first task
 - Chat commands (slash-only):
@@ -52,36 +54,42 @@ Troubleshooting:
 ## CLI
 
 - Single:
+
   ```bash
-equitrcoder single "Build a small API" --model moonshot/kimi-k2-0711-preview
+  equitrcoder single "Build a small API" --model moonshot/kimi-k2-0711-preview
   ```
 - Multi (parallel phases):
+
   ```bash
-equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
-  --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
-  --team backend_dev,frontend_dev,qa_engineer
+  equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
+    --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
+    --team backend_dev,frontend_dev,qa_engineer
   ```
 - Multi (sequential execution):
+
   ```bash
-equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
-  --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
-  --team backend_dev,frontend_dev,qa_engineer --execution-mode sequential
+  equitrcoder multi "Ship a feature" --supervisor-model moonshot/kimi-k2-0711-preview \
+    --worker-model moonshot/kimi-k2-0711-preview --workers 3 --max-cost 15 \
+    --team backend_dev,frontend_dev,qa_engineer --execution-mode sequential
   ```
 - Research (ML only):
+
   ```bash
-equitrcoder research "Evaluate model X on dataset Y" \
-  --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview \
-  --workers 3 --max-cost 12 --team ml_researcher,data_engineer,experiment_runner
+  equitrcoder research "Evaluate model X on dataset Y" \
+    --supervisor-model moonshot/kimi-k2-0711-preview --worker-model moonshot/kimi-k2-0711-preview \
+    --workers 3 --max-cost 12 --team ml_researcher,data_engineer,experiment_runner
   ```
 - Tools management:
+
   ```bash
-equitrcoder tools --list              # List all available tools
-equitrcoder tools --discover          # Discover and register tools
+  equitrcoder tools --list              # List all available tools
+  equitrcoder tools --discover          # Discover and register tools
   ```
 - Models listing:
+
   ```bash
-equitrcoder models                    # List all available AI models
-equitrcoder models --provider openai  # Filter by provider
+  equitrcoder models                    # List all available AI models
+  equitrcoder models --provider openai  # Filter by provider
   ```
 
 ## Programmatic Usage
@@ -100,8 +108,9 @@ print(result.success, result.cost, result.iterations)
 ## API Server
 
 - Start server (requires extras):
+
   ```bash
-equitrcoder api --host 0.0.0.0 --port 8000
+  equitrcoder api --host 0.0.0.0 --port 8000
   ```
 - Endpoints:
   - `GET /` root
@@ -156,9 +165,9 @@ See `docs/AUDIT_SYSTEM.md` for complete documentation.
 
 - Enable MCP by installing the Python SDK:
 
-```bash
-pip install modelcontextprotocol
-```
+  ```bash
+  pip install modelcontextprotocol
+  ```
 
 - Declare servers in `~/.EQUITR-coder/mcp_servers.json` or set `EQUITR_MCP_SERVERS`.
 Each server appears as a tool `mcp:<serverName>` that forwards to the remote tools.
