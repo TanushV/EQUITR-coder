@@ -1,13 +1,13 @@
 # This file remaps contributor names/emails for git shortlog and blame views.
 # It does not rewrite history. For permanent rewrites, use git filter-repo.
 
-# Remap any commits attributed to 'Claude' to a neutral project identity.
+# Remap any commits attributed to 'Claude' to the primary maintainer identity.
 # Add the actual email(s) if known for precise mapping.
 # Format examples:
 # Proper Name <proper@email> Commit Name <commit@email>
 # Proper Name Commit Name
 
-EQUITR AI Agent Claude
-EQUITR AI Agent Claude Code
+TanushV <87838540+TanushV@users.noreply.github.com> Claude
+TanushV <87838540+TanushV@users.noreply.github.com> Claude Code
 
 

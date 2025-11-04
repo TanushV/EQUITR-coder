@@ -76,7 +76,21 @@ from .tools.discovery import discover_tools
 
 # Git Management
 # Utility classes
-from .utils import GitManager, RestrictedFileSystem, create_git_manager
+from .utils import (
+    GitManager,
+    RestrictedFileSystem,
+    ScaffoldError,
+    create_git_manager,
+    ensure_extension_structure,
+    get_equitr_home,
+    get_extension_search_paths,
+    get_project_config_dir,
+    get_user_extensions_root,
+    resolve_extension_root,
+    scaffold_mode,
+    scaffold_profile,
+    scaffold_tool,
+)
 
 __all__ = [
     # Version
@@ -113,6 +127,17 @@ __all__ = [
     # Git Management
     "GitManager",
     "create_git_manager",
+    # Extension utilities
+    "get_equitr_home",
+    "get_project_config_dir",
+    "get_user_extensions_root",
+    "get_extension_search_paths",
+    "ensure_extension_structure",
+    "resolve_extension_root",
+    "scaffold_tool",
+    "scaffold_profile",
+    "scaffold_mode",
+    "ScaffoldError",
 ]
 
 

@@ -8,6 +8,7 @@ import importlib.util
 import logging
 import pkgutil
 import sys
+import types
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional
@@ -164,6 +165,7 @@ class ModeLoader:
             "modes",
             configured_paths=path_templates,
             project_root=Path.cwd(),
+            include_package_defaults=False,
         ):
             candidate = Path(path)
             if not candidate.exists():
@@ -275,6 +277,7 @@ class ModeLoader:
         if module_name in self._loaded_modules:
             return sys.modules.get(module_name)
 
+        self._ensure_parent_packages(module_name)
         spec = importlib.util.spec_from_file_location(
             module_name,
             file_path,
@@ -288,12 +291,38 @@ class ModeLoader:
         try:
             sys.modules[module_name] = module
             spec.loader.exec_module(module)  # type: ignore[union-attr]
+            self._link_parent_child(module_name, module)
             self._loaded_modules.add(module_name)
             return module
         except Exception as exc:
             logger.warning("Failed to load mode module %s: %s", file_path, exc)
             sys.modules.pop(module_name, None)
             return None
+
+    def _ensure_parent_packages(self, module_name: str) -> None:
+        parts = module_name.split(".")
+        for idx in range(1, len(parts)):
+            parent_name = ".".join(parts[:idx])
+            parent_module = sys.modules.get(parent_name)
+            if parent_module is None:
+                parent_module = types.ModuleType(parent_name)
+                parent_module.__path__ = []  # type: ignore[attr-defined]
+                sys.modules[parent_name] = parent_module
+            if idx > 1:
+                grand_name = ".".join(parts[: idx - 1])
+                grand_module = sys.modules.get(grand_name)
+                if grand_module is not None and not hasattr(
+                    grand_module, parts[idx - 1]
+                ):
+                    setattr(grand_module, parts[idx - 1], parent_module)
+
+    def _link_parent_child(self, module_name: str, module: Any) -> None:
+        if "." not in module_name:
+            return
+        parent_name, _, child_name = module_name.rpartition(".")
+        parent_module = sys.modules.get(parent_name)
+        if parent_module is not None:
+            setattr(parent_module, child_name, module)
 
 
 # Global loader instance
